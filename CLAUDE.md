@@ -37,7 +37,7 @@ npm run preview
 
 The frontend is organized by features with each feature containing:
 
-### Modules Structure (`src/modules/{module}`)
+### Modules Structure (`modules/{module}`)
 
 - **api**(`api/`): API services, mappers, models
   - **services**(`services/`): API calls for module (files: `*.service.ts`)
@@ -50,11 +50,11 @@ The frontend is organized by features with each feature containing:
 - **constants**(`constants/`): Constant values and configurations (e.g., API endpoints, files: `*.constants.ts`)
 - **views**(`views/`): Page components and routing
 
-### Shared Module Structure (`src/modules/shared`)
+### Shared Module Structure (`modules/shared`)
 
 **Shared**: Common code used across multiple modules (e.g., auth, core, ui components) with module structure similar to other modules.
 
-### Feature Structure (`src/modules/{module}/pods/{feature}`)
+### Feature Structure (`modules/{module}/pods/{feature}`)
 
 - **[pod].container.tsx** : Server Component (data fetching)
 - **[pod].component.tsx**: Client Component (UI interactions)

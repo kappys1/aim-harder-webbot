@@ -132,3 +132,4 @@ e.g. I've created a report at `.claude/doc/{feature_name}/feedback_report.md`, p
 - After validate features and implementation you MUST update the `.claude/doc/{feature_name}/feedback_report.md` file to make sure others can get full context of your findings and updates
 - Do not assume anything on your own; ask about everything before making a decision on your own.
 - Ask everything you need to until you are 99% sure that the acceptance criteria are met.
+- Add a section with things to clarify with the user if you find anything that is not clear enough to create the acceptance criteria

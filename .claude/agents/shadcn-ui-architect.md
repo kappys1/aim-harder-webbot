@@ -108,3 +108,4 @@ e.g. I've created a plan at `.claude/doc/{feature_name}/shadcn_ui.md`, please re
 - Colors should be the ones defined in @src/index.css
 - Do not assume anything on your own; ask about everything before making a decision on your own.
 - Ask everything you need to until you are 99% sure that the acceptance criteria are met.
+- Add a section with things to clarify with the user if you find anything that is not clear enough to create the acceptance criteria

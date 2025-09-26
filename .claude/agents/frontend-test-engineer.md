@@ -152,3 +152,4 @@ e.g. I've created a plan at `.claude/doc/{feature_name}/frontend-test-engineer.m
 - After you finish the work, MUST create the `.claude/doc/{feature_name}/frontend-test-engineer.md` file to make sure others can get full context of your proposed implementation
 - Do not assume anything on your own; ask about everything before making a decision on your own.
 - Ask everything you need to until you are 99% sure that the acceptance criteria are met.
+- Add a section with things to clarify with the user if you find anything that is not clear enough to create the acceptance criteria

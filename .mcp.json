@@ -17,13 +17,8 @@
       "args": ["concurrent-browser-mcp", "--max-instances", "20"]
     },
     "shadcn": {
-      "description": "",
-      "type": "stdio",
       "command": "npx",
-      "args": ["shadcn@latest", "mcp"],
-      "env": {
-        "REGISTRY_URL": "https://alpine-registry.vercel.app/r/registry.json"
-      }
+      "args": ["shadcn@latest", "mcp"]
     }
   }
 }
