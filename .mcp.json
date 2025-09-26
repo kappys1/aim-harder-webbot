@@ -1,0 +1,29 @@
+{
+  "mcpServers": {
+    "context7": {
+      "command": "npx",
+      "args": ["-y", "@upstash/context7-mcp@latest"]
+    },
+    "sequential-thinking": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"]
+    },
+    "playwright": {
+      "command": "npx",
+      "args": ["@playwright/mcp@latest"]
+    },
+    "concurrent-browser": {
+      "command": "npx",
+      "args": ["concurrent-browser-mcp", "--max-instances", "20"]
+    },
+    "shadcn": {
+      "description": "",
+      "type": "stdio",
+      "command": "npx",
+      "args": ["shadcn@latest", "mcp"],
+      "env": {
+        "REGISTRY_URL": "https://alpine-registry.vercel.app/r/registry.json"
+      }
+    }
+  }
+}
