@@ -9,6 +9,9 @@ export interface SessionData {
   tokenData?: TokenData
   createdAt: string
   updatedAt?: string
+  lastRefreshDate?: string
+  refreshCount?: number
+  lastRefreshError?: string
 }
 
 export interface SessionRow {
@@ -73,7 +76,10 @@ export class SupabaseSessionService {
         token: sessionRow.aimharder_token,
         cookies: sessionRow.aimharder_cookies.map(c => ({ name: c.name, value: c.value })),
         createdAt: sessionRow.created_at,
-        updatedAt: sessionRow.updated_at
+        updatedAt: sessionRow.updated_at,
+        lastRefreshDate: (sessionRow as any).last_refresh_date,
+        refreshCount: (sessionRow as any).refresh_count,
+        lastRefreshError: (sessionRow as any).last_refresh_error
       }
     } catch (error) {
       console.error('Session retrieval error:', error)
@@ -234,6 +240,93 @@ export class SupabaseSessionService {
     } catch (error) {
       console.error('Session stats error:', error)
       return { total: 0, active: 0, expired: 0 }
+    }
+  }
+
+  // Refresh tracking methods
+  static async updateRefreshData(email: string, success: boolean, error?: string): Promise<void> {
+    try {
+      // Get current session to increment refresh count
+      const session = await this.getSession(email)
+      if (!session) return
+
+      const updateData: any = {
+        last_refresh_date: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }
+
+      if (success) {
+        updateData.refresh_count = (session.refreshCount || 0) + 1
+        updateData.last_refresh_error = null
+      } else {
+        updateData.last_refresh_error = error
+      }
+
+      const { error: updateError } = await supabaseAdmin
+        .from('auth_sessions')
+        .update(updateData)
+        .eq('user_email', email)
+
+      if (updateError) {
+        console.error('Refresh data update error:', updateError)
+        throw new Error(`Failed to update refresh data: ${updateError.message}`)
+      }
+    } catch (error) {
+      console.error('Refresh data update error:', error)
+      throw error
+    }
+  }
+
+  static async getSessionsNeedingRefresh(hoursThreshold: number = 24): Promise<SessionData[]> {
+    try {
+      const thresholdDate = new Date()
+      thresholdDate.setHours(thresholdDate.getHours() - hoursThreshold)
+
+      const { data, error } = await supabaseAdmin
+        .from('auth_sessions')
+        .select('*')
+        .eq('auto_refresh_enabled', true)
+        .or(`last_refresh_date.is.null,last_refresh_date.lt.${thresholdDate.toISOString()}`)
+
+      if (error) {
+        console.error('Sessions needing refresh retrieval error:', error)
+        throw new Error(`Failed to retrieve sessions needing refresh: ${error.message}`)
+      }
+
+      return (data as any[]).map(row => ({
+        email: row.user_email,
+        token: row.aimharder_token,
+        cookies: row.aimharder_cookies.map((c: any) => ({ name: c.name, value: c.value })),
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+        lastRefreshDate: row.last_refresh_date,
+        refreshCount: row.refresh_count,
+        lastRefreshError: row.last_refresh_error
+      }))
+    } catch (error) {
+      console.error('Sessions needing refresh retrieval error:', error)
+      return []
+    }
+  }
+
+  static async needsRefresh(email: string, hoursThreshold: number = 24): Promise<boolean> {
+    try {
+      const session = await this.getSession(email)
+      if (!session) return false
+
+      if (!session.lastRefreshDate) {
+        // Check if created more than threshold hours ago
+        const createdAt = new Date(session.createdAt)
+        const hoursOld = (Date.now() - createdAt.getTime()) / (1000 * 60 * 60)
+        return hoursOld > hoursThreshold
+      }
+
+      const lastRefresh = new Date(session.lastRefreshDate)
+      const hoursSinceRefresh = (Date.now() - lastRefresh.getTime()) / (1000 * 60 * 60)
+      return hoursSinceRefresh > hoursThreshold
+    } catch (error) {
+      console.error('Refresh check error:', error)
+      return false
     }
   }
 }
