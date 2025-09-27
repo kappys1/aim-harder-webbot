@@ -3,11 +3,7 @@
 import { DumbbellIcon } from "lucide-react"
 import { LoginForm } from "./components/login-form"
 
-interface LoginComponentProps {
-  // oauthProviders?: OAuthProvider[]
-}
-
-export function LoginComponent({ }: LoginComponentProps) {
+export function LoginComponent() {
   return (
     <div className="grid min-h-svh lg:grid-cols-2">
       {/* Form Section - Mobile First */}

@@ -8,7 +8,7 @@ This is a full-stack ecommerce application with a FastAPI backend implementing h
 
 ### Tech Stack
 
-- **Frontend**: NextJs, TypeScript, Vite, TailwindCSS, Radix UI, ShadcnUI, React Query, React Router
+- **Frontend**: NextJs, TypeScript, Vite, TailwindCSS, Radix UI, ShadcnUI, React Query, React Router y pnpm
 - **Database**: Supabase
 - **Architecture**: Feature-based architecture for frontend with screaming architecture principles;
 
@@ -140,7 +140,8 @@ The frontend is organized by features with each feature containing:
 - Before you do any work, MUST view files in `.claude/sessions/context_session_{feature_name}.md` file to get the full context and call frontend-test-engineer subagent to create test cases for the feature in TDD mode.
 - Before you do any work, MUST view files in `.claude/sessions/context_session_{feature_name}.md` file to get the full context (x being the id of the session we are operate)
 - `.claude/sessions/context_session_{feature_name}.md` should contain most of context of what we did, overall plan, and sub agents will continusly add context to the file
-- After you finish the each phase, MUST update the `.claude/sessions/context_session_{feature_name}.md` file to make sure others can get full context of what you did
+- After you finish the each phase, MUST update the `.claude/sessions/context_session_{feature_name}.md` file to make sure others can get full context of what you did.
+- During the implementation phase you MUST update the `.claude/sessions/context_session_{feature_name}.md` file with the progress of the implementation
 - After you finish the work, MUST update the `.claude/sessions/context_session_{feature_name}.md` file to make sure others can get full context of what you did
 
 ### Phase 3

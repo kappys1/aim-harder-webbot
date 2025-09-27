@@ -1,0 +1,239 @@
+import { supabaseAdmin } from '@/core/database/supabase'
+import { AuthCookie } from './cookie.service'
+import { TokenData } from './html-parser.service'
+
+export interface SessionData {
+  email: string
+  token: string
+  cookies: AuthCookie[]
+  tokenData?: TokenData
+  createdAt: string
+  updatedAt?: string
+}
+
+export interface SessionRow {
+  id: string
+  user_email: string
+  aimharder_token: string
+  aimharder_cookies: Array<{ name: string; value: string }>
+  created_at: string
+  updated_at: string
+}
+
+export class SupabaseSessionService {
+  static async storeSession(sessionData: SessionData): Promise<void> {
+    try {
+      const { error } = await supabaseAdmin
+        .from('auth_sessions')
+        .upsert({
+          user_email: sessionData.email,
+          aimharder_token: sessionData.token,
+          aimharder_cookies: sessionData.cookies.map(c => ({ name: c.name, value: c.value })),
+          created_at: sessionData.createdAt,
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'user_email'
+        })
+
+      if (error) {
+        console.error('Session storage error:', error)
+        throw new Error(`Failed to store session: ${error.message}`)
+      }
+
+      console.log('Session stored successfully for user:', sessionData.email)
+    } catch (error) {
+      console.error('Session storage error:', error)
+      throw error
+    }
+  }
+
+  static async getSession(email: string): Promise<SessionData | null> {
+    try {
+      const { data, error } = await supabaseAdmin
+        .from('auth_sessions')
+        .select('*')
+        .eq('user_email', email)
+        .single()
+
+      if (error) {
+        if (error.code === 'PGRST116') {
+          // No rows returned
+          return null
+        }
+        console.error('Session retrieval error:', error)
+        throw new Error(`Failed to retrieve session: ${error.message}`)
+      }
+
+      if (!data) return null
+
+      const sessionRow = data as SessionRow
+
+      return {
+        email: sessionRow.user_email,
+        token: sessionRow.aimharder_token,
+        cookies: sessionRow.aimharder_cookies.map(c => ({ name: c.name, value: c.value })),
+        createdAt: sessionRow.created_at,
+        updatedAt: sessionRow.updated_at
+      }
+    } catch (error) {
+      console.error('Session retrieval error:', error)
+      return null
+    }
+  }
+
+  static async deleteSession(email: string): Promise<void> {
+    try {
+      const { error } = await supabaseAdmin
+        .from('auth_sessions')
+        .delete()
+        .eq('user_email', email)
+
+      if (error) {
+        console.error('Session deletion error:', error)
+        throw new Error(`Failed to delete session: ${error.message}`)
+      }
+
+      console.log('Session deleted successfully for user:', email)
+    } catch (error) {
+      console.error('Session deletion error:', error)
+      throw error
+    }
+  }
+
+  static async updateSession(email: string, updates: Partial<Omit<SessionData, 'email' | 'createdAt'>>): Promise<void> {
+    try {
+      const updateData: any = {
+        updated_at: new Date().toISOString()
+      }
+
+      if (updates.token) {
+        updateData.aimharder_token = updates.token
+      }
+
+      if (updates.cookies) {
+        updateData.aimharder_cookies = updates.cookies.map(c => ({ name: c.name, value: c.value }))
+      }
+
+      const { error } = await supabaseAdmin
+        .from('auth_sessions')
+        .update(updateData)
+        .eq('user_email', email)
+
+      if (error) {
+        console.error('Session update error:', error)
+        throw new Error(`Failed to update session: ${error.message}`)
+      }
+
+      console.log('Session updated successfully for user:', email)
+    } catch (error) {
+      console.error('Session update error:', error)
+      throw error
+    }
+  }
+
+  static async isSessionValid(email: string): Promise<boolean> {
+    try {
+      const session = await this.getSession(email)
+
+      if (!session) return false
+
+      // Check if session is expired (older than 7 days)
+      const createdAt = new Date(session.createdAt)
+      const now = new Date()
+      const daysDiff = (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60 * 24)
+
+      return daysDiff <= 7
+    } catch (error) {
+      console.error('Session validation error:', error)
+      return false
+    }
+  }
+
+  static async getAllActiveSessions(): Promise<SessionData[]> {
+    try {
+      const oneWeekAgo = new Date()
+      oneWeekAgo.setDate(oneWeekAgo.getDate() - 7)
+
+      const { data, error } = await supabaseAdmin
+        .from('auth_sessions')
+        .select('*')
+        .gte('created_at', oneWeekAgo.toISOString())
+
+      if (error) {
+        console.error('Active sessions retrieval error:', error)
+        throw new Error(`Failed to retrieve active sessions: ${error.message}`)
+      }
+
+      return (data as SessionRow[]).map(row => ({
+        email: row.user_email,
+        token: row.aimharder_token,
+        cookies: row.aimharder_cookies.map(c => ({ name: c.name, value: c.value })),
+        createdAt: row.created_at,
+        updatedAt: row.updated_at
+      }))
+    } catch (error) {
+      console.error('Active sessions retrieval error:', error)
+      return []
+    }
+  }
+
+  static async cleanupExpiredSessions(): Promise<number> {
+    try {
+      const oneWeekAgo = new Date()
+      oneWeekAgo.setDate(oneWeekAgo.getDate() - 7)
+
+      const { data, error } = await supabaseAdmin
+        .from('auth_sessions')
+        .delete()
+        .lt('created_at', oneWeekAgo.toISOString())
+        .select('id')
+
+      if (error) {
+        console.error('Session cleanup error:', error)
+        throw new Error(`Failed to cleanup expired sessions: ${error.message}`)
+      }
+
+      const cleanedCount = data?.length || 0
+      console.log(`Cleaned up ${cleanedCount} expired sessions`)
+
+      return cleanedCount
+    } catch (error) {
+      console.error('Session cleanup error:', error)
+      return 0
+    }
+  }
+
+  static async getSessionStats(): Promise<{
+    total: number
+    active: number
+    expired: number
+  }> {
+    try {
+      const oneWeekAgo = new Date()
+      oneWeekAgo.setDate(oneWeekAgo.getDate() - 7)
+
+      const { count: totalCount, error: totalError } = await supabaseAdmin
+        .from('auth_sessions')
+        .select('*', { count: 'exact', head: true })
+
+      const { count: activeCount, error: activeError } = await supabaseAdmin
+        .from('auth_sessions')
+        .select('*', { count: 'exact', head: true })
+        .gte('created_at', oneWeekAgo.toISOString())
+
+      if (totalError || activeError) {
+        console.error('Session stats error:', totalError || activeError)
+        throw new Error('Failed to retrieve session stats')
+      }
+
+      const total = totalCount || 0
+      const active = activeCount || 0
+      const expired = total - active
+
+      return { total, active, expired }
+    } catch (error) {
+      console.error('Session stats error:', error)
+      return { total: 0, active: 0, expired: 0 }
+    }
+  }
+}
