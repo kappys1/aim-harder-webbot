@@ -4,11 +4,10 @@ import { Button } from "@/common/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { AlertCircle, RefreshCw } from "lucide-react";
-import { useCallback, useState } from "react";
+import { useCallback } from "react";
 import { AuthCookie } from "../../../auth/api/services/cookie.service";
 import { useBooking } from "../../hooks/useBooking.hook";
 import { BookingProvider } from "../../hooks/useBookingContext.hook";
-import { BookingFilter } from "../../models/booking.model";
 import { BookingUtils } from "../../utils/booking.utils";
 import { BookingGrid } from "./components/booking-grid/booking-grid.component";
 
@@ -26,19 +25,12 @@ function BookingDashboardContent({
   authCookies: AuthCookie[];
   isAuthenticated: boolean;
 }) {
-  const [activeFilter, setActiveFilter] = useState<BookingFilter | null>(null);
-  const [viewMode, setViewMode] = useState<"default" | "compact" | "detailed">(
-    "default"
-  );
-
   const {
     bookingDay,
     isLoading,
     error,
     refetch,
     setDate,
-    applyFilter,
-    clearFilter,
     retryOnError,
     statistics,
   } = useBooking({
@@ -52,30 +44,6 @@ function BookingDashboardContent({
       setDate(date);
     },
     [setDate]
-  );
-
-  const handleFilterChange = useCallback(
-    (filter: BookingFilter | null) => {
-      setActiveFilter(filter);
-      applyFilter(filter);
-    },
-    [applyFilter]
-  );
-
-  const handleQuickFilter = useCallback(
-    (filterType: "available" | "booked" | "all") => {
-      if (filterType === "all") {
-        handleFilterChange(null);
-        return;
-      }
-
-      const filter: BookingFilter = {
-        availabilityOnly: filterType === "available",
-      };
-
-      handleFilterChange(filter);
-    },
-    [handleFilterChange]
   );
 
   const formatDate = (dateString: string) => {
@@ -144,17 +112,6 @@ function BookingDashboardContent({
           <Card>
             <CardContent className="pt-4">
               <div className="text-center">
-                <div className="text-2xl font-bold text-green-600">
-                  {statistics.available}
-                </div>
-                <div className="text-sm text-muted-foreground">Disponibles</div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="pt-4">
-              <div className="text-center">
                 <div className="text-2xl font-bold text-blue-600">
                   {statistics.booked}
                 </div>
@@ -162,73 +119,8 @@ function BookingDashboardContent({
               </div>
             </CardContent>
           </Card>
-
-          <Card>
-            <CardContent className="pt-4">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-orange-600">
-                  {statistics.waitlist}
-                </div>
-                <div className="text-sm text-muted-foreground">En espera</div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="pt-4">
-              <div className="text-center">
-                <div className="text-2xl font-bold">
-                  {statistics.occupancyPercentage}%
-                </div>
-                <div className="text-sm text-muted-foreground">Ocupación</div>
-              </div>
-            </CardContent>
-          </Card>
         </div>
       )}
-
-      {/* Quick Filters */}
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-sm font-medium">Filtros rápidos:</span>
-
-        <Button
-          variant={!activeFilter ? "default" : "outline"}
-          size="sm"
-          onClick={() => handleQuickFilter("all")}
-        >
-          Todas
-        </Button>
-
-        <Button
-          variant={activeFilter?.availabilityOnly ? "default" : "outline"}
-          size="sm"
-          onClick={() => handleQuickFilter("available")}
-        >
-          Disponibles
-        </Button>
-
-        {/* View Mode Toggle */}
-        <div className="ml-auto flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">Vista:</span>
-          <div className="flex border rounded-md">
-            {["compact", "default", "detailed"].map((mode) => (
-              <Button
-                key={mode}
-                variant={viewMode === mode ? "default" : "ghost"}
-                size="sm"
-                onClick={() => setViewMode(mode as any)}
-                className="rounded-none first:rounded-l-md last:rounded-r-md"
-              >
-                {mode === "compact"
-                  ? "Compacta"
-                  : mode === "default"
-                  ? "Normal"
-                  : "Detallada"}
-              </Button>
-            ))}
-          </div>
-        </div>
-      </div>
 
       {/* Error State */}
       {error && (
@@ -278,8 +170,6 @@ function BookingDashboardContent({
           bookings={bookingDay.bookings}
           onBook={(id) => console.log("Book:", id)}
           onCancel={(id) => console.log("Cancel:", id)}
-          filter={activeFilter}
-          variant={viewMode}
           showActions={true}
         />
       )}
