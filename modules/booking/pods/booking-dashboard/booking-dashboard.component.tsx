@@ -10,6 +10,7 @@ import { useBooking } from "../../hooks/useBooking.hook";
 import { BookingProvider } from "../../hooks/useBookingContext.hook";
 import { BookingUtils } from "../../utils/booking.utils";
 import { BookingGrid } from "./components/booking-grid/booking-grid.component";
+import { WeekSelector } from "./components/week-selector";
 
 interface BookingDashboardComponentProps {
   initialDate: string;
@@ -102,8 +103,17 @@ function BookingDashboardContent({
             value={bookingDay?.date || ""}
             onChange={(e) => handleDateChange(e.target.value)}
             className="px-3 py-2 border rounded-md text-sm"
+            disabled={isLoading}
           />
         </div>
+      </div>
+      <div className="flex justify-center">
+        <WeekSelector
+          selectedDate={bookingDay?.date || ""}
+          onDateChange={handleDateChange}
+          className="w-full max-w-md"
+          disabled={isLoading}
+        />
       </div>
 
       {/* Statistics and Filters */}
