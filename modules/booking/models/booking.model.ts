@@ -18,6 +18,7 @@ export interface Box {
 }
 
 export interface BookingCapacity {
+  limitString: string;
   current: number;
   limit: number;
   available: number;
@@ -36,11 +37,11 @@ export interface BookingClass {
 }
 
 export enum BookingStatus {
-  AVAILABLE = 'available',
-  BOOKED = 'booked',
-  FULL = 'full',
-  WAITLIST = 'waitlist',
-  DISABLED = 'disabled',
+  AVAILABLE = "available",
+  BOOKED = "booked",
+  FULL = "full",
+  WAITLIST = "waitlist",
+  DISABLED = "disabled",
 }
 
 export interface Booking {

@@ -101,7 +101,7 @@ export function CapacityIndicator({
               sizeClasses[size].text
             )}
           >
-            {capacity.current}/{capacity.limit}
+            {capacity.current}/{capacity.limitString}
           </span>
         )}
       </div>
@@ -132,19 +132,6 @@ export function CapacityIndicator({
               ? `${capacity.available} disponibles`
               : "Completo"}
           </span>
-
-          {capacity.hasWaitlist && capacity.waitlistCount > 0 && (
-            <Badge
-              variant="outline"
-              className={cn(
-                "text-orange-600 border-orange-200 bg-orange-50",
-                size === "sm" && "text-[10px] px-1.5 py-0.5",
-                size === "lg" && "text-sm px-3 py-1"
-              )}
-            >
-              +{capacity.waitlistCount} en espera
-            </Badge>
-          )}
         </div>
       )}
     </div>

@@ -1,17 +1,17 @@
 "use client";
 
-import { useState, useMemo, useCallback, useEffect } from 'react';
 import {
-  startOfWeek,
-  endOfWeek,
-  eachDayOfInterval,
-  parseISO,
   addWeeks,
+  eachDayOfInterval,
+  endOfWeek,
+  format,
+  parseISO,
+  startOfWeek,
   subWeeks,
-  format
-} from 'date-fns';
-import { UseWeekNavigationReturn } from '../models/week-selector.model';
-import { WeekSelectorUtils } from '../utils/week-selector.utils';
+} from "date-fns";
+import { useCallback, useMemo, useState } from "react";
+import { UseWeekNavigationReturn } from "../models/week-selector.model";
+import { WeekSelectorUtils } from "../utils/week-selector.utils";
 
 export function useWeekNavigation(
   selectedDate: string,
@@ -26,17 +26,18 @@ export function useWeekNavigation(
   const [isNavigating, setIsNavigating] = useState(false);
 
   // Calculate current week days (memoized for performance)
-  const currentWeek = useMemo(() =>
-    eachDayOfInterval({
-      start: currentWeekStart,
-      end: endOfWeek(currentWeekStart, { weekStartsOn: 1 })
-    }),
+  const currentWeek = useMemo(
+    () =>
+      eachDayOfInterval({
+        start: currentWeekStart,
+        end: endOfWeek(currentWeekStart, { weekStartsOn: 1 }),
+      }),
     [currentWeekStart]
   );
 
   // Format week range (memoized for performance)
   const weekRange = useMemo(() => {
-    if (currentWeek.length === 0) return '';
+    if (currentWeek.length === 0) return "";
 
     return WeekSelectorUtils.formatWeekRange(
       currentWeek[0],
@@ -49,38 +50,44 @@ export function useWeekNavigation(
   const navigateToNextWeek = useCallback(() => {
     if (isNavigating) return;
 
-    setIsNavigating(true);
-    setCurrentWeekStart(prev => addWeeks(prev, 1));
+    // setIsNavigating(true);
+    setCurrentWeekStart((prev) => addWeeks(prev, 1));
 
     // Reset navigation state after animation
-    setTimeout(() => setIsNavigating(false), 150);
+    // setTimeout(() => setIsNavigating(false), 150);
   }, [isNavigating]);
 
   const navigateToPrevWeek = useCallback(() => {
     if (isNavigating) return;
 
     setIsNavigating(true);
-    setCurrentWeekStart(prev => subWeeks(prev, 1));
+    setCurrentWeekStart((prev) => subWeeks(prev, 1));
 
     // Reset navigation state after animation
     setTimeout(() => setIsNavigating(false), 150);
   }, [isNavigating]);
 
-  const navigateToWeek = useCallback((date: Date) => {
-    if (isNavigating) return;
+  const navigateToWeek = useCallback(
+    (date: Date) => {
+      if (isNavigating) return;
 
-    setIsNavigating(true);
-    const weekStart = startOfWeek(date, { weekStartsOn: 1 });
-    setCurrentWeekStart(weekStart);
+      setIsNavigating(true);
+      const weekStart = startOfWeek(date, { weekStartsOn: 1 });
+      setCurrentWeekStart(weekStart);
 
-    // Reset navigation state after animation
-    setTimeout(() => setIsNavigating(false), 150);
-  }, [isNavigating]);
+      // Reset navigation state after animation
+      setTimeout(() => setIsNavigating(false), 150);
+    },
+    [isNavigating]
+  );
 
-  const selectDate = useCallback((date: Date) => {
-    const formattedDate = WeekSelectorUtils.formatDateForApi(date);
-    onDateChange(formattedDate);
-  }, [onDateChange]);
+  const selectDate = useCallback(
+    (date: Date) => {
+      const formattedDate = WeekSelectorUtils.formatDateForApi(date);
+      onDateChange(formattedDate);
+    },
+    [onDateChange]
+  );
 
   // Update current week when selected date changes externally
   const selectedDateObj = useMemo(() => {
@@ -94,8 +101,8 @@ export function useWeekNavigation(
 
   // Auto-navigate to week containing selected date if it's outside current week
   const isSelectedDateInCurrentWeek = useMemo(() => {
-    return currentWeek.some(date =>
-      format(date, 'yyyy-MM-dd') === selectedDate
+    return currentWeek.some(
+      (date) => format(date, "yyyy-MM-dd") === selectedDate
     );
   }, [currentWeek, selectedDate]);
 
@@ -104,13 +111,19 @@ export function useWeekNavigation(
     if (selectedDate && !isSelectedDateInCurrentWeek && !isNavigating) {
       navigateToWeek(selectedDateObj);
     }
-  }, [selectedDate, isSelectedDateInCurrentWeek, isNavigating, selectedDateObj, navigateToWeek]);
+  }, [
+    selectedDate,
+    isSelectedDateInCurrentWeek,
+    isNavigating,
+    selectedDateObj,
+    navigateToWeek,
+  ]);
 
   // Effect to auto-navigate when selected date changes
   // This ensures the week selector always shows the week containing the selected date
-  useEffect(() => {
-    navigateToSelectedDate();
-  }, [navigateToSelectedDate]);
+  // useEffect(() => {
+  //   navigateToSelectedDate();
+  // }, [navigateToSelectedDate]);
 
   return {
     currentWeek,
@@ -119,6 +132,6 @@ export function useWeekNavigation(
     navigateToPrevWeek,
     navigateToWeek,
     selectDate,
-    isNavigating
+    isNavigating,
   };
 }

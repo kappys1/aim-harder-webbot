@@ -81,11 +81,6 @@ export function BookingCard({
       );
     }
 
-    const buttonText =
-      booking.status === BookingStatus.WAITLIST
-        ? "Lista de espera"
-        : "Reservar";
-
     return (
       <Button
         variant={
@@ -99,7 +94,7 @@ export function BookingCard({
             "text-orange-600 border-orange-200 hover:bg-orange-50"
         )}
       >
-        {buttonText}
+        Reservar
       </Button>
     );
   };

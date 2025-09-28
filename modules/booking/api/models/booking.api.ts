@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from "zod";
 
 export const TimeSlotApiSchema = z.object({
   id: z.string(),
@@ -25,7 +25,7 @@ export const BookingApiSchema = z.object({
   coachPic: z.string(),
   enabled: z.number(),
   bookState: z.number().nullable(),
-  limit: z.union([z.number(), z.string().transform(Number)]),
+  limit: z.union([z.number().transform(String), z.string()]),
   limitc: z.union([z.number(), z.string().transform(Number)]),
   ocupation: z.number(),
   checkAthletesNum: z.number(),

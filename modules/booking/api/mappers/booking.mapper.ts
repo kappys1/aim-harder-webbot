@@ -43,6 +43,7 @@ export class BookingMapper {
   }
 
   static mapCapacity(bookingApi: BookingApi): BookingCapacity {
+    const limitString = bookingApi.limit;
     const current = bookingApi.ocupation;
     const limit = bookingApi.limitc;
     const available = Math.max(0, limit - current);
@@ -52,6 +53,7 @@ export class BookingMapper {
     return {
       current,
       limit,
+      limitString,
       available,
       percentage,
       hasWaitlist,
