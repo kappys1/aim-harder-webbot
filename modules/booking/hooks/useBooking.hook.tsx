@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { AuthCookie } from "../../auth/api/services/cookie.service";
 import { BookingBusiness } from "../business/booking.business";
-import { BookingDay, BookingFilter } from "../models/booking.model";
+import { BookingDay } from "../models/booking.model";
 import { BookingUtils } from "../utils/booking.utils";
 import { useBookingContext } from "./useBookingContext.hook";
 
@@ -20,8 +20,6 @@ interface UseBookingReturn {
   refetch: () => Promise<void>;
   setDate: (date: string) => void;
   setBox: (boxId: string) => void;
-  applyFilter: (filter: BookingFilter | null) => void;
-  clearFilter: () => void;
   retryOnError: () => Promise<void>;
   statistics: {
     total: number;
@@ -69,8 +67,7 @@ export function useBooking(options: UseBookingOptions = {}): UseBookingReturn {
         state.selectedBoxId,
         cookies
       );
-
-      console.log;
+      actions.setLoading(false);
       actions.setCurrentDay(bookingDay);
 
       if (enableCache) {
@@ -82,15 +79,7 @@ export function useBooking(options: UseBookingOptions = {}): UseBookingReturn {
       actions.setError(errorMessage);
       console.error("Error fetching bookings:", error);
     }
-  }, [
-    state.selectedDate,
-    state.selectedBoxId,
-    state.cache,
-    actions,
-    bookingBusiness,
-    enableCache,
-    cookies,
-  ]);
+  }, [state, actions, bookingBusiness, enableCache, cookies]);
 
   const setDate = useCallback(
     (date: string): void => {
@@ -105,17 +94,6 @@ export function useBooking(options: UseBookingOptions = {}): UseBookingReturn {
     },
     [actions]
   );
-
-  const applyFilter = useCallback(
-    (filter: BookingFilter | null): void => {
-      actions.setFilter(filter);
-    },
-    [actions]
-  );
-
-  const clearFilter = useCallback((): void => {
-    actions.setFilter(null);
-  }, [actions]);
 
   const retryOnError = useCallback(async (): Promise<void> => {
     if (state.error) {
@@ -134,6 +112,10 @@ export function useBooking(options: UseBookingOptions = {}): UseBookingReturn {
     }
   }, [state.selectedDate, state.selectedBoxId, autoFetch]);
 
+  useEffect(() => {
+    console.log("Booking state changed:", state);
+  }, [state]);
+
   return {
     bookingDay: state.currentDay,
     isLoading: state.isLoading,
@@ -141,8 +123,6 @@ export function useBooking(options: UseBookingOptions = {}): UseBookingReturn {
     refetch: fetchBookings,
     setDate,
     setBox,
-    applyFilter,
-    clearFilter,
     retryOnError,
     statistics,
   };
