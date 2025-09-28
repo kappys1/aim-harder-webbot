@@ -56,7 +56,9 @@ export async function POST(request: NextRequest) {
       const response = NextResponse.json({
         success: true,
         data: result.data,
-        aimharderSession: true
+        aimharderSession: true,
+        cookiesUpdated: true,
+        cookieCount: result.cookies.length
       })
 
       // Set cookies in response for browser storage
@@ -79,7 +81,10 @@ export async function POST(request: NextRequest) {
         path: '/'
       })
 
-      console.log(`Login successful for email: ${email}`)
+      console.log(`Login successful for email: ${email} - Cookies updated in Supabase and browser:`, {
+        cookieCount: result.cookies.length,
+        cookieNames: result.cookies.map(c => c.name)
+      })
       return response
     }
 

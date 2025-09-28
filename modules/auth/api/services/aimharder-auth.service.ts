@@ -43,18 +43,11 @@ export class AimharderAuthService {
         }
       }
 
-      // Check for existing valid session
+      // Check for existing valid session, but always refresh cookies on login
       const existingSession = await SupabaseSessionService.getSession(email)
       if (existingSession && await SupabaseSessionService.isSessionValid(email)) {
-        console.log('Using existing valid session for:', email)
-        return {
-          success: true,
-          data: {
-            user: { id: email, email, name: email },
-            token: existingSession.token
-          },
-          cookies: existingSession.cookies
-        }
+        console.log('Found existing valid session for:', email, '- but will refresh cookies on login')
+        // Continue with fresh login to update cookies, don't return early
       }
 
       // Prepare form data for aimharder login
@@ -132,7 +125,14 @@ export class AimharderAuthService {
         createdAt: new Date().toISOString()
       }
 
+      console.log('Storing cookies in Supabase for:', email, {
+        cookieCount: cookies.length,
+        cookieNames: cookies.map(c => c.name),
+        hasRequiredCookies: CookieService.validateRequiredCookies(cookies).isValid
+      })
+
       await SupabaseSessionService.storeSession(sessionData)
+      console.log('Cookies successfully stored in Supabase for:', email)
 
       // Record successful attempt
       this.recordAttempt(email, true)

@@ -25,6 +25,14 @@ export function useLogin() {
           localStorage.setItem('user-email', response.user.email);
         }
 
+        // Log cookie update information if available
+        if ('cookiesUpdated' in response && response.cookiesUpdated) {
+          console.log('Login successful - Cookies updated in Supabase:', {
+            cookieCount: response.cookieCount || 'unknown',
+            userEmail: response.user.email
+          });
+        }
+
         console.log('Login successful, navigating to dashboard');
         router.push("/dashboard");
       } else {

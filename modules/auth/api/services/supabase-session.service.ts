@@ -137,6 +137,33 @@ export class SupabaseSessionService {
     }
   }
 
+  static async updateCookies(email: string, cookies: Array<{ name: string; value: string }>): Promise<void> {
+    try {
+      const updateData = {
+        aimharder_cookies: cookies.map(c => ({ name: c.name, value: c.value })),
+        updated_at: new Date().toISOString()
+      }
+
+      const { error } = await supabaseAdmin
+        .from('auth_sessions')
+        .update(updateData)
+        .eq('user_email', email)
+
+      if (error) {
+        console.error('Cookie update error:', error)
+        throw new Error(`Failed to update cookies: ${error.message}`)
+      }
+
+      console.log('Cookies updated successfully for user:', email, {
+        cookieCount: cookies.length,
+        cookieNames: cookies.map(c => c.name)
+      })
+    } catch (error) {
+      console.error('Cookie update error:', error)
+      throw error
+    }
+  }
+
   static async isSessionValid(email: string): Promise<boolean> {
     try {
       const session = await this.getSession(email)
