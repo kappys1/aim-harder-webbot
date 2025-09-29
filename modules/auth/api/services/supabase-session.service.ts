@@ -137,6 +137,30 @@ export class SupabaseSessionService {
     }
   }
 
+  static async updateRefreshToken(email: string, refreshToken: string): Promise<void> {
+    try {
+      const updateData = {
+        aimharder_token: refreshToken,
+        updated_at: new Date().toISOString()
+      }
+
+      const { error } = await supabaseAdmin
+        .from('auth_sessions')
+        .update(updateData)
+        .eq('user_email', email)
+
+      if (error) {
+        console.error('Refresh token update error:', error)
+        throw new Error(`Failed to update refresh token: ${error.message}`)
+      }
+
+      console.log('Refresh token updated successfully for user:', email)
+    } catch (error) {
+      console.error('Refresh token update error:', error)
+      throw error
+    }
+  }
+
   static async updateCookies(email: string, cookies: Array<{ name: string; value: string }>): Promise<void> {
     try {
       const updateData = {
@@ -270,90 +294,4 @@ export class SupabaseSessionService {
     }
   }
 
-  // Refresh tracking methods
-  static async updateRefreshData(email: string, success: boolean, error?: string): Promise<void> {
-    try {
-      // Get current session to increment refresh count
-      const session = await this.getSession(email)
-      if (!session) return
-
-      const updateData: any = {
-        last_refresh_date: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      }
-
-      if (success) {
-        updateData.refresh_count = (session.refreshCount || 0) + 1
-        updateData.last_refresh_error = null
-      } else {
-        updateData.last_refresh_error = error
-      }
-
-      const { error: updateError } = await supabaseAdmin
-        .from('auth_sessions')
-        .update(updateData)
-        .eq('user_email', email)
-
-      if (updateError) {
-        console.error('Refresh data update error:', updateError)
-        throw new Error(`Failed to update refresh data: ${updateError.message}`)
-      }
-    } catch (error) {
-      console.error('Refresh data update error:', error)
-      throw error
-    }
-  }
-
-  static async getSessionsNeedingRefresh(hoursThreshold: number = 24): Promise<SessionData[]> {
-    try {
-      const thresholdDate = new Date()
-      thresholdDate.setHours(thresholdDate.getHours() - hoursThreshold)
-
-      const { data, error } = await supabaseAdmin
-        .from('auth_sessions')
-        .select('*')
-        .eq('auto_refresh_enabled', true)
-        .or(`last_refresh_date.is.null,last_refresh_date.lt.${thresholdDate.toISOString()}`)
-
-      if (error) {
-        console.error('Sessions needing refresh retrieval error:', error)
-        throw new Error(`Failed to retrieve sessions needing refresh: ${error.message}`)
-      }
-
-      return (data as any[]).map(row => ({
-        email: row.user_email,
-        token: row.aimharder_token,
-        cookies: row.aimharder_cookies.map((c: any) => ({ name: c.name, value: c.value })),
-        createdAt: row.created_at,
-        updatedAt: row.updated_at,
-        lastRefreshDate: row.last_refresh_date,
-        refreshCount: row.refresh_count,
-        lastRefreshError: row.last_refresh_error
-      }))
-    } catch (error) {
-      console.error('Sessions needing refresh retrieval error:', error)
-      return []
-    }
-  }
-
-  static async needsRefresh(email: string, hoursThreshold: number = 24): Promise<boolean> {
-    try {
-      const session = await this.getSession(email)
-      if (!session) return false
-
-      if (!session.lastRefreshDate) {
-        // Check if created more than threshold hours ago
-        const createdAt = new Date(session.createdAt)
-        const hoursOld = (Date.now() - createdAt.getTime()) / (1000 * 60 * 60)
-        return hoursOld > hoursThreshold
-      }
-
-      const lastRefresh = new Date(session.lastRefreshDate)
-      const hoursSinceRefresh = (Date.now() - lastRefresh.getTime()) / (1000 * 60 * 60)
-      return hoursSinceRefresh > hoursThreshold
-    } catch (error) {
-      console.error('Refresh check error:', error)
-      return false
-    }
-  }
 }

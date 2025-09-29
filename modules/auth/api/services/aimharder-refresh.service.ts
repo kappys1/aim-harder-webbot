@@ -7,6 +7,8 @@ export interface RefreshRequest {
 
 export interface RefreshResponse {
   success: boolean
+  refreshToken?: string
+  fingerprint?: string
   error?: string
 }
 
@@ -41,7 +43,21 @@ export class AimharderRefreshService {
         }
       }
 
-      return { success: true }
+      // Extract refreshToken and fingerprint from JavaScript
+      const refreshData = this.extractRefreshData(html)
+
+      if (!refreshData.refreshToken) {
+        return {
+          success: false,
+          error: 'Failed to extract refresh token from response'
+        }
+      }
+
+      return {
+        success: true,
+        refreshToken: refreshData.refreshToken,
+        fingerprint: refreshData.fingerprint
+      }
 
     } catch (error) {
       return {
@@ -56,5 +72,28 @@ export class AimharderRefreshService {
     const fingerprint = process.env.AIMHARDER_FINGERPRINT || 'my0pz7di4kr8nuq718uecu4ev23fbosfp20z1q6smntm42ideb'
 
     return `${baseUrl}?token=${encodeURIComponent(token)}&fingerprint=${encodeURIComponent(fingerprint)}`
+  }
+
+  private static extractRefreshData(html: string): {
+    refreshToken?: string
+    fingerprint?: string
+  } {
+    try {
+      // Extract refreshToken using regex
+      const refreshTokenMatch = html.match(/localStorage\.setItem\("refreshToken",\s*"([^"]+)"\)/)
+      const refreshToken = refreshTokenMatch ? refreshTokenMatch[1] : undefined
+
+      // Extract fingerprint using regex
+      const fingerprintMatch = html.match(/localStorage\.setItem\("fingerprint",\s*"([^"]+)"\)/)
+      const fingerprint = fingerprintMatch ? fingerprintMatch[1] : undefined
+
+      return {
+        refreshToken,
+        fingerprint
+      }
+    } catch (error) {
+      console.error('Error extracting refresh data:', error)
+      return {}
+    }
   }
 }

@@ -1,6 +1,7 @@
 import { CookieService, AuthCookie } from './cookie.service'
 import { HtmlParserService, TokenData } from './html-parser.service'
 import { SupabaseSessionService, SessionData } from './supabase-session.service'
+import { AimharderRefreshService } from './aimharder-refresh.service'
 
 export interface AimharderLoginRequest {
   email: string
@@ -133,6 +134,26 @@ export class AimharderAuthService {
 
       await SupabaseSessionService.storeSession(sessionData)
       console.log('Cookies successfully stored in Supabase for:', email)
+
+      // Call setrefresh to get the refresh token and update the database
+      try {
+        console.log('Calling setrefresh to get refresh token for:', email)
+        const refreshResult = await AimharderRefreshService.refreshSession({
+          token: tokenData.token,
+          cookies
+        })
+
+        if (refreshResult.success && refreshResult.refreshToken) {
+          // Update the aimharder_token field with the refresh token
+          await SupabaseSessionService.updateRefreshToken(email, refreshResult.refreshToken)
+          console.log('Refresh token updated successfully for:', email)
+        } else {
+          console.warn('Failed to get refresh token for:', email, refreshResult.error)
+        }
+      } catch (error) {
+        console.error('Error calling setrefresh for:', email, error)
+        // Don't fail the login if refresh token call fails
+      }
 
       // Record successful attempt
       this.recordAttempt(email, true)
