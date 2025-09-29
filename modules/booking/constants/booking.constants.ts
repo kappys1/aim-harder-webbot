@@ -4,6 +4,7 @@ export const BOOKING_CONSTANTS = {
     ENDPOINTS: {
       BOOKINGS: '/api/booking',
       CREATE_BOOKING: '/api/book',
+      CANCEL_BOOKING: '/api/cancelBook',
     },
     EXTERNAL_BASE_URL: 'https://crossfitcerdanyola300.aimharder.com',
     BOX_IDS: {
@@ -50,6 +51,7 @@ export const BOOKING_CONSTANTS = {
   BOOKING_STATES: {
     AVAILABLE: 0,
     BOOKED: 1,
+    CANCELLED: 1, // cancelState: 1 means successful cancellation
     ERROR_MAX_BOOKINGS: -8,
     ERROR_EARLY_BOOKING: -12,
   },

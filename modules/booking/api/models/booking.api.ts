@@ -71,9 +71,22 @@ export const BookingCreateResponseSchema = z.object({
   max: z.number().optional(), // Present on bookState -8 (max bookings reached)
 });
 
+// Booking cancellation schemas
+export const BookingCancelRequestSchema = z.object({
+  id: z.string().min(1, "Booking ID is required"),
+  late: z.number().default(0), // 0 for normal cancellation, 1 for late cancellation
+  familyId: z.string().default(""),
+});
+
+export const BookingCancelResponseSchema = z.object({
+  cancelState: z.number(),
+});
+
 export type TimeSlotApi = z.infer<typeof TimeSlotApiSchema>;
 export type BookingApi = z.infer<typeof BookingApiSchema>;
 export type BookingResponseApi = z.infer<typeof BookingResponseApiSchema>;
 export type BookingRequestParams = z.infer<typeof BookingRequestParamsSchema>;
 export type BookingCreateRequest = z.infer<typeof BookingCreateRequestSchema>;
 export type BookingCreateResponse = z.infer<typeof BookingCreateResponseSchema>;
+export type BookingCancelRequest = z.infer<typeof BookingCancelRequestSchema>;
+export type BookingCancelResponse = z.infer<typeof BookingCancelResponseSchema>;

@@ -224,11 +224,12 @@ x-user-email: user@example.com
 ### 🚀 Frontend Integration Completed
 
 **UI Integration:**
-- ✅ BookingService.createBooking() integration in booking-dashboard.component.tsx
+- ✅ Frontend API integration using internal `/api/booking` POST endpoint
 - ✅ Replaced console.log with actual booking functionality in onBook callback
 - ✅ Loading states implemented for booking buttons ("Reservando..." during request)
 - ✅ Error handling for all booking scenarios (success, early booking, max bookings, errors)
-- ✅ Automatic refresh of booking data after successful booking
+- ✅ Optimistic UI updates - immediate state change after successful booking
+- ✅ Automatic data refresh from server to ensure consistency
 - ✅ User feedback with alerts for all response types
 
 **Implementation Details:**
@@ -243,11 +244,181 @@ x-user-email: user@example.com
 **User Experience Flow:**
 1. User clicks "Reservar" button → Button shows "Reservando..." with disabled state
 2. Frontend makes POST request to `/api/booking` with user email authentication
-3. Response handled based on bookState:
-   - Success: "✅ Reserva exitosa! ID: {bookingId}" + refresh data
-   - Early booking: "⏰ {Spanish error message}"
-   - Max bookings: "🚫 Has alcanzado el máximo de reservas permitidas ({max})"
-   - Other errors: "❌ Error: {message}"
+3. Response handled based on success/error:
+   - **Success**:
+     a. Immediately update local state (booking status → BOOKED, capacity updated)
+     b. Show "✅ Reserva exitosa! ID: {bookingId}" alert
+     c. Refresh data from server for consistency
+   - **Early booking**: "⏰ {Spanish error message}"
+   - **Max bookings**: "🚫 {error message with limit}"
+   - **Other errors**: "❌ Error: {message}"
 4. Button returns to normal state after completion
+5. **UI immediately reflects booked state without page reload**
 
 The booking system is now fully functional and ready for users to make reservations!
+
+## Booking Cancellation Feature Implementation
+
+### New Requirement Analysis
+Implementing booking cancellation functionality with the following specifications:
+
+### API Details for Cancellation
+- **Endpoint**: `https://crossfitcerdanyola300.aimharder.com/api/cancelBook`
+- **Method**: POST
+- **Parameters**:
+  - `id`: Booking ID (e.g., "106028586")
+  - `late`: Late cancellation flag (0 for normal cancellation)
+  - `familyId`: Empty string
+
+### Expected Response
+```json
+{"cancelState": 1}
+```
+
+### Implementation Requirements
+1. Create cancellation API models and types
+2. Add `cancelBooking` method to BookingService class
+3. Extend existing API route to handle cancellation requests
+4. Integrate cancellation functionality with existing booking dashboard UI
+5. Handle success/error responses appropriately
+6. Update booking state after successful cancellation
+7. Maintain consistent error handling pattern from booking implementation
+
+### Integration Strategy
+- Follow existing architectural patterns from booking implementation
+- Use same authentication flow with SupabaseSessionService
+- Integrate with existing booking dashboard component's cancel button
+- Maintain consistent error handling and user feedback patterns
+- Use same form-encoded POST pattern as booking requests
+
+### Current Implementation Status - Cancellation
+- ✅ API models for cancellation request/response
+- ✅ Service method in BookingService for cancellation
+- ✅ API route handler for cancellation
+- ✅ Frontend integration with cancel button in booking dashboard
+- ✅ Error handling for cancellation scenarios
+
+## Cancellation Implementation Results
+
+### ✅ Completed Implementation
+
+**1. API Models and Types** (`modules/booking/api/models/booking.api.ts`):
+- `BookingCancelRequestSchema`: Validates cancellation request with id, late flag, and familyId
+- `BookingCancelResponseSchema`: Handles API response with cancelState
+- `BookingCancelRequest` and `BookingCancelResponse` types exported
+
+**2. Enhanced Booking Service** (`modules/booking/api/services/booking.service.ts`):
+- Added `cancelBooking()` method with same patterns as createBooking
+- Form-encoded POST requests to external `/api/cancelBook` endpoint
+- Complete cookie forwarding and authentication
+- Comprehensive error classification (network, timeout, validation, HTTP)
+
+**3. API Route Handler** (`app/api/booking/route.ts`):
+- Extended existing route with DELETE method for cancellation
+- Zod request validation with detailed error responses
+- SupabaseSessionService integration for authentication
+- Response handling based on cancelState:
+  - `cancelState: 1` → Success response
+  - Other states → Cancellation failure with error details
+- Proper CORS headers and error handling
+
+**4. Enhanced Constants** (`modules/booking/constants/booking.constants.ts`):
+- Added `CANCEL_BOOKING: '/api/cancelBook'` endpoint constant
+- Added `CANCELLED: 1` state constant for successful cancellation
+
+**5. Frontend Integration** (`booking-dashboard.component.tsx`):
+- Implemented `handleCancelBooking()` function with confirmation dialog
+- Uses booking's `userBookingId` for cancellation (required for API call)
+- Loading states with separate `cancelLoading` state management
+- Optimistic UI updates - immediate state change after successful cancellation
+- Automatic data refresh from server to ensure consistency
+- User feedback with Spanish language alerts for all response types
+
+**6. UI Components Updated**:
+- `BookingGrid`: Added `cancellingBookingId` prop support
+- `BookingCard`: Added `isCancelling` prop and "Cancelando..." button state
+- Proper loading state differentiation between booking and cancelling actions
+
+### 🎯 Key Features Implemented
+
+1. **Complete Cancellation Flow**:
+   - User confirmation dialog before cancellation
+   - Real-time loading states on cancel buttons
+   - Immediate UI feedback with optimistic updates
+   - Server data refresh for consistency
+
+2. **Authentication Integration**:
+   - Same authentication pattern as booking (SupabaseSessionService)
+   - User email detection from localStorage
+   - Complete cookie forwarding to external API
+
+3. **Error Handling**:
+   - Network failures and timeouts
+   - Authentication errors (401/403)
+   - Validation errors with detailed messages
+   - API cancellation failures
+
+4. **User Experience**:
+   - Confirmation dialog: "¿Estás seguro de que quieres cancelar esta reserva?"
+   - Loading state: "Cancelando..." on button during request
+   - Success feedback: "✅ Reserva cancelada exitosamente!"
+   - Error feedback: "❌ Error al cancelar: {message}"
+   - Immediate UI state update (booked → available, capacity updated)
+
+### 🧪 Implementation Quality
+- ✅ TypeScript compilation successful for core files
+- ✅ Zod schema validation for all requests/responses
+- ✅ Consistent architecture patterns followed
+- ✅ Proper error handling and user feedback
+- ✅ Optimistic UI updates with server consistency checks
+
+### 📋 API Usage Example
+
+**Cancellation Request:**
+```bash
+DELETE /api/booking
+Content-Type: application/json
+x-user-email: user@example.com
+
+{
+  "id": "106028586",
+  "late": 0,
+  "familyId": ""
+}
+```
+
+**Success Response:**
+```json
+{
+  "success": true,
+  "message": "Booking cancelled successfully",
+  "cancelState": 1
+}
+```
+
+**Error Response:**
+```json
+{
+  "success": false,
+  "error": "cancellation_failed",
+  "message": "Cancellation failed",
+  "cancelState": 0
+}
+```
+
+### 🚀 User Journey - Cancellation Flow
+1. User views their booked classes in the booking dashboard
+2. User clicks "Cancelar" button on a booked class
+3. System shows confirmation dialog: "¿Estás seguro de que quieres cancelar esta reserva?"
+4. If confirmed:
+   a. Button shows "Cancelando..." with disabled state
+   b. Frontend makes DELETE request to `/api/booking` with userBookingId
+   c. System processes cancellation through external AimHarder API
+   d. On success:
+      - Immediately update UI (booked → available, capacity updated)
+      - Show "✅ Reserva cancelada exitosamente!" alert
+      - Refresh data from server for consistency
+   e. On error: Show appropriate error message
+5. Button returns to normal state after completion
+
+**The booking cancellation system is now fully functional and integrated with the existing booking system!**

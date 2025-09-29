@@ -1,6 +1,6 @@
 import { SupabaseSessionService } from "@/modules/auth/api/services/supabase-session.service";
 import { bookingService } from "@/modules/booking/api/services/booking.service";
-import { BookingCreateRequestSchema } from "@/modules/booking/api/models/booking.api";
+import { BookingCreateRequestSchema, BookingCancelRequestSchema } from "@/modules/booking/api/models/booking.api";
 import { BOOKING_CONSTANTS } from "@/modules/booking/constants/booking.constants";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -211,6 +211,99 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error("Booking creation error:", error);
+
+    // Handle specific booking service errors
+    if (error && typeof error === 'object' && 'isAuthenticationError' in error) {
+      const bookingError = error as { isAuthenticationError: boolean };
+      if (bookingError.isAuthenticationError) {
+        return NextResponse.json(
+          { error: "Authentication failed. Please login again." },
+          { status: 401 }
+        );
+      }
+    }
+
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    // Parse and validate request body
+    const body = await request.json();
+    const validatedRequest = BookingCancelRequestSchema.safeParse(body);
+
+    if (!validatedRequest.success) {
+      return NextResponse.json(
+        {
+          error: "Invalid request parameters",
+          details: validatedRequest.error.issues
+        },
+        { status: 400 }
+      );
+    }
+
+    // Get user email from headers
+    const userEmail = request.headers.get("x-user-email") || "alexsbd1@gmail.com"; // Default for now
+
+    // Get user session with cookies
+    const session = await SupabaseSessionService.getSession(userEmail);
+
+    if (!session) {
+      return NextResponse.json(
+        { error: "User session not found. Please login first." },
+        { status: 401 }
+      );
+    }
+
+    // Make cancellation request using the service
+    const cancelResponse = await bookingService.cancelBooking(
+      validatedRequest.data,
+      session.cookies
+    );
+
+    // Check cancellation state and handle accordingly
+    if (cancelResponse.cancelState === BOOKING_CONSTANTS.BOOKING_STATES.CANCELLED) {
+      // Success - booking was cancelled
+      return NextResponse.json(
+        {
+          success: true,
+          message: "Booking cancelled successfully",
+          cancelState: cancelResponse.cancelState,
+        },
+        {
+          headers: {
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization",
+          },
+        }
+      );
+    } else {
+      // Error - cancellation failed
+      return NextResponse.json(
+        {
+          success: false,
+          error: "cancellation_failed",
+          message: "Cancellation failed",
+          cancelState: cancelResponse.cancelState,
+        },
+        {
+          status: 400,
+          headers: {
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization",
+          },
+        }
+      );
+    }
+
+  } catch (error) {
+    console.error("Booking cancellation error:", error);
 
     // Handle specific booking service errors
     if (error && typeof error === 'object' && 'isAuthenticationError' in error) {

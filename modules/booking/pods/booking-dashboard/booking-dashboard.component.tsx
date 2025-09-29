@@ -41,7 +41,9 @@ function BookingDashboardContent({
     cookies: authCookies,
   });
 
+  const { actions } = useBookingContext();
   const [bookingLoading, setBookingLoading] = useState<number | null>(null);
+  const [cancelLoading, setCancelLoading] = useState<number | null>(null);
 
   const handleDateChange = useCallback(
     (date: string) => {
@@ -84,10 +86,36 @@ function BookingDashboardContent({
         const data = await response.json();
 
         if (data.success) {
-          // Success
+          // Success - Update local state optimistically
+          if (bookingDay) {
+            const updatedBookings = bookingDay.bookings.map(b =>
+              b.id === bookingId
+                ? {
+                    ...b,
+                    status: BookingStatus.BOOKED,
+                    userBookingId: parseInt(data.bookingId || '0'),
+                    capacity: {
+                      ...b.capacity,
+                      current: b.capacity.current + 1,
+                      available: Math.max(0, b.capacity.available - 1),
+                      percentage: b.capacity.limit > 0 ? ((b.capacity.current + 1) / b.capacity.limit) * 100 : 0
+                    }
+                  }
+                : b
+            );
+
+            const updatedDay = {
+              ...bookingDay,
+              bookings: updatedBookings
+            };
+
+            // Update local state immediately
+            actions.setCurrentDay(updatedDay);
+          }
+
           alert(`✅ Reserva exitosa! ID: ${data.bookingId}`);
-          // Refresh bookings to show updated state
-          await refetch();
+          // Also refresh from server to ensure consistency
+          refetch();
         } else {
           // Handle different error types
           if (data.error === 'early_booking') {
@@ -105,16 +133,91 @@ function BookingDashboardContent({
         setBookingLoading(null);
       }
     },
-    [bookingDay?.date, refetch]
+    [bookingDay, refetch, actions]
   );
 
   const handleCancelBooking = useCallback(
     async (bookingId: number) => {
-      // TODO: Implement cancellation logic when available
-      console.log("Cancel booking:", bookingId);
-      alert("🚧 Funcionalidad de cancelación en desarrollo");
+      if (!bookingDay) return;
+
+      // Find the booking to get the userBookingId
+      const booking = bookingDay.bookings.find(b => b.id === bookingId);
+      if (!booking || !booking.userBookingId) {
+        alert("❌ Error: No se encontró la información de la reserva para cancelar");
+        return;
+      }
+
+      const confirmed = confirm("¿Estás seguro de que quieres cancelar esta reserva?");
+      if (!confirmed) return;
+
+      setCancelLoading(bookingId);
+
+      try {
+        const cancelRequest = {
+          id: booking.userBookingId.toString(),
+          late: 0,
+          familyId: "",
+        };
+
+        // Use our internal API endpoint for cancellation
+        const userEmail = typeof window !== 'undefined' ? localStorage.getItem('user-email') : null;
+
+        const response = await fetch('/api/booking', {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(userEmail && { 'x-user-email': userEmail }),
+          },
+          body: JSON.stringify(cancelRequest),
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+
+        if (data.success) {
+          // Success - Update local state optimistically
+          const updatedBookings = bookingDay.bookings.map(b =>
+            b.id === bookingId
+              ? {
+                  ...b,
+                  status: BookingStatus.AVAILABLE,
+                  userBookingId: null,
+                  capacity: {
+                    ...b.capacity,
+                    current: Math.max(0, b.capacity.current - 1),
+                    available: b.capacity.available + 1,
+                    percentage: b.capacity.limit > 0 ? ((b.capacity.current - 1) / b.capacity.limit) * 100 : 0
+                  }
+                }
+              : b
+          );
+
+          const updatedDay = {
+            ...bookingDay,
+            bookings: updatedBookings
+          };
+
+          // Update local state immediately
+          actions.setCurrentDay(updatedDay);
+
+          alert(`✅ Reserva cancelada exitosamente!`);
+          // Also refresh from server to ensure consistency
+          refetch();
+        } else {
+          // Handle error
+          alert(`❌ Error al cancelar: ${data.message || 'Error desconocido'}`);
+        }
+      } catch (error) {
+        console.error('Cancellation error:', error);
+        alert('❌ Error de conexión al cancelar la reserva');
+      } finally {
+        setCancelLoading(null);
+      }
     },
-    []
+    [bookingDay, refetch, actions]
   );
 
   const formatDate = (dateString: string) => {
@@ -252,6 +355,7 @@ function BookingDashboardContent({
           onCancel={handleCancelBooking}
           showActions={true}
           loadingBookingId={bookingLoading}
+          cancellingBookingId={cancelLoading}
         />
       )}
     </div>

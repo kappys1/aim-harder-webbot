@@ -24,6 +24,7 @@ interface BookingCardProps {
   variant?: "default" | "compact" | "detailed";
   showActions?: boolean;
   isLoading?: boolean;
+  isCancelling?: boolean;
 }
 
 export function BookingCard({
@@ -34,6 +35,7 @@ export function BookingCard({
   variant = "default",
   showActions = true,
   isLoading = false,
+  isCancelling = false,
 }: BookingCardProps) {
   const isUserBooked = booking.userBookingId !== null;
   const canBook = BookingUtils.canUserBook(booking);
@@ -57,9 +59,9 @@ export function BookingCard({
           size="sm"
           onClick={handleActionClick}
           className="text-red-600 border-red-200 hover:bg-red-50"
-          disabled={!canCancel}
+          disabled={!canCancel || isCancelling}
         >
-          Cancelar
+          {isCancelling ? "Cancelando..." : "Cancelar"}
         </Button>
       );
     }
