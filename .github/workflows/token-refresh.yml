@@ -1,0 +1,178 @@
+name: Token Refresh Automation
+
+on:
+  schedule:
+    # Run every 15 minutes
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+    # Allow manual triggering for testing
+
+env:
+  NODE_VERSION: '18'
+
+jobs:
+  token-refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Execute token refresh
+        id: refresh
+        env:
+          # Supabase configuration
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+          # Aimharder configuration
+          AIMHARDER_FINGERPRINT: ${{ secrets.AIMHARDER_FINGERPRINT }}
+          AIMHARDER_LOGIN_URL: ${{ secrets.AIMHARDER_LOGIN_URL }}
+        run: |
+          echo "Starting token refresh process..."
+
+          # Call the bulk update endpoint
+          response=$(curl -s -w "\nHTTP_STATUS:%{http_code}" \
+            -X GET \
+            -H "Content-Type: application/json" \
+            "${{ secrets.APP_URL }}/api/tokenUpdate?action=bulk-update")
+
+          # Extract HTTP status and response body
+          http_status=$(echo "$response" | grep "HTTP_STATUS:" | cut -d: -f2)
+          response_body=$(echo "$response" | sed '/HTTP_STATUS:/d')
+
+          echo "HTTP Status: $http_status"
+          echo "Response: $response_body"
+
+          # Check if the request was successful
+          if [ "$http_status" -eq 200 ]; then
+            echo "✅ Token refresh completed successfully"
+
+            # Parse response for statistics
+            processed=$(echo "$response_body" | jq -r '.results.processed // 0')
+            successful=$(echo "$response_body" | jq -r '.results.successful // 0')
+            failed=$(echo "$response_body" | jq -r '.results.failed // 0')
+            logged_out=$(echo "$response_body" | jq -r '.results.loggedOut // 0')
+
+            echo "📊 Statistics:"
+            echo "  - Processed: $processed sessions"
+            echo "  - Successful: $successful sessions"
+            echo "  - Failed: $failed sessions"
+            echo "  - Logged out: $logged_out sessions"
+
+            # Set outputs for potential notification use
+            echo "processed=$processed" >> $GITHUB_OUTPUT
+            echo "successful=$successful" >> $GITHUB_OUTPUT
+            echo "failed=$failed" >> $GITHUB_OUTPUT
+            echo "logged_out=$logged_out" >> $GITHUB_OUTPUT
+
+            # Exit with error if there were more failures than successes
+            if [ "$failed" -gt "$successful" ] && [ "$processed" -gt 0 ]; then
+              echo "❌ Too many failures detected"
+              exit 1
+            fi
+
+          else
+            echo "❌ Token refresh failed with HTTP status: $http_status"
+            echo "Response: $response_body"
+            exit 1
+          fi
+
+      - name: Get refresh statistics
+        if: always()
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          echo "Fetching token refresh statistics..."
+
+          stats_response=$(curl -s \
+            -X GET \
+            -H "Content-Type: application/json" \
+            "${{ secrets.APP_URL }}/api/tokenUpdate?action=stats")
+
+          echo "📈 Current Statistics:"
+          echo "$stats_response" | jq '.'
+
+      - name: Notify on failure
+        if: failure()
+        env:
+          WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          if [ -n "$WEBHOOK_URL" ]; then
+            echo "Sending failure notification..."
+
+            # Prepare notification payload
+            payload=$(cat <<EOF
+          {
+            "content": "🚨 **Token Refresh Failed**",
+            "embeds": [
+              {
+                "title": "Automated Token Refresh Failure",
+                "description": "The scheduled token refresh process has failed.",
+                "color": 15158332,
+                "fields": [
+                  {
+                    "name": "Repository",
+                    "value": "${{ github.repository }}",
+                    "inline": true
+                  },
+                  {
+                    "name": "Workflow Run",
+                    "value": "[${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})",
+                    "inline": true
+                  },
+                  {
+                    "name": "Timestamp",
+                    "value": "$(date -u +'%Y-%m-%d %H:%M:%S UTC')",
+                    "inline": true
+                  }
+                ]
+              }
+            ]
+          }
+          EOF
+          )
+
+            curl -s -X POST \
+              -H "Content-Type: application/json" \
+              -d "$payload" \
+              "$WEBHOOK_URL"
+
+            echo "Failure notification sent"
+          else
+            echo "No webhook URL configured for notifications"
+          fi
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Token Refresh Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "✅ **Status**: Success" >> $GITHUB_STEP_SUMMARY
+            echo "📊 **Results**:" >> $GITHUB_STEP_SUMMARY
+            echo "- Processed: ${{ steps.refresh.outputs.processed }} sessions" >> $GITHUB_STEP_SUMMARY
+            echo "- Successful: ${{ steps.refresh.outputs.successful }} sessions" >> $GITHUB_STEP_SUMMARY
+            echo "- Failed: ${{ steps.refresh.outputs.failed }} sessions" >> $GITHUB_STEP_SUMMARY
+            echo "- Logged out: ${{ steps.refresh.outputs.logged_out }} sessions" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Status**: Failed" >> $GITHUB_STEP_SUMMARY
+            echo "Please check the logs for more details." >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Timestamp**: $(date -u +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY

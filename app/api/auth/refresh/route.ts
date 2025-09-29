@@ -88,6 +88,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       needsRefresh,
+      token: session?.token, // Add current token for frontend auto-refresh
       lastRefreshDate: session?.lastRefreshDate,
       refreshCount: session?.refreshCount || 0
     })

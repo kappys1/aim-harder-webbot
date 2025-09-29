@@ -1,6 +1,7 @@
 import { supabaseAdmin } from "@/core/database/supabase";
 import { AuthCookie } from "./cookie.service";
 import { TokenData } from "./html-parser.service";
+import { ENV } from "@/core/config/environment";
 
 export interface SessionData {
   email: string;
@@ -229,6 +230,33 @@ export class SupabaseSessionService {
     }
   }
 
+  static async needsRefresh(email: string): Promise<boolean> {
+    try {
+      const session = await this.getSession(email);
+
+      if (!session) return false;
+
+      // Check if session needs refresh based on last refresh date
+      if (!session.lastRefreshDate) {
+        // No refresh date recorded, needs refresh
+        return true;
+      }
+
+      const lastRefresh = new Date(session.lastRefreshDate);
+      const now = new Date();
+      const minutesDiff = (now.getTime() - lastRefresh.getTime()) / (1000 * 60);
+
+      // Use configurable threshold from environment
+      const thresholdMinutes = ENV.getBackendRefreshThresholdMinutes();
+
+      // Needs refresh if last refresh was more than threshold minutes ago
+      return minutesDiff >= thresholdMinutes;
+    } catch (error) {
+      console.error("Refresh check error:", error);
+      return true; // Default to needing refresh on error
+    }
+  }
+
   static async getAllActiveSessions(): Promise<SessionData[]> {
     try {
       const oneWeekAgo = new Date();
@@ -253,9 +281,53 @@ export class SupabaseSessionService {
         })),
         createdAt: row.created_at,
         updatedAt: row.updated_at,
+        lastRefreshDate: (row as any).last_refresh_date,
+        refreshCount: (row as any).refresh_count,
+        lastRefreshError: (row as any).last_refresh_error,
       }));
     } catch (error) {
       console.error("Active sessions retrieval error:", error);
+      return [];
+    }
+  }
+
+  static async getSessionsNeedingTokenUpdate(): Promise<SessionData[]> {
+    try {
+      const oneWeekAgo = new Date();
+      oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+
+      const thresholdMinutesAgo = new Date();
+      const intervalMinutes = ENV.getBulkUpdateIntervalMinutes();
+      thresholdMinutesAgo.setMinutes(thresholdMinutesAgo.getMinutes() - intervalMinutes);
+
+      const { data, error } = await supabaseAdmin
+        .from("auth_sessions")
+        .select("*")
+        .gte("created_at", oneWeekAgo.toISOString())
+        .or(`last_token_update_date.is.null,last_token_update_date.lt.${thresholdMinutesAgo.toISOString()}`);
+
+      if (error) {
+        console.error("Sessions needing update retrieval error:", error);
+        throw new Error(`Failed to retrieve sessions needing update: ${error.message}`);
+      }
+
+      console.log(`Found ${data?.length || 0} sessions needing token update (not updated in last ${intervalMinutes} minutes)`);
+
+      return (data as SessionRow[]).map((row) => ({
+        email: row.user_email,
+        token: row.aimharder_token,
+        cookies: row.aimharder_cookies.map((c) => ({
+          name: c.name,
+          value: c.value,
+        })),
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+        lastRefreshDate: (row as any).last_refresh_date,
+        refreshCount: (row as any).refresh_count,
+        lastRefreshError: (row as any).last_refresh_error,
+      }));
+    } catch (error) {
+      console.error("Sessions needing update retrieval error:", error);
       return [];
     }
   }
@@ -357,6 +429,146 @@ export class SupabaseSessionService {
     } catch (error) {
       console.error("Refresh data update error:", error);
       throw error;
+    }
+  }
+
+  // Token update methods for new tokenUpdate functionality
+  static async updateTokenAndCookies(
+    email: string,
+    newToken: string,
+    updatedCookies: Array<{ name: string; value: string }>
+  ): Promise<void> {
+    try {
+      // Get current session to merge cookies
+      const session = await this.getSession(email);
+      if (!session) {
+        throw new Error(`No session found for email: ${email}`);
+      }
+
+      // Merge existing cookies with updated ones (AWSALB and AWSALBCORS)
+      const mergedCookies = [...session.cookies];
+
+      // Update or add AWSALB and AWSALBCORS cookies
+      updatedCookies.forEach(updatedCookie => {
+        if (updatedCookie.name === 'AWSALB' || updatedCookie.name === 'AWSALBCORS') {
+          const existingIndex = mergedCookies.findIndex(c => c.name === updatedCookie.name);
+          if (existingIndex >= 0) {
+            mergedCookies[existingIndex] = updatedCookie;
+          } else {
+            mergedCookies.push(updatedCookie);
+          }
+        }
+      });
+
+      const updateData = {
+        aimharder_token: newToken,
+        aimharder_cookies: mergedCookies.map((c) => ({
+          name: c.name,
+          value: c.value,
+        })),
+        updated_at: new Date().toISOString(),
+        last_token_update_date: new Date().toISOString(),
+      };
+
+      const { error } = await supabaseAdmin
+        .from("auth_sessions")
+        .update(updateData)
+        .eq("user_email", email);
+
+      if (error) {
+        console.error("Token update error:", error);
+        throw new Error(`Failed to update token and cookies: ${error.message}`);
+      }
+
+      console.log("Token and cookies updated successfully for user:", email, {
+        newTokenPrefix: newToken.substring(0, 10) + '...',
+        updatedCookieCount: updatedCookies.length,
+        updatedCookieNames: updatedCookies.map(c => c.name),
+        totalCookieCount: mergedCookies.length
+      });
+    } catch (error) {
+      console.error("Token and cookies update error:", error);
+      throw error;
+    }
+  }
+
+  static async updateTokenUpdateData(
+    email: string,
+    success: boolean,
+    error?: string
+  ): Promise<void> {
+    try {
+      // Get current session to increment token update count
+      const session = await this.getSession(email);
+      if (!session) return;
+
+      const updateData: any = {
+        last_token_update_date: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      if (success) {
+        updateData.token_update_count = ((session as any).tokenUpdateCount || 0) + 1;
+        updateData.last_token_update_error = null;
+      } else {
+        updateData.last_token_update_error = error;
+      }
+
+      const { error: updateError } = await supabaseAdmin
+        .from("auth_sessions")
+        .update(updateData)
+        .eq("user_email", email);
+
+      if (updateError) {
+        console.error("Token update data error:", updateError);
+        throw new Error(
+          `Failed to update token update data: ${updateError.message}`
+        );
+      }
+
+      console.log("Token update tracking data updated for user:", email);
+    } catch (error) {
+      console.error("Token update data error:", error);
+      throw error;
+    }
+  }
+
+  static async getTokenUpdateStats(): Promise<{
+    totalSessions: number;
+    recentlyUpdated: number;
+    failedUpdates: number;
+  }> {
+    try {
+      const oneHourAgo = new Date();
+      oneHourAgo.setHours(oneHourAgo.getHours() - 1);
+
+      const { count: totalCount, error: totalError } = await supabaseAdmin
+        .from("auth_sessions")
+        .select("*", { count: "exact", head: true });
+
+      const { count: recentCount, error: recentError } = await supabaseAdmin
+        .from("auth_sessions")
+        .select("*", { count: "exact", head: true })
+        .gte("last_token_update_date", oneHourAgo.toISOString());
+
+      const { count: failedCount, error: failedError } = await supabaseAdmin
+        .from("auth_sessions")
+        .select("*", { count: "exact", head: true })
+        .not("last_token_update_error", "is", null);
+
+      if (totalError || recentError || failedError) {
+        console.error("Token update stats error:", totalError || recentError || failedError);
+        throw new Error("Failed to retrieve token update stats");
+      }
+
+      return {
+        totalSessions: totalCount || 0,
+        recentlyUpdated: recentCount || 0,
+        failedUpdates: failedCount || 0,
+      };
+    } catch (error) {
+      console.error("Token update stats error:", error);
+      return { totalSessions: 0, recentlyUpdated: 0, failedUpdates: 0 };
     }
   }
 }

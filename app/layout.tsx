@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { AutoTokenRefresh } from "@/modules/auth/pods/token-refresh/auto-token-refresh.component";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -32,6 +33,8 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
+        {/* Auto Token Refresh - Silent background component */}
+        <AutoTokenRefresh debugMode={false} />
         {children}
       </body>
     </html>
