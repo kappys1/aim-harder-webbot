@@ -23,6 +23,7 @@ interface BookingCardProps {
   className?: string;
   variant?: "default" | "compact" | "detailed";
   showActions?: boolean;
+  isLoading?: boolean;
 }
 
 export function BookingCard({
@@ -32,6 +33,7 @@ export function BookingCard({
   className,
   variant = "default",
   showActions = true,
+  isLoading = false,
 }: BookingCardProps) {
   const isUserBooked = booking.userBookingId !== null;
   const canBook = BookingUtils.canUserBook(booking);
@@ -88,13 +90,13 @@ export function BookingCard({
         }
         size="sm"
         onClick={handleActionClick}
-        disabled={!canBook}
+        disabled={!canBook || isLoading}
         className={cn(
           booking.status === BookingStatus.WAITLIST &&
             "text-orange-600 border-orange-200 hover:bg-orange-50"
         )}
       >
-        Reservar
+        {isLoading ? "Reservando..." : "Reservar"}
       </Button>
     );
   };

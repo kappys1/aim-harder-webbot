@@ -4,10 +4,11 @@ import { Button } from "@/common/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { AlertCircle, RefreshCw } from "lucide-react";
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { AuthCookie } from "../../../auth/api/services/cookie.service";
 import { useBooking } from "../../hooks/useBooking.hook";
-import { BookingProvider } from "../../hooks/useBookingContext.hook";
+import { BookingProvider, useBookingContext } from "../../hooks/useBookingContext.hook";
+import { BookingStatus } from "../../models/booking.model";
 import { BookingUtils } from "../../utils/booking.utils";
 import { BookingGrid } from "./components/booking-grid/booking-grid.component";
 import { WeekSelector } from "./components/week-selector";
@@ -40,11 +41,80 @@ function BookingDashboardContent({
     cookies: authCookies,
   });
 
+  const [bookingLoading, setBookingLoading] = useState<number | null>(null);
+
   const handleDateChange = useCallback(
     (date: string) => {
       setDate(date);
     },
     [setDate]
+  );
+
+  const handleBooking = useCallback(
+    async (bookingId: number) => {
+      if (!bookingDay?.date) return;
+
+      setBookingLoading(bookingId);
+
+      try {
+        const apiDate = BookingUtils.formatDateForApi(bookingDay.date);
+        const bookingRequest = {
+          day: apiDate,
+          familyId: "",
+          id: bookingId.toString(),
+          insist: 0,
+        };
+
+        // Use our internal API endpoint instead of external service directly
+        const userEmail = typeof window !== 'undefined' ? localStorage.getItem('user-email') : null;
+
+        const response = await fetch('/api/booking', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(userEmail && { 'x-user-email': userEmail }),
+          },
+          body: JSON.stringify(bookingRequest),
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+
+        if (data.success) {
+          // Success
+          alert(`✅ Reserva exitosa! ID: ${data.bookingId}`);
+          // Refresh bookings to show updated state
+          await refetch();
+        } else {
+          // Handle different error types
+          if (data.error === 'early_booking') {
+            alert(`⏰ ${data.message}`);
+          } else if (data.error === 'max_bookings_reached') {
+            alert(`🚫 ${data.message}`);
+          } else {
+            alert(`❌ Error: ${data.message || 'Error desconocido'}`);
+          }
+        }
+      } catch (error) {
+        console.error('Booking error:', error);
+        alert('❌ Error de conexión al realizar la reserva');
+      } finally {
+        setBookingLoading(null);
+      }
+    },
+    [bookingDay?.date, refetch]
+  );
+
+  const handleCancelBooking = useCallback(
+    async (bookingId: number) => {
+      // TODO: Implement cancellation logic when available
+      console.log("Cancel booking:", bookingId);
+      alert("🚧 Funcionalidad de cancelación en desarrollo");
+    },
+    []
   );
 
   const formatDate = (dateString: string) => {
@@ -178,9 +248,10 @@ function BookingDashboardContent({
       {!isLoading && !error && bookingDay && (
         <BookingGrid
           bookings={bookingDay.bookings}
-          onBook={(id) => console.log("Book:", id)}
-          onCancel={(id) => console.log("Cancel:", id)}
+          onBook={handleBooking}
+          onCancel={handleCancelBooking}
           showActions={true}
+          loadingBookingId={bookingLoading}
         />
       )}
     </div>

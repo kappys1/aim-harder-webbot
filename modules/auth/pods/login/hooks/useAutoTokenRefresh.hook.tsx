@@ -225,8 +225,8 @@ export const useAutoTokenRefresh = ({
 
     // Perform initial refresh after a short delay (30 seconds)
     // setTimeout(() => {
-    //   refreshToken()
-    // }, 30 * 1000)
+    //   refreshToken();
+    // }, 30 * 1000);
   }, [
     enabled,
     userEmail,

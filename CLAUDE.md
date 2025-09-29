@@ -137,7 +137,6 @@ The frontend is organized by features with each feature containing:
 
 ### Phase 2
 
-- Before you do any work, MUST view files in `.claude/sessions/context_session_{feature_name}.md` file to get the full context and call frontend-test-engineer subagent to create test cases for the feature in TDD mode.
 - Before you do any work, MUST view files in `.claude/sessions/context_session_{feature_name}.md` file to get the full context (x being the id of the session we are operate)
 - `.claude/sessions/context_session_{feature_name}.md` should contain most of context of what we did, overall plan, and sub agents will continusly add context to the file
 - After you finish the each phase, MUST update the `.claude/sessions/context_session_{feature_name}.md` file to make sure others can get full context of what you did.

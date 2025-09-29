@@ -3,7 +3,9 @@ export const BOOKING_CONSTANTS = {
     BASE_URL: '',
     ENDPOINTS: {
       BOOKINGS: '/api/booking',
+      CREATE_BOOKING: '/api/book',
     },
+    EXTERNAL_BASE_URL: 'https://crossfitcerdanyola300.aimharder.com',
     BOX_IDS: {
       CROSSFIT_CERDANYOLA: '10122',
     },
@@ -48,6 +50,8 @@ export const BOOKING_CONSTANTS = {
   BOOKING_STATES: {
     AVAILABLE: 0,
     BOOKED: 1,
+    ERROR_MAX_BOOKINGS: -8,
+    ERROR_EARLY_BOOKING: -12,
   },
 
   CLASS_TYPES: {

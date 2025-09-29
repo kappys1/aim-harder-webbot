@@ -53,7 +53,27 @@ export const BookingRequestParamsSchema = z.object({
   _: z.number(),
 });
 
+// POST booking schemas
+export const BookingCreateRequestSchema = z.object({
+  day: z.string().regex(/^\d{8}$/, "Day must be in YYYYMMDD format"),
+  familyId: z.string().default(""),
+  id: z.string().min(1, "Slot ID is required"),
+  insist: z.number().default(0),
+});
+
+export const BookingCreateResponseSchema = z.object({
+  clasesContratadas: z.string(),
+  hasPublicMemberships: z.number().optional(),
+  bookState: z.number(),
+  id: z.string().optional(), // Present on success
+  errorMssg: z.string().optional(), // Present on error
+  errorMssgLang: z.string().optional(), // Present on error
+  max: z.number().optional(), // Present on bookState -8 (max bookings reached)
+});
+
 export type TimeSlotApi = z.infer<typeof TimeSlotApiSchema>;
 export type BookingApi = z.infer<typeof BookingApiSchema>;
 export type BookingResponseApi = z.infer<typeof BookingResponseApiSchema>;
 export type BookingRequestParams = z.infer<typeof BookingRequestParamsSchema>;
+export type BookingCreateRequest = z.infer<typeof BookingCreateRequestSchema>;
+export type BookingCreateResponse = z.infer<typeof BookingCreateResponseSchema>;

@@ -16,6 +16,7 @@ interface BookingGridProps {
   className?: string;
   showActions?: boolean;
   groupByTimeSlot?: boolean;
+  loadingBookingId?: number | null;
 }
 
 interface TimeSlotGroup {
@@ -33,6 +34,7 @@ export function BookingGrid({
   className,
   showActions = true,
   groupByTimeSlot = false,
+  loadingBookingId,
 }: BookingGridProps) {
   const processedBookings = useMemo(() => {
     let filtered = bookings;
@@ -109,6 +111,7 @@ export function BookingGrid({
                   onCancel={onCancel}
                   variant={variant}
                   showActions={showActions}
+                  isLoading={loadingBookingId === booking.id}
                 />
               ))}
             </div>
@@ -128,6 +131,7 @@ export function BookingGrid({
           onCancel={onCancel}
           variant={variant}
           showActions={showActions}
+          isLoading={loadingBookingId === booking.id}
         />
       ))}
     </div>

@@ -1,6 +1,6 @@
 import { BookingService, BookingApiError } from '../api/services/booking.service';
 import { BookingMapper } from '../api/mappers/booking.mapper';
-import { BookingRequestParams } from '../api/models/booking.api';
+import { BookingRequestParams, BookingCreateRequest } from '../api/models/booking.api';
 import { BookingDay, Booking, BookingStatus, BookingFilter } from '../models/booking.model';
 import { BookingUtils } from '../utils/booking.utils';
 import { BOOKING_CONSTANTS } from '../constants/booking.constants';

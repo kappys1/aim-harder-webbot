@@ -12,7 +12,9 @@ import {
   BookingApi,
   BookingResponseApi,
   TimeSlotApi,
+  BookingCreateResponse,
 } from "../models/booking.api";
+import { BOOKING_CONSTANTS } from "../../constants/booking.constants";
 
 export class BookingMapper {
   static mapTimeSlot(timeSlotApi: TimeSlotApi): TimeSlot {
@@ -125,6 +127,70 @@ export class BookingMapper {
       ),
       specialEvents: responseApi.seminars,
     };
+  }
+
+  static mapBookingCreateResult(response: BookingCreateResponse): {
+    success: boolean;
+    bookingId?: string;
+    error?: string;
+    errorMessage?: string;
+    canRetryLater?: boolean;
+    availableFrom?: Date;
+    maxBookings?: number;
+  } {
+    const isSuccess = response.bookState === BOOKING_CONSTANTS.BOOKING_STATES.BOOKED;
+    const isEarlyBookingError = response.bookState === BOOKING_CONSTANTS.BOOKING_STATES.ERROR_EARLY_BOOKING;
+    const isMaxBookingsError = response.bookState === BOOKING_CONSTANTS.BOOKING_STATES.ERROR_MAX_BOOKINGS;
+
+    if (isSuccess) {
+      return {
+        success: true,
+        bookingId: response.id,
+      };
+    }
+
+    if (isEarlyBookingError) {
+      const availableFrom = this.extractAvailabilityDate(response.errorMssg);
+      return {
+        success: false,
+        error: 'early_booking',
+        errorMessage: response.errorMssg,
+        canRetryLater: true,
+        availableFrom,
+      };
+    }
+
+    if (isMaxBookingsError) {
+      return {
+        success: false,
+        error: 'max_bookings_reached',
+        errorMessage: `You have reached the maximum number of bookings allowed (${response.max})`,
+        canRetryLater: false,
+        maxBookings: response.max,
+      };
+    }
+
+    return {
+      success: false,
+      error: 'booking_failed',
+      errorMessage: response.errorMssg || 'Unknown booking error',
+      canRetryLater: false,
+    };
+  }
+
+  private static extractAvailabilityDate(errorMessage?: string): Date | undefined {
+    if (!errorMessage) return undefined;
+
+    // Extract days from Spanish error message like "No puedes reservar clases con más de 4 días de antelación"
+    const daysMatch = errorMessage.match(/(\d+)\s+días?\s+de\s+antelación/);
+    if (daysMatch) {
+      const daysAdvance = parseInt(daysMatch[1], 10);
+      const availableDate = new Date();
+      availableDate.setDate(availableDate.getDate() - daysAdvance);
+      return availableDate;
+    }
+
+    return undefined;
   }
 
   private static extractDateFromDescription(description: string): string {

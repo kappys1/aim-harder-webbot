@@ -1,5 +1,5 @@
 import { CookieService, AuthCookie } from '../../../auth/api/services/cookie.service';
-import { BookingRequestParams, BookingResponseApi, BookingResponseApiSchema } from '../models/booking.api';
+import { BookingRequestParams, BookingResponseApi, BookingResponseApiSchema, BookingCreateRequest, BookingCreateResponse, BookingCreateResponseSchema } from '../models/booking.api';
 import { BOOKING_CONSTANTS } from '../../constants/booking.constants';
 
 export interface BookingServiceConfig {
@@ -68,6 +68,96 @@ export class BookingService {
       if (!validatedData.success) {
         throw new BookingApiError(
           'Invalid API response format',
+          400,
+          'VALIDATION_ERROR',
+          validatedData.error.issues
+        );
+      }
+
+      return validatedData.data;
+
+    } catch (error) {
+      if (error instanceof BookingApiError) {
+        throw error;
+      }
+
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        throw new BookingApiError(
+          'Request timeout',
+          408,
+          'TIMEOUT_ERROR'
+        );
+      }
+
+      if (error instanceof TypeError) {
+        throw new BookingApiError(
+          'Network error - please check your connection',
+          0,
+          'NETWORK_ERROR'
+        );
+      }
+
+      throw new BookingApiError(
+        error instanceof Error ? error.message : 'Unknown error occurred',
+        500,
+        'UNKNOWN_ERROR'
+      );
+    }
+  }
+
+  async createBooking(
+    request: BookingCreateRequest,
+    cookies?: AuthCookie[]
+  ): Promise<BookingCreateResponse> {
+    const url = `${BOOKING_CONSTANTS.API.EXTERNAL_BASE_URL}${BOOKING_CONSTANTS.API.ENDPOINTS.CREATE_BOOKING}`;
+
+    const headers: Record<string, string> = {
+      'Accept': '*/*',
+      'X-Requested-With': 'XMLHttpRequest',
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+      'Referer': 'https://crossfitcerdanyola300.aimharder.com/',
+      'Origin': 'https://crossfitcerdanyola300.aimharder.com',
+    };
+
+    if (cookies && cookies.length > 0) {
+      headers['Cookie'] = CookieService.formatForRequest(cookies);
+    }
+
+    // Format request body as URL-encoded form data
+    const formData = new URLSearchParams();
+    formData.append('day', request.day);
+    formData.append('familyId', request.familyId);
+    formData.append('id', request.id);
+    formData.append('insist', request.insist.toString());
+
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: formData,
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        throw new BookingApiError(
+          `HTTP ${response.status}: ${response.statusText}`,
+          response.status,
+          'HTTP_ERROR'
+        );
+      }
+
+      const data = await response.json();
+
+      const validatedData = BookingCreateResponseSchema.safeParse(data);
+      if (!validatedData.success) {
+        throw new BookingApiError(
+          'Invalid booking response format',
           400,
           'VALIDATION_ERROR',
           validatedData.error.issues
