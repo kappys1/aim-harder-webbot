@@ -64,7 +64,7 @@ function BookingDashboardContent({
               </p>
             </div>
             <Button asChild>
-              <a href="/auth/login">Iniciar sesión</a>
+              <a href="/login">Iniciar sesión</a>
             </Button>
           </div>
         </CardContent>
