@@ -112,10 +112,6 @@ export function useBooking(options: UseBookingOptions = {}): UseBookingReturn {
     }
   }, [state.selectedDate, state.selectedBoxId, autoFetch]);
 
-  useEffect(() => {
-    console.log("Booking state changed:", state);
-  }, [state]);
-
   return {
     bookingDay: state.currentDay,
     isLoading: state.isLoading,

@@ -64,7 +64,6 @@ function bookingReducer(
 ): BookingState {
   switch (action.type) {
     case "SET_LOADING":
-      console.log("SET_LOADING action:", action.payload);
       return { ...state, isLoading: action.payload };
 
     case "SET_ERROR":

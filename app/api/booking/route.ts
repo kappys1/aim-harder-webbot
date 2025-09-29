@@ -46,16 +46,6 @@ export async function GET(request: NextRequest) {
       .map((cookie) => `${cookie.name}=${cookie.value}`)
       .join("; ");
 
-    console.log("🍪 Cookies being sent:", {
-      userEmail,
-      cookieCount: session.cookies.length,
-      cookies: session.cookies.map((c) => ({
-        name: c.name,
-        value: c.value,
-      })),
-      targetUrl: targetUrl.toString(),
-    });
-
     // Make the request to the external API
     const response = await fetch(targetUrl.toString(), {
       method: "GET",
@@ -82,15 +72,6 @@ export async function GET(request: NextRequest) {
     }
 
     const data = await response.json();
-
-    // console.log(data.bookings);
-    console.log("📊 API Response received:", {
-      status: response.status,
-      statusText: response.statusText,
-      dataKeys: Object.keys(data),
-      bookingsCount: data.bookings?.length || 0,
-      hasBookings: !!data.bookings,
-    });
 
     // Return the data with proper CORS headers
     return NextResponse.json(data, {
