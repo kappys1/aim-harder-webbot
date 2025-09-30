@@ -1,7 +1,12 @@
 import { SupabaseSessionService } from "@/modules/auth/api/services/supabase-session.service";
+import {
+  BookingCancelRequestSchema,
+  BookingCreateRequestSchema,
+} from "@/modules/booking/api/models/booking.api";
 import { bookingService } from "@/modules/booking/api/services/booking.service";
-import { BookingCreateRequestSchema, BookingCancelRequestSchema } from "@/modules/booking/api/models/booking.api";
 import { BOOKING_CONSTANTS } from "@/modules/booking/constants/booking.constants";
+import { preBookingService } from "@/modules/prebooking/api/services/prebooking.service";
+import { parseEarlyBookingError } from "@/modules/prebooking/utils/error-parser.utils";
 import { NextRequest, NextResponse } from "next/server";
 
 const BOOKING_API_BASE_URL = "https://crossfitcerdanyola300.aimharder.com";
@@ -97,20 +102,22 @@ export async function POST(request: NextRequest) {
   try {
     // Parse and validate request body
     const body = await request.json();
+    const classTime = body.classTime; // Extract classTime before validation (not part of schema)
     const validatedRequest = BookingCreateRequestSchema.safeParse(body);
 
     if (!validatedRequest.success) {
       return NextResponse.json(
         {
           error: "Invalid request parameters",
-          details: validatedRequest.error.issues
+          details: validatedRequest.error.issues,
         },
         { status: 400 }
       );
     }
 
     // Get user email from headers
-    const userEmail = request.headers.get("x-user-email") || "alexsbd1@gmail.com"; // Default for now
+    const userEmail =
+      request.headers.get("x-user-email") || "alexsbd1@gmail.com"; // Default for now
 
     // Get user session with cookies
     const session = await SupabaseSessionService.getSession(userEmail);
@@ -147,8 +154,66 @@ export async function POST(request: NextRequest) {
           },
         }
       );
-    } else if (bookingResponse.bookState === BOOKING_CONSTANTS.BOOKING_STATES.ERROR_EARLY_BOOKING) {
+    } else if (
+      bookingResponse.bookState ===
+      BOOKING_CONSTANTS.BOOKING_STATES.ERROR_EARLY_BOOKING
+    ) {
       // Early booking error - user tried to book too early
+      // Automatically create a prebooking
+      try {
+        const parsed = parseEarlyBookingError(
+          bookingResponse.errorMssg,
+          validatedRequest.data.day,
+          classTime // Pass classTime from request body
+        );
+
+        if (parsed) {
+          const prebooking = await preBookingService.create({
+            userEmail,
+            bookingData: validatedRequest.data,
+            availableAt: parsed.availableAt,
+          });
+
+          console.log(
+            `[Booking API] Created prebooking ${
+              prebooking.id
+            } for ${userEmail} - available at ${parsed.availableAt.toISOString()} (class time: ${
+              classTime || "not provided"
+            })`
+          );
+
+          return NextResponse.json(
+            {
+              success: false,
+              error: "early_booking",
+              message:
+                bookingResponse.errorMssg || "Cannot book this class yet",
+              errorCode: bookingResponse.errorMssgLang,
+              bookState: bookingResponse.bookState,
+              clasesContratadas: bookingResponse.clasesContratadas,
+              prebooking: {
+                id: prebooking.id,
+                availableAt: prebooking.availableAt.toISOString(),
+                status: prebooking.status,
+              },
+            },
+            {
+              status: 200,
+              headers: {
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods":
+                  "GET, POST, PUT, DELETE, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization",
+              },
+            }
+          );
+        }
+      } catch (error) {
+        console.error("[Booking API] Error creating prebooking:", error);
+        // Continue with normal error response if prebooking creation fails
+      }
+
+      // Fallback if prebooking creation failed
       return NextResponse.json(
         {
           success: false,
@@ -167,7 +232,10 @@ export async function POST(request: NextRequest) {
           },
         }
       );
-    } else if (bookingResponse.bookState === BOOKING_CONSTANTS.BOOKING_STATES.ERROR_MAX_BOOKINGS) {
+    } else if (
+      bookingResponse.bookState ===
+      BOOKING_CONSTANTS.BOOKING_STATES.ERROR_MAX_BOOKINGS
+    ) {
       // Max bookings reached error
       return NextResponse.json(
         {
@@ -208,12 +276,15 @@ export async function POST(request: NextRequest) {
         }
       );
     }
-
   } catch (error) {
     console.error("Booking creation error:", error);
 
     // Handle specific booking service errors
-    if (error && typeof error === 'object' && 'isAuthenticationError' in error) {
+    if (
+      error &&
+      typeof error === "object" &&
+      "isAuthenticationError" in error
+    ) {
       const bookingError = error as { isAuthenticationError: boolean };
       if (bookingError.isAuthenticationError) {
         return NextResponse.json(
@@ -240,14 +311,15 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json(
         {
           error: "Invalid request parameters",
-          details: validatedRequest.error.issues
+          details: validatedRequest.error.issues,
         },
         { status: 400 }
       );
     }
 
     // Get user email from headers
-    const userEmail = request.headers.get("x-user-email") || "alexsbd1@gmail.com"; // Default for now
+    const userEmail =
+      request.headers.get("x-user-email") || "alexsbd1@gmail.com"; // Default for now
 
     // Get user session with cookies
     const session = await SupabaseSessionService.getSession(userEmail);
@@ -266,7 +338,9 @@ export async function DELETE(request: NextRequest) {
     );
 
     // Check cancellation state and handle accordingly
-    if (cancelResponse.cancelState === BOOKING_CONSTANTS.BOOKING_STATES.CANCELLED) {
+    if (
+      cancelResponse.cancelState === BOOKING_CONSTANTS.BOOKING_STATES.CANCELLED
+    ) {
       // Success - booking was cancelled
       return NextResponse.json(
         {
@@ -301,12 +375,15 @@ export async function DELETE(request: NextRequest) {
         }
       );
     }
-
   } catch (error) {
     console.error("Booking cancellation error:", error);
 
     // Handle specific booking service errors
-    if (error && typeof error === 'object' && 'isAuthenticationError' in error) {
+    if (
+      error &&
+      typeof error === "object" &&
+      "isAuthenticationError" in error
+    ) {
       const bookingError = error as { isAuthenticationError: boolean };
       if (bookingError.isAuthenticationError) {
         return NextResponse.json(

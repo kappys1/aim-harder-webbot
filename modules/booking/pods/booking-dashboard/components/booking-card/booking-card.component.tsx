@@ -14,32 +14,43 @@ import { Calendar, Clock, MapPin, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Booking, BookingStatus } from "@/modules/booking/models/booking.model";
 import { BookingUtils } from "@/modules/booking/utils/booking.utils";
+import { PreBooking } from "@/modules/prebooking/models/prebooking.model";
+import { PreBookingBadge } from "@/modules/prebooking/pods/prebooking/components/PreBookingBadge.component";
 import { CapacityIndicator } from "../capacity-indicator/capacity-indicator.component";
 
 interface BookingCardProps {
   booking: Booking;
   onBook?: (bookingId: number) => void;
   onCancel?: (bookingId: number) => void;
+  onCancelPrebooking?: (prebookingId: string) => void;
   className?: string;
   variant?: "default" | "compact" | "detailed";
   showActions?: boolean;
   isLoading?: boolean;
   isCancelling?: boolean;
+  prebooking?: PreBooking;
+  isCancellingPrebooking?: boolean;
 }
 
 export function BookingCard({
   booking,
   onBook,
   onCancel,
+  onCancelPrebooking,
   className,
   variant = "default",
   showActions = true,
   isLoading = false,
   isCancelling = false,
+  prebooking,
+  isCancellingPrebooking = false,
 }: BookingCardProps) {
   const isUserBooked = booking.userBookingId !== null;
   const canBook = BookingUtils.canUserBook(booking);
   const canCancel = BookingUtils.canUserCancel(booking);
+  const hasActivePrebooking =
+    prebooking &&
+    (prebooking.status === "pending" || prebooking.status === "loaded");
 
   const handleActionClick = () => {
     if (isUserBooked && canCancel && onCancel) {
@@ -49,8 +60,29 @@ export function BookingCard({
     }
   };
 
+  const handleCancelPrebooking = () => {
+    if (prebooking && onCancelPrebooking) {
+      onCancelPrebooking(prebooking.id);
+    }
+  };
+
   const getActionButton = () => {
     if (!showActions) return null;
+
+    // If there's an active prebooking, show cancel prebooking button
+    if (hasActivePrebooking) {
+      return (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleCancelPrebooking}
+          className="text-orange-600 border-orange-200 hover:bg-orange-50"
+          disabled={isCancellingPrebooking}
+        >
+          {isCancellingPrebooking ? "Cancelando..." : "Cancelar Prereserva"}
+        </Button>
+      );
+    }
 
     if (isUserBooked) {
       return (
@@ -149,7 +181,7 @@ export function BookingCard({
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-3">
             <div
-              className="w-4 h-full rounded-full"
+              className="w-4 h-4 rounded-full"
               style={{ backgroundColor: booking.class.color }}
             />
             <div>
@@ -168,6 +200,9 @@ export function BookingCard({
       </CardHeader>
 
       <CardContent className="space-y-4">
+        {/* Prebooking Badge */}
+        {prebooking && <PreBookingBadge prebooking={prebooking} />}
+
         {/* Capacity Indicator */}
         <CapacityIndicator
           capacity={booking.capacity}

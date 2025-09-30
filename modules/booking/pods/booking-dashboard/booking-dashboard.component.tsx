@@ -3,11 +3,15 @@
 import { Button } from "@/common/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { usePreBooking } from "@/modules/prebooking/pods/prebooking/hooks/usePreBooking.hook";
 import { AlertCircle, RefreshCw } from "lucide-react";
 import { useCallback, useState } from "react";
 import { AuthCookie } from "../../../auth/api/services/cookie.service";
 import { useBooking } from "../../hooks/useBooking.hook";
-import { BookingProvider, useBookingContext } from "../../hooks/useBookingContext.hook";
+import {
+  BookingProvider,
+  useBookingContext,
+} from "../../hooks/useBookingContext.hook";
 import { BookingStatus } from "../../models/booking.model";
 import { BookingUtils } from "../../utils/booking.utils";
 import { BookingGrid } from "./components/booking-grid/booking-grid.component";
@@ -41,9 +45,22 @@ function BookingDashboardContent({
     cookies: authCookies,
   });
 
-  const { actions } = useBookingContext();
+  const { actions, state } = useBookingContext();
   const [bookingLoading, setBookingLoading] = useState<number | null>(null);
   const [cancelLoading, setCancelLoading] = useState<number | null>(null);
+  const [cancelPrebookingLoading, setCancelPrebookingLoading] = useState<string | null>(null);
+
+  // Get user email for prebookings
+  const userEmail =
+    typeof window !== "undefined" ? localStorage.getItem("user-email") : null;
+
+  // Prebooking hook
+  const {
+    prebookings,
+    fetchPrebookings,
+    hasActivePrebooking,
+    getActivePrebookingForSlot,
+  } = usePreBooking(userEmail || undefined);
 
   const handleDateChange = useCallback(
     (date: string) => {
@@ -60,21 +77,30 @@ function BookingDashboardContent({
 
       try {
         const apiDate = BookingUtils.formatDateForApi(bookingDay.date);
+
+        // Find the booking to get its time
+        const booking = bookingDay.bookings.find((b) => b.id === bookingId);
+        const classTime = booking?.timeSlot.startTime || booking?.timeSlot.time;
+
         const bookingRequest = {
           day: apiDate,
           familyId: "",
           id: bookingId.toString(),
           insist: 0,
+          classTime, // Add classTime for prebooking calculation
         };
 
         // Use our internal API endpoint instead of external service directly
-        const userEmail = typeof window !== 'undefined' ? localStorage.getItem('user-email') : null;
+        const userEmail =
+          typeof window !== "undefined"
+            ? localStorage.getItem("user-email")
+            : null;
 
-        const response = await fetch('/api/booking', {
-          method: 'POST',
+        const response = await fetch("/api/booking", {
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
-            ...(userEmail && { 'x-user-email': userEmail }),
+            "Content-Type": "application/json",
+            ...(userEmail && { "x-user-email": userEmail }),
           },
           body: JSON.stringify(bookingRequest),
         });
@@ -88,25 +114,28 @@ function BookingDashboardContent({
         if (data.success) {
           // Success - Update local state optimistically
           if (bookingDay) {
-            const updatedBookings = bookingDay.bookings.map(b =>
+            const updatedBookings = bookingDay.bookings.map((b) =>
               b.id === bookingId
                 ? {
                     ...b,
                     status: BookingStatus.BOOKED,
-                    userBookingId: parseInt(data.bookingId || '0'),
+                    userBookingId: parseInt(data.bookingId || "0"),
                     capacity: {
                       ...b.capacity,
                       current: b.capacity.current + 1,
                       available: Math.max(0, b.capacity.available - 1),
-                      percentage: b.capacity.limit > 0 ? ((b.capacity.current + 1) / b.capacity.limit) * 100 : 0
-                    }
+                      percentage:
+                        b.capacity.limit > 0
+                          ? ((b.capacity.current + 1) / b.capacity.limit) * 100
+                          : 0,
+                    },
                   }
                 : b
             );
 
             const updatedDay = {
               ...bookingDay,
-              bookings: updatedBookings
+              bookings: updatedBookings,
             };
 
             // Update local state immediately
@@ -118,17 +147,40 @@ function BookingDashboardContent({
           refetch();
         } else {
           // Handle different error types
-          if (data.error === 'early_booking') {
-            alert(`⏰ ${data.message}`);
-          } else if (data.error === 'max_bookings_reached') {
+          if (data.error === "early_booking") {
+            // Check if a prebooking was created
+            if (data.prebooking) {
+              const availableDate = new Date(data.prebooking.availableAt);
+              const formattedDate = availableDate.toLocaleString("es-ES", {
+                weekday: "short",
+                day: "numeric",
+                month: "short",
+                hour: "2-digit",
+                minute: "2-digit",
+              });
+
+              // Show success message (not error) for prebooking creation
+              alert(
+                `✅ ¡Prereserva creada exitosamente!\n\n📅 Se reservará automáticamente el ${formattedDate}\n\nLa reserva se ejecutará cuando se abra el período de reservas.`
+              );
+
+              // Refresh prebookings to show the new one
+              fetchPrebookings();
+
+              // Optionally refresh bookings to update UI
+              refetch();
+            } else {
+              alert(`⏰ ${data.message}`);
+            }
+          } else if (data.error === "max_bookings_reached") {
             alert(`🚫 ${data.message}`);
           } else {
-            alert(`❌ Error: ${data.message || 'Error desconocido'}`);
+            alert(`❌ Error: ${data.message || "Error desconocido"}`);
           }
         }
       } catch (error) {
-        console.error('Booking error:', error);
-        alert('❌ Error de conexión al realizar la reserva');
+        console.error("Booking error:", error);
+        alert("❌ Error de conexión al realizar la reserva");
       } finally {
         setBookingLoading(null);
       }
@@ -141,13 +193,17 @@ function BookingDashboardContent({
       if (!bookingDay) return;
 
       // Find the booking to get the userBookingId
-      const booking = bookingDay.bookings.find(b => b.id === bookingId);
+      const booking = bookingDay.bookings.find((b) => b.id === bookingId);
       if (!booking || !booking.userBookingId) {
-        alert("❌ Error: No se encontró la información de la reserva para cancelar");
+        alert(
+          "❌ Error: No se encontró la información de la reserva para cancelar"
+        );
         return;
       }
 
-      const confirmed = confirm("¿Estás seguro de que quieres cancelar esta reserva?");
+      const confirmed = confirm(
+        "¿Estás seguro de que quieres cancelar esta reserva?"
+      );
       if (!confirmed) return;
 
       setCancelLoading(bookingId);
@@ -160,13 +216,16 @@ function BookingDashboardContent({
         };
 
         // Use our internal API endpoint for cancellation
-        const userEmail = typeof window !== 'undefined' ? localStorage.getItem('user-email') : null;
+        const userEmail =
+          typeof window !== "undefined"
+            ? localStorage.getItem("user-email")
+            : null;
 
-        const response = await fetch('/api/booking', {
-          method: 'DELETE',
+        const response = await fetch("/api/booking", {
+          method: "DELETE",
           headers: {
-            'Content-Type': 'application/json',
-            ...(userEmail && { 'x-user-email': userEmail }),
+            "Content-Type": "application/json",
+            ...(userEmail && { "x-user-email": userEmail }),
           },
           body: JSON.stringify(cancelRequest),
         });
@@ -179,7 +238,7 @@ function BookingDashboardContent({
 
         if (data.success) {
           // Success - Update local state optimistically
-          const updatedBookings = bookingDay.bookings.map(b =>
+          const updatedBookings = bookingDay.bookings.map((b) =>
             b.id === bookingId
               ? {
                   ...b,
@@ -189,15 +248,18 @@ function BookingDashboardContent({
                     ...b.capacity,
                     current: Math.max(0, b.capacity.current - 1),
                     available: b.capacity.available + 1,
-                    percentage: b.capacity.limit > 0 ? ((b.capacity.current - 1) / b.capacity.limit) * 100 : 0
-                  }
+                    percentage:
+                      b.capacity.limit > 0
+                        ? ((b.capacity.current - 1) / b.capacity.limit) * 100
+                        : 0,
+                  },
                 }
               : b
           );
 
           const updatedDay = {
             ...bookingDay,
-            bookings: updatedBookings
+            bookings: updatedBookings,
           };
 
           // Update local state immediately
@@ -208,16 +270,64 @@ function BookingDashboardContent({
           refetch();
         } else {
           // Handle error
-          alert(`❌ Error al cancelar: ${data.message || 'Error desconocido'}`);
+          alert(`❌ Error al cancelar: ${data.message || "Error desconocido"}`);
         }
       } catch (error) {
-        console.error('Cancellation error:', error);
-        alert('❌ Error de conexión al cancelar la reserva');
+        console.error("Cancellation error:", error);
+        alert("❌ Error de conexión al cancelar la reserva");
       } finally {
         setCancelLoading(null);
       }
     },
     [bookingDay, refetch, actions]
+  );
+
+  const handleCancelPrebooking = useCallback(
+    async (prebookingId: string) => {
+      const confirmed = confirm(
+        "¿Estás seguro de que quieres cancelar esta prereserva?"
+      );
+      if (!confirmed) return;
+
+      setCancelPrebookingLoading(prebookingId);
+
+      try {
+        const userEmail =
+          typeof window !== "undefined"
+            ? localStorage.getItem("user-email")
+            : null;
+
+        const response = await fetch(`/api/prebooking?id=${prebookingId}`, {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+            ...(userEmail && { "x-user-email": userEmail }),
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+
+        if (data.success) {
+          alert(`✅ Prereserva cancelada exitosamente!`);
+          // Refresh prebookings list
+          fetchPrebookings();
+          // Optionally refresh bookings
+          refetch();
+        } else {
+          alert(`❌ Error al cancelar: ${data.message || "Error desconocido"}`);
+        }
+      } catch (error) {
+        console.error("Cancel prebooking error:", error);
+        alert("❌ Error de conexión al cancelar la prereserva");
+      } finally {
+        setCancelPrebookingLoading(null);
+      }
+    },
+    [fetchPrebookings, refetch]
   );
 
   const formatDate = (dateString: string) => {
@@ -288,7 +398,6 @@ function BookingDashboardContent({
           disabled={isLoading}
         />
       </div>
-
       {/* Statistics and Filters */}
       {statistics && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -299,6 +408,24 @@ function BookingDashboardContent({
                   {statistics.booked}
                 </div>
                 <div className="text-sm text-muted-foreground">Reservadas</div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-4">
+              <div className="text-center">
+                <div className="text-2xl font-bold text-blue-600">
+                  {
+                    prebookings.filter(
+                      (val) =>
+                        val.bookingData.day ===
+                        BookingUtils.formatDateForApi(state.selectedDate)
+                    ).length
+                  }
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  Pre Reservadas
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -329,7 +456,6 @@ function BookingDashboardContent({
           </CardContent>
         </Card>
       )}
-
       {/* Loading State */}
       {isLoading && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -353,9 +479,14 @@ function BookingDashboardContent({
           bookings={bookingDay.bookings}
           onBook={handleBooking}
           onCancel={handleCancelBooking}
+          onCancelPrebooking={handleCancelPrebooking}
           showActions={true}
           loadingBookingId={bookingLoading}
           cancellingBookingId={cancelLoading}
+          cancellingPrebookingId={cancelPrebookingLoading}
+          prebookings={prebookings}
+          hasActivePrebooking={hasActivePrebooking}
+          getActivePrebookingForSlot={getActivePrebookingForSlot}
         />
       )}
     </div>

@@ -10,6 +10,7 @@ import {
 import { Booking, BookingDay } from "../models/booking.model";
 
 interface BookingState {
+  aimHarderCurrentDate: string | null;
   currentDay: BookingDay | null;
   selectedDate: string;
   selectedBoxId: string;
@@ -51,6 +52,7 @@ const BookingContext = createContext<BookingContextType | undefined>(undefined);
 
 const initialState: BookingState = {
   currentDay: null,
+  aimHarderCurrentDate: null,
   selectedDate: new Date().toISOString().split("T")[0],
   selectedBoxId: "10122", // CrossFit Cerdanyola
   isLoading: false,

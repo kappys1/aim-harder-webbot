@@ -6,11 +6,13 @@ import { BookingCard } from "../booking-card/booking-card.component";
 import { cn } from "@/lib/utils";
 import { Booking, BookingFilter } from "@/modules/booking/models/booking.model";
 import { BookingUtils } from "@/modules/booking/utils/booking.utils";
+import { PreBooking } from "@/modules/prebooking/models/prebooking.model";
 
 interface BookingGridProps {
   bookings: Booking[];
   onBook?: (bookingId: number) => void;
   onCancel?: (bookingId: number) => void;
+  onCancelPrebooking?: (prebookingId: string) => void;
   filter?: BookingFilter | null;
   variant?: "default" | "compact" | "detailed";
   className?: string;
@@ -18,6 +20,10 @@ interface BookingGridProps {
   groupByTimeSlot?: boolean;
   loadingBookingId?: number | null;
   cancellingBookingId?: number | null;
+  cancellingPrebookingId?: string | null;
+  prebookings?: PreBooking[];
+  hasActivePrebooking?: (bookingId: string) => boolean;
+  getActivePrebookingForSlot?: (bookingId: string) => PreBooking | undefined;
 }
 
 interface TimeSlotGroup {
@@ -30,6 +36,7 @@ export function BookingGrid({
   bookings,
   onBook,
   onCancel,
+  onCancelPrebooking,
   filter,
   variant = "default",
   className,
@@ -37,6 +44,10 @@ export function BookingGrid({
   groupByTimeSlot = false,
   loadingBookingId,
   cancellingBookingId,
+  cancellingPrebookingId,
+  prebookings = [],
+  hasActivePrebooking,
+  getActivePrebookingForSlot,
 }: BookingGridProps) {
   const processedBookings = useMemo(() => {
     let filtered = bookings;
@@ -105,18 +116,24 @@ export function BookingGrid({
             </div>
 
             <div className={getGridClasses()}>
-              {group.bookings.map((booking) => (
-                <BookingCard
-                  key={booking.id}
-                  booking={booking}
-                  onBook={onBook}
-                  onCancel={onCancel}
-                  variant={variant}
-                  showActions={showActions}
-                  isLoading={loadingBookingId === booking.id}
-                  isCancelling={cancellingBookingId === booking.id}
-                />
-              ))}
+              {group.bookings.map((booking) => {
+                const prebooking = getActivePrebookingForSlot ? getActivePrebookingForSlot(booking.id.toString()) : undefined;
+                return (
+                  <BookingCard
+                    key={booking.id}
+                    booking={booking}
+                    onBook={onBook}
+                    onCancel={onCancel}
+                    onCancelPrebooking={onCancelPrebooking}
+                    variant={variant}
+                    showActions={showActions}
+                    isLoading={loadingBookingId === booking.id}
+                    isCancelling={cancellingBookingId === booking.id}
+                    isCancellingPrebooking={prebooking ? cancellingPrebookingId === prebooking.id : false}
+                    prebooking={prebooking}
+                  />
+                );
+              })}
             </div>
           </div>
         ))}
@@ -126,18 +143,24 @@ export function BookingGrid({
 
   return (
     <div className={cn(getGridClasses(), className)}>
-      {processedBookings.map((booking) => (
-        <BookingCard
-          key={booking.id}
-          booking={booking}
-          onBook={onBook}
-          onCancel={onCancel}
-          variant={variant}
-          showActions={showActions}
-          isLoading={loadingBookingId === booking.id}
-          isCancelling={cancellingBookingId === booking.id}
-        />
-      ))}
+      {processedBookings.map((booking) => {
+        const prebooking = getActivePrebookingForSlot ? getActivePrebookingForSlot(booking.id.toString()) : undefined;
+        return (
+          <BookingCard
+            key={booking.id}
+            booking={booking}
+            onBook={onBook}
+            onCancel={onCancel}
+            onCancelPrebooking={onCancelPrebooking}
+            variant={variant}
+            showActions={showActions}
+            isLoading={loadingBookingId === booking.id}
+            isCancelling={cancellingBookingId === booking.id}
+            isCancellingPrebooking={prebooking ? cancellingPrebookingId === prebooking.id : false}
+            prebooking={prebooking}
+          />
+        );
+      })}
     </div>
   );
 }
