@@ -18,9 +18,40 @@ export async function POST(request: NextRequest) {
 
     console.log('Starting token refresh cron job...')
 
+    // Execute in background without waiting
+    processTokenRefreshInBackground().catch(error => {
+      console.error('Background token refresh error:', error)
+    })
+
+    // Respond immediately
+    return NextResponse.json(
+      {
+        success: true,
+        message: 'Token refresh job started in background',
+        timestamp: new Date().toISOString()
+      },
+      { status: 202 } // 202 Accepted
+    )
+
+  } catch (error) {
+    console.error('Cron job error:', error)
+    return NextResponse.json(
+      {
+        success: false,
+        error: error instanceof Error ? error.message : 'Internal server error'
+      },
+      { status: 500 }
+    )
+  }
+}
+
+async function processTokenRefreshInBackground() {
+  const startTime = Date.now()
+
+  try {
     // Get all active sessions
     const sessions = await SupabaseSessionService.getAllActiveSessions()
-    console.log(`Found ${sessions.length} active sessions`)
+    console.log(`[Background] Found ${sessions.length} active sessions`)
 
     const results = {
       total: sessions.length,
@@ -39,12 +70,12 @@ export async function POST(request: NextRequest) {
         const minutesSinceUpdate = (now.getTime() - updatedAt.getTime()) / (1000 * 60)
 
         if (minutesSinceUpdate <= 30) {
-          console.log(`Skipping ${session.email} - updated ${Math.round(minutesSinceUpdate)} min ago`)
+          console.log(`[Background] Skipping ${session.email} - updated ${Math.round(minutesSinceUpdate)} min ago`)
           results.skipped++
           continue
         }
 
-        console.log(`Updating token for ${session.email} - last updated ${Math.round(minutesSinceUpdate)} min ago`)
+        console.log(`[Background] Updating token for ${session.email} - last updated ${Math.round(minutesSinceUpdate)} min ago`)
 
         // Call Aimharder tokenUpdate
         const updateResult = await AimharderRefreshService.updateToken({
@@ -55,7 +86,7 @@ export async function POST(request: NextRequest) {
 
         // Handle logout
         if (updateResult.logout) {
-          console.log(`Logout required for ${session.email}, deleting session`)
+          console.log(`[Background] Logout required for ${session.email}, deleting session`)
           await SupabaseSessionService.deleteSession(session.email)
           results.failed++
           results.errors.push(`${session.email}: Session expired`)
@@ -64,7 +95,7 @@ export async function POST(request: NextRequest) {
 
         // Handle error
         if (!updateResult.success || !updateResult.newToken) {
-          console.error(`Failed to update token for ${session.email}:`, updateResult.error)
+          console.error(`[Background] Failed to update token for ${session.email}:`, updateResult.error)
           await SupabaseSessionService.updateRefreshData(session.email, false, updateResult.error)
           results.failed++
           results.errors.push(`${session.email}: ${updateResult.error}`)
@@ -81,31 +112,21 @@ export async function POST(request: NextRequest) {
         // Track successful refresh
         await SupabaseSessionService.updateRefreshData(session.email, true)
 
-        console.log(`Successfully updated token for ${session.email}`)
+        console.log(`[Background] Successfully updated token for ${session.email}`)
         results.updated++
 
       } catch (error) {
-        console.error(`Error processing session ${session.email}:`, error)
+        console.error(`[Background] Error processing session ${session.email}:`, error)
         results.failed++
         results.errors.push(`${session.email}: ${error instanceof Error ? error.message : 'Unknown error'}`)
       }
     }
 
-    console.log('Token refresh cron completed:', results)
-
-    return NextResponse.json({
-      success: true,
-      results
-    })
+    const totalTime = Date.now() - startTime
+    console.log(`[Background] Token refresh completed in ${totalTime}ms:`, results)
 
   } catch (error) {
-    console.error('Cron job error:', error)
-    return NextResponse.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : 'Internal server error'
-      },
-      { status: 500 }
-    )
+    const totalTime = Date.now() - startTime
+    console.error(`[Background] Token refresh failed after ${totalTime}ms:`, error)
   }
 }
