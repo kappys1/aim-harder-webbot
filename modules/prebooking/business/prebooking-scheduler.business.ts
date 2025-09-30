@@ -291,12 +291,16 @@ export class PreBookingScheduler {
       const executionTime = Date.now() - executionStart;
 
       console.log(
-        `[PreBookingScheduler] Booking execution took ${executionTime}ms - bookState: ${bookingResponse.bookState}, bookingId: ${bookingResponse.id || 'N/A'}`
+        `[PreBookingScheduler] Booking execution took ${executionTime}ms - bookState: ${
+          bookingResponse.bookState
+        }, bookingId: ${bookingResponse.id || "N/A"}`
       );
 
       // Update with result
       // Success if bookState is 1 OR if booking ID exists (booking was created despite error)
-      const bookingCreated = bookingResponse.bookState === 1 || (bookingResponse.id && bookingResponse.id > 0);
+      const bookingCreated =
+        bookingResponse.bookState === 1 ||
+        (bookingResponse.id && +bookingResponse.id > 0);
 
       if (bookingCreated) {
         // Success - booking was created
@@ -310,13 +314,21 @@ export class PreBookingScheduler {
             bookingId: bookingResponse.id,
             bookState: bookingResponse.bookState,
             message: isWarning
-              ? `Booking created with warning (bookState ${bookingResponse.bookState}): ${bookingResponse.errorMssg || 'Unknown warning'}`
+              ? `Booking created with warning (bookState ${
+                  bookingResponse.bookState
+                }): ${bookingResponse.errorMssg || "Unknown warning"}`
               : "Booking created successfully",
             executedAt: new Date(),
           },
         });
         console.log(
-          `[PreBookingScheduler] ✅ Prebooking ${prebooking.id} completed successfully${isWarning ? ` (bookState ${bookingResponse.bookState} but booking ID ${bookingResponse.id} exists)` : ''}`
+          `[PreBookingScheduler] ✅ Prebooking ${
+            prebooking.id
+          } completed successfully${
+            isWarning
+              ? ` (bookState ${bookingResponse.bookState} but booking ID ${bookingResponse.id} exists)`
+              : ""
+          }`
         );
       } else {
         // Failed - no booking ID returned
