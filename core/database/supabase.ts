@@ -1,12 +1,53 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient, SupabaseClient } from '@supabase/supabase-js'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+// Lazy initialization to ensure env vars are available at runtime
+let _supabase: SupabaseClient | null = null;
+let _supabaseAdmin: SupabaseClient | null = null;
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+function initializeClients() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
+  if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceKey) {
+    const missing = [];
+    if (!supabaseUrl) missing.push('NEXT_PUBLIC_SUPABASE_URL');
+    if (!supabaseAnonKey) missing.push('NEXT_PUBLIC_SUPABASE_ANON_KEY');
+    if (!supabaseServiceKey) missing.push('SUPABASE_SERVICE_ROLE_KEY');
+
+    const error = `Missing Supabase environment variables: ${missing.join(', ')}`;
+    console.error('[Supabase] Initialization error:', error);
+    throw new Error(error);
+  }
+
+  console.log('[Supabase] Initializing clients with URL:', supabaseUrl.substring(0, 30) + '...');
+
+  if (!_supabase) {
+    _supabase = createClient(supabaseUrl, supabaseAnonKey);
+  }
+
+  if (!_supabaseAdmin) {
+    _supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+  }
+}
+
+export const supabase = new Proxy({} as SupabaseClient, {
+  get(target, prop) {
+    if (!_supabase) {
+      initializeClients();
+    }
+    return (_supabase as any)[prop];
+  }
+});
+
+export const supabaseAdmin = new Proxy({} as SupabaseClient, {
+  get(target, prop) {
+    if (!_supabaseAdmin) {
+      initializeClients();
+    }
+    return (_supabaseAdmin as any)[prop];
+  }
+});
 
 export type Database = {
   public: {
