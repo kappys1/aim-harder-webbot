@@ -1,6 +1,4 @@
-import {
-  getEnvString,
-} from "@/common/utils/env.utils";
+import { getEnvString } from "@/common/utils/env.utils";
 
 /**
  * Export environment configurations
@@ -12,7 +10,4 @@ export const ENV = {
       "AIMHARDER_FINGERPRINT",
       "my0pz7di4kr8nuq718uecu4ev23fbosfp20z1q6smntm42ideb"
     ),
-
-  // Add other environment configurations here as needed
-  getAppUrl: (): string => getEnvString("APP_URL"),
 } as const;
