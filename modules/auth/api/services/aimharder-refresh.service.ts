@@ -13,7 +13,97 @@ export interface RefreshResponse {
   error?: string
 }
 
+export interface TokenUpdateRequest {
+  token: string
+  fingerprint: string
+  cookies: AuthCookie[]
+}
+
+export interface TokenUpdateResponse {
+  success: boolean
+  newToken?: string
+  logout?: boolean
+  cookies?: AuthCookie[]
+  error?: string
+}
+
 export class AimharderRefreshService {
+  /**
+   * Updates token by calling Aimharder's /api/tokenUpdate endpoint
+   * This is called every 25 minutes by frontend or 29 minutes by backend cron
+   */
+  static async updateToken(request: TokenUpdateRequest): Promise<TokenUpdateResponse> {
+    try {
+      const updateUrl = 'https://aimharder.com/api/tokenUpdate'
+      const cookieHeaders = CookieService.formatForRequest(request.cookies)
+
+      // Prepare form data as Aimharder expects
+      const formData = new URLSearchParams({
+        token: request.token,
+        ciclo: '1',
+        fingerprint: request.fingerprint
+      })
+
+      console.log('Calling Aimharder tokenUpdate for token:', request.token.substring(0, 10) + '...')
+
+      const response = await fetch(updateUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Cookie': cookieHeaders,
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        },
+        body: formData.toString()
+      })
+
+      if (!response.ok) {
+        return {
+          success: false,
+          error: `Server error: ${response.status}`
+        }
+      }
+
+      // Extract new cookies from response
+      const newCookies = CookieService.extractFromResponse(response)
+
+      // Parse JSON response
+      const data = await response.json()
+
+      // Check if logout is required
+      if (data.logout !== undefined && data.logout !== null) {
+        console.log('Logout flag received from Aimharder')
+        return {
+          success: false,
+          logout: true,
+          error: 'Session expired - logout required'
+        }
+      }
+
+      // Extract new token
+      if (!data.newToken) {
+        return {
+          success: false,
+          error: 'No newToken in response'
+        }
+      }
+
+      console.log('Token updated successfully, new token:', data.newToken.substring(0, 10) + '...')
+
+      return {
+        success: true,
+        newToken: data.newToken,
+        cookies: newCookies.length > 0 ? newCookies : request.cookies // Use new cookies or keep old ones
+      }
+
+    } catch (error) {
+      console.error('Token update error:', error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Token update failed'
+      }
+    }
+  }
+
   static async refreshSession(request: RefreshRequest): Promise<RefreshResponse> {
     try {
       const refreshUrl = this.buildRefreshUrl(request.token, request.fingerprint)

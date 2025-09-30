@@ -2,13 +2,29 @@ import { authService } from "@/modules/auth/api/services/auth.service";
 import { LoginRequest } from "@/modules/auth/pods/login/models/login.model";
 import { generateFingerprint } from "@/common/utils/fingerprint.utils";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useTokenRefresh } from "@/modules/auth/hooks/useTokenRefresh.hook";
 
 export function useLogin() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [user, setUser] = useState<{ id: string; email: string; name?: string } | null>(null);
   const router = useRouter();
+
+  // Initialize token refresh hook
+  const { startRefresh, stopRefresh } = useTokenRefresh({
+    email: user?.email || null,
+    onLogout: () => {
+      // Handle forced logout from token refresh
+      setUser(null);
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('user-email');
+        localStorage.removeItem('refreshToken');
+        localStorage.removeItem('fingerprint');
+      }
+      router.push("/login");
+    }
+  });
 
   const handleLogin = async (data: LoginRequest) => {
     setIsLoading(true);
@@ -33,10 +49,18 @@ export function useLogin() {
         // Store user email in localStorage for session management
         if (typeof window !== 'undefined') {
           localStorage.setItem('user-email', response.user.email);
+
+          // Store refreshToken from backend if provided
+          if (response.token) {
+            localStorage.setItem('refreshToken', response.token);
+          }
         }
 
         // Log successful login
         console.log('Login successful for user:', response.user.email);
+
+        // Start token refresh timer (25 min interval)
+        startRefresh();
 
         console.log('Login successful, navigating to dashboard');
         router.push("/dashboard");
@@ -56,6 +80,9 @@ export function useLogin() {
     setError(null);
 
     try {
+      // Stop token refresh timer
+      stopRefresh();
+
       const userEmail = user?.email || (typeof window !== 'undefined' ? localStorage.getItem('user-email') : null);
 
       if (userEmail) {
@@ -68,6 +95,8 @@ export function useLogin() {
       // Clear localStorage
       if (typeof window !== 'undefined') {
         localStorage.removeItem('user-email');
+        localStorage.removeItem('refreshToken');
+        localStorage.removeItem('fingerprint');
       }
 
       console.log('Logout successful, navigating to login');
@@ -90,6 +119,13 @@ export function useLogin() {
           const sessionCheck = await authService.checkSession(userEmail);
           if (sessionCheck.isValid && sessionCheck.user) {
             setUser(sessionCheck.user);
+
+            // Start token refresh if not already running and we have refreshToken
+            const hasRefreshToken = localStorage.getItem('refreshToken');
+            if (hasRefreshToken) {
+              startRefresh();
+            }
+
             return true;
           }
         }
@@ -99,6 +135,8 @@ export function useLogin() {
       setUser(null);
       if (typeof window !== 'undefined') {
         localStorage.removeItem('user-email');
+        localStorage.removeItem('refreshToken');
+        localStorage.removeItem('fingerprint');
       }
 
       return false;
