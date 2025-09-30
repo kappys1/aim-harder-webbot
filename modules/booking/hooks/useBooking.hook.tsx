@@ -85,13 +85,21 @@ export function useBooking(options: UseBookingOptions = {}): UseBookingReturn {
       // Show user-friendly error toast
       if (errorMessage.includes("network") || errorMessage.includes("fetch")) {
         toast.error("Error de conexión", {
-          description: "No se pudo conectar con el servidor. Verifica tu conexión a internet.",
+          description:
+            "No se pudo conectar con el servidor. Verifica tu conexión a internet.",
         });
-      } else if (errorMessage.includes("auth") || errorMessage.includes("unauthorized")) {
+      } else if (
+        errorMessage.includes("auth") ||
+        errorMessage.includes("unauthorized")
+      ) {
         toast.error("Sesión expirada", {
-          description: "Tu sesión ha expirado. Por favor, inicia sesión nuevamente.",
+          description:
+            "Tu sesión ha expirado. Por favor, inicia sesión nuevamente.",
         });
-      } else if (errorMessage.includes("404") || errorMessage.includes("not found")) {
+      } else if (
+        errorMessage.includes("404") ||
+        errorMessage.includes("not found")
+      ) {
         toast.error("Datos no encontrados", {
           description: "No se encontraron reservas para la fecha seleccionada.",
         });
