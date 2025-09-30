@@ -11,6 +11,10 @@ interface UsePreBookingResult {
   cancelPrebooking: (id: string) => Promise<void>;
   hasActivePrebooking: (bookingId: string) => boolean;
   getActivePrebookingForSlot: (bookingId: string) => PreBooking | undefined;
+  getActivePrebookingForSlotDay: (
+    bookingId: string,
+    day: string
+  ) => PreBooking | undefined;
 }
 
 /**
@@ -138,6 +142,16 @@ export function usePreBooking(userEmail?: string): UsePreBookingResult {
     [prebookings]
   );
 
+  const getActivePrebookingForSlotDay = useCallback(
+    (bookingId: string, day: string): PreBooking | undefined => {
+      const prebooking = getActivePrebookingForSlot(bookingId);
+      if (prebooking) {
+        return prebooking.bookingData.day === day ? prebooking : undefined;
+      }
+      return undefined;
+    },
+    [prebookings]
+  );
   // Auto-fetch on mount and when userEmail changes
   useEffect(() => {
     fetchPrebookings();
@@ -162,5 +176,6 @@ export function usePreBooking(userEmail?: string): UsePreBookingResult {
     cancelPrebooking,
     hasActivePrebooking,
     getActivePrebookingForSlot,
+    getActivePrebookingForSlotDay,
   };
 }

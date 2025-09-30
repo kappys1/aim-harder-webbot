@@ -62,7 +62,7 @@ function BookingDashboardContent({
     prebookings,
     fetchPrebookings,
     hasActivePrebooking,
-    getActivePrebookingForSlot,
+    getActivePrebookingForSlotDay,
   } = usePreBooking(userEmail || undefined);
 
   const handleDateChange = useCallback(
@@ -200,7 +200,9 @@ function BookingDashboardContent({
       // Find the booking to get the userBookingId
       const booking = bookingDay.bookings.find((b) => b.id === bookingId);
       if (!booking || !booking.userBookingId) {
-        toast.error("No se encontró la información de la reserva para cancelar");
+        toast.error(
+          "No se encontró la información de la reserva para cancelar"
+        );
         return;
       }
 
@@ -273,7 +275,9 @@ function BookingDashboardContent({
           refetch();
         } else {
           // Handle error
-          toast.error(`Error al cancelar: ${data.message || "Error desconocido"}`);
+          toast.error(
+            `Error al cancelar: ${data.message || "Error desconocido"}`
+          );
         }
       } catch (error) {
         console.error("Cancellation error:", error);
@@ -321,7 +325,9 @@ function BookingDashboardContent({
           // Optionally refresh bookings
           refetch();
         } else {
-          toast.error(`Error al cancelar: ${data.message || "Error desconocido"}`);
+          toast.error(
+            `Error al cancelar: ${data.message || "Error desconocido"}`
+          );
         }
       } catch (error) {
         console.error("Cancel prebooking error:", error);
@@ -434,7 +440,6 @@ function BookingDashboardContent({
           </Card>
         </div>
       )}
-
       {/* Error State */}
       {error && (
         <Card className="border-red-200 bg-red-50">
@@ -475,10 +480,13 @@ function BookingDashboardContent({
           ))}
         </div>
       )}
-
       {/* Booking Grid */}
       {!isLoading && !error && bookingDay && (
         <BookingGrid
+          bookingDay={
+            bookingDay?.date &&
+            BookingUtils.formatDateForApi(new Date(bookingDay?.date))
+          }
           bookings={bookingDay.bookings}
           onBook={handleBooking}
           onCancel={handleCancelBooking}
@@ -489,7 +497,7 @@ function BookingDashboardContent({
           cancellingPrebookingId={cancelPrebookingLoading}
           prebookings={prebookings}
           hasActivePrebooking={hasActivePrebooking}
-          getActivePrebookingForSlot={getActivePrebookingForSlot}
+          getActivePrebookingForSlotDay={getActivePrebookingForSlotDay}
         />
       )}
     </div>

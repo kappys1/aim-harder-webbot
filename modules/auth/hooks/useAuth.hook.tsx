@@ -62,8 +62,8 @@ export function useAuth() {
         // Log successful login
         console.log("Login successful for user:", response.user.email);
 
-        // Start token refresh timer (25 min interval)
-        startRefresh();
+        // // Start token refresh timer (25 min interval)
+        // startRefresh();
 
         console.log("Login successful, navigating to dashboard");
         router.push("/dashboard");

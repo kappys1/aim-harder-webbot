@@ -10,6 +10,7 @@ import { PreBooking } from "@/modules/prebooking/models/prebooking.model";
 
 interface BookingGridProps {
   bookings: Booking[];
+  bookingDay?: string;
   onBook?: (bookingId: number) => void;
   onCancel?: (bookingId: number) => void;
   onCancelPrebooking?: (prebookingId: string) => void;
@@ -23,7 +24,10 @@ interface BookingGridProps {
   cancellingPrebookingId?: string | null;
   prebookings?: PreBooking[];
   hasActivePrebooking?: (bookingId: string) => boolean;
-  getActivePrebookingForSlot?: (bookingId: string) => PreBooking | undefined;
+  getActivePrebookingForSlotDay?: (
+    bookingId: string,
+    day: string
+  ) => PreBooking | undefined;
 }
 
 interface TimeSlotGroup {
@@ -34,6 +38,7 @@ interface TimeSlotGroup {
 
 export function BookingGrid({
   bookings,
+  bookingDay,
   onBook,
   onCancel,
   onCancelPrebooking,
@@ -45,9 +50,7 @@ export function BookingGrid({
   loadingBookingId,
   cancellingBookingId,
   cancellingPrebookingId,
-  prebookings = [],
-  hasActivePrebooking,
-  getActivePrebookingForSlot,
+  getActivePrebookingForSlotDay,
 }: BookingGridProps) {
   const processedBookings = useMemo(() => {
     let filtered = bookings;
@@ -117,7 +120,13 @@ export function BookingGrid({
 
             <div className={getGridClasses()}>
               {group.bookings.map((booking) => {
-                const prebooking = getActivePrebookingForSlot ? getActivePrebookingForSlot(booking.id.toString()) : undefined;
+                const prebooking =
+                  getActivePrebookingForSlotDay && bookingDay
+                    ? getActivePrebookingForSlotDay(
+                        booking.id.toString(),
+                        bookingDay
+                      )
+                    : undefined;
                 return (
                   <BookingCard
                     key={booking.id}
@@ -129,7 +138,11 @@ export function BookingGrid({
                     showActions={showActions}
                     isLoading={loadingBookingId === booking.id}
                     isCancelling={cancellingBookingId === booking.id}
-                    isCancellingPrebooking={prebooking ? cancellingPrebookingId === prebooking.id : false}
+                    isCancellingPrebooking={
+                      prebooking
+                        ? cancellingPrebookingId === prebooking.id
+                        : false
+                    }
                     prebooking={prebooking}
                   />
                 );
@@ -144,7 +157,10 @@ export function BookingGrid({
   return (
     <div className={cn(getGridClasses(), className)}>
       {processedBookings.map((booking) => {
-        const prebooking = getActivePrebookingForSlot ? getActivePrebookingForSlot(booking.id.toString()) : undefined;
+        const prebooking =
+          getActivePrebookingForSlotDay && bookingDay
+            ? getActivePrebookingForSlotDay(booking.id.toString(), bookingDay)
+            : undefined;
         return (
           <BookingCard
             key={booking.id}
@@ -156,7 +172,9 @@ export function BookingGrid({
             showActions={showActions}
             isLoading={loadingBookingId === booking.id}
             isCancelling={cancellingBookingId === booking.id}
-            isCancellingPrebooking={prebooking ? cancellingPrebookingId === prebooking.id : false}
+            isCancellingPrebooking={
+              prebooking ? cancellingPrebookingId === prebooking.id : false
+            }
             prebooking={prebooking}
           />
         );
