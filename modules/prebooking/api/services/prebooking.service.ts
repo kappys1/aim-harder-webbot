@@ -1,26 +1,11 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { supabaseAdmin } from '@/core/database/supabase';
 import { PreBooking, CreatePreBookingInput, UpdatePreBookingStatusInput, PreBookingStatus } from '../../models/prebooking.model';
 import { PreBookingApi, PreBookingApiSchema } from '../models/prebooking.api';
 import { PreBookingMapper } from '../mappers/prebooking.mapper';
 
 export class PreBookingService {
-  private _supabase?: SupabaseClient;
-
-  private get supabase(): SupabaseClient {
-    if (!this._supabase) {
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-      const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-      if (!supabaseUrl || !supabaseKey) {
-        const error = `Missing Supabase credentials - URL: ${!!supabaseUrl}, KEY: ${!!supabaseKey}`;
-        console.error('[PreBookingService] Initialization error:', error);
-        throw new Error(error);
-      }
-
-      console.log('[PreBookingService] Initializing Supabase client with URL:', supabaseUrl.substring(0, 30) + '...');
-      this._supabase = createClient(supabaseUrl, supabaseKey);
-    }
-    return this._supabase;
+  private get supabase() {
+    return supabaseAdmin;
   }
 
   /**

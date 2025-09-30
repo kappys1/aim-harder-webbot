@@ -20,13 +20,13 @@ function initializeClients() {
     throw new Error(error);
   }
 
-  console.log('[Supabase] Initializing clients with URL:', supabaseUrl.substring(0, 30) + '...');
-
   if (!_supabase) {
+    console.log('[Supabase] Initializing PUBLIC client with URL:', supabaseUrl.substring(0, 30) + '...');
     _supabase = createClient(supabaseUrl, supabaseAnonKey);
   }
 
   if (!_supabaseAdmin) {
+    console.log('[Supabase] Initializing ADMIN client with URL:', supabaseUrl.substring(0, 30) + '...');
     _supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
   }
 }

@@ -256,15 +256,22 @@ export class PreBookingScheduler {
   }
 
   /**
-   * Execute prebookings in FIFO order (by created_at)
+   * Execute prebookings in parallel for maximum speed
+   * All prebookings for the same timestamp are executed simultaneously
    */
   private async executePrebookingsFIFO(
     loadedBookings: LoadedPreBooking[]
   ): Promise<void> {
-    // Already sorted by created_at ASC from DB query
-    for (const { prebooking, cookies } of loadedBookings) {
-      await this.executeOne(prebooking, cookies);
-    }
+    console.log(
+      `[PreBookingScheduler] Executing ${loadedBookings.length} prebooking(s) in parallel for maximum speed...`
+    );
+
+    // Execute all bookings for this timestamp in parallel
+    await Promise.all(
+      loadedBookings.map(({ prebooking, cookies }) =>
+        this.executeOne(prebooking, cookies)
+      )
+    );
   }
 
   /**
