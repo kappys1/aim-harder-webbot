@@ -1,5 +1,6 @@
 import { authService } from "@/modules/auth/api/services/auth.service";
 import { LoginRequest } from "@/modules/auth/pods/login/models/login.model";
+import { generateFingerprint } from "@/common/utils/fingerprint.utils";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -14,7 +15,16 @@ export function useLogin() {
     setError(null);
 
     try {
-      const response = await authService.login(data);
+      // Generate or retrieve the browser fingerprint
+      const fingerprint = generateFingerprint();
+
+      // Add fingerprint to login request
+      const loginData = {
+        ...data,
+        fingerprint
+      };
+
+      const response = await authService.login(loginData);
 
       if (response.success && response.user) {
         // Store user data and navigate to dashboard

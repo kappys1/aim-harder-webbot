@@ -34,7 +34,7 @@ export class AimharderAuthService {
   private static readonly RATE_LIMIT_WINDOW = 15 * 60 * 1000 // 15 minutes
   private static attempts: Map<string, AimharderLoginAttempt[]> = new Map()
 
-  static async login(email: string, password: string): Promise<AimharderLoginResponse> {
+  static async login(email: string, password: string, fingerprint?: string): Promise<AimharderLoginResponse> {
     try {
       // Check rate limiting
       if (!this.checkRateLimit(email)) {
@@ -51,16 +51,19 @@ export class AimharderAuthService {
         // Continue with fresh login to update cookies, don't return early
       }
 
+      // Use provided fingerprint or fallback to environment variable
+      const loginFingerprint = fingerprint || process.env.AIMHARDER_FINGERPRINT || 'my0pz7di4kr8nuq718uecu4ev23fbosfp20z1q6smntm42ideb'
+
       // Prepare form data for aimharder login
       const formData = new URLSearchParams({
         login: 'Iniciar sesión',
-        loginfingerprint: process.env.AIMHARDER_FINGERPRINT || 'my0pz7di4kr8nuq718uecu4ev23fbosfp20z1q6smntm42ideb',
+        loginfingerprint: loginFingerprint,
         loginiframe: '0',
         mail: email,
         pw: password
       })
 
-      console.log('Attempting login to aimharder for:', email)
+      console.log('Attempting login to aimharder for:', email, 'with fingerprint:', loginFingerprint.substring(0, 10) + '...')
 
       // Make request to aimharder
       const response = await fetch(process.env.AIMHARDER_LOGIN_URL!, {
@@ -140,12 +143,14 @@ export class AimharderAuthService {
         console.log('Calling setrefresh to get refresh token for:', email)
         const refreshResult = await AimharderRefreshService.refreshSession({
           token: tokenData.token,
-          cookies
+          cookies,
+          fingerprint: loginFingerprint // Pass the same fingerprint used for login
         })
 
         if (refreshResult.success && refreshResult.refreshToken) {
           // Update the aimharder_token field with the refresh token
-          await SupabaseSessionService.updateRefreshToken(email, refreshResult.refreshToken)
+          // Also store the fingerprint returned by setrefresh if available
+          await SupabaseSessionService.updateRefreshToken(email, refreshResult.refreshToken, refreshResult.fingerprint)
           console.log('Refresh token updated successfully for:', email)
         } else {
           console.warn('Failed to get refresh token for:', email, refreshResult.error)

@@ -3,7 +3,8 @@ import { z } from 'zod'
 // Zod schemas for validation
 export const LoginRequestSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
-  password: z.string().min(6, 'Password must be at least 6 characters')
+  password: z.string().min(6, 'Password must be at least 6 characters'),
+  fingerprint: z.string().optional() // Browser fingerprint for session identification
 })
 
 export const LoginResponseSchema = z.object({

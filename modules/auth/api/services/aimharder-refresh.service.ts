@@ -3,6 +3,7 @@ import { CookieService, AuthCookie } from './cookie.service'
 export interface RefreshRequest {
   token: string
   cookies: AuthCookie[]
+  fingerprint?: string // Optional browser fingerprint
 }
 
 export interface RefreshResponse {
@@ -15,7 +16,7 @@ export interface RefreshResponse {
 export class AimharderRefreshService {
   static async refreshSession(request: RefreshRequest): Promise<RefreshResponse> {
     try {
-      const refreshUrl = this.buildRefreshUrl(request.token)
+      const refreshUrl = this.buildRefreshUrl(request.token, request.fingerprint)
       const cookieHeaders = CookieService.formatForRequest(request.cookies)
 
       const response = await fetch(refreshUrl, {
@@ -67,11 +68,14 @@ export class AimharderRefreshService {
     }
   }
 
-  private static buildRefreshUrl(token: string): string {
+  private static buildRefreshUrl(token: string, fingerprint?: string): string {
     const baseUrl = 'https://aimharder.com/setrefresh'
-    const fingerprint = process.env.AIMHARDER_FINGERPRINT || 'my0pz7di4kr8nuq718uecu4ev23fbosfp20z1q6smntm42ideb'
+    // Use provided fingerprint or fallback to environment variable
+    const usedFingerprint = fingerprint || process.env.AIMHARDER_FINGERPRINT || 'my0pz7di4kr8nuq718uecu4ev23fbosfp20z1q6smntm42ideb'
 
-    return `${baseUrl}?token=${encodeURIComponent(token)}&fingerprint=${encodeURIComponent(fingerprint)}`
+    console.log('Building setrefresh URL with fingerprint:', usedFingerprint.substring(0, 10) + '...')
+
+    return `${baseUrl}?token=${encodeURIComponent(token)}&fingerprint=${encodeURIComponent(usedFingerprint)}`
   }
 
   private static extractRefreshData(html: string): {

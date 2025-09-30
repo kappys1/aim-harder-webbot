@@ -3,7 +3,7 @@ import { AimharderAuthService } from '@/modules/auth/api/services/aimharder-auth
 
 export async function POST(request: NextRequest) {
   try {
-    const { email, password } = await request.json()
+    const { email, password, fingerprint } = await request.json()
 
     // Validate input
     if (!email || !password) {
@@ -16,6 +16,14 @@ export async function POST(request: NextRequest) {
     if (typeof email !== 'string' || typeof password !== 'string') {
       return NextResponse.json(
         { success: false, error: 'Invalid email or password format' },
+        { status: 400 }
+      )
+    }
+
+    // Validate fingerprint if provided
+    if (fingerprint && typeof fingerprint !== 'string') {
+      return NextResponse.json(
+        { success: false, error: 'Invalid fingerprint format' },
         { status: 400 }
       )
     }
@@ -46,10 +54,10 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.log(`Login attempt for email: ${email}`)
+    console.log(`Login attempt for email: ${email}`, fingerprint ? 'with custom fingerprint' : 'using default fingerprint')
 
     // Attempt login with aimharder
-    const result = await AimharderAuthService.login(email, password)
+    const result = await AimharderAuthService.login(email, password, fingerprint)
 
     if (result.success && result.cookies) {
       // Create response with user data

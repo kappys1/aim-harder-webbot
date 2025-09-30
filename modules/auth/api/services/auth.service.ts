@@ -16,7 +16,8 @@ class AuthService {
         },
         body: JSON.stringify({
           email: request.email,
-          password: request.password
+          password: request.password,
+          fingerprint: request.fingerprint // Include browser fingerprint
         })
       })
 

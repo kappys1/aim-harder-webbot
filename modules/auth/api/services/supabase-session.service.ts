@@ -13,6 +13,7 @@ export interface SessionData {
   lastRefreshDate?: string;
   refreshCount?: number;
   lastRefreshError?: string;
+  fingerprint?: string; // Browser fingerprint for this session
 }
 
 export interface SessionRow {
@@ -88,6 +89,7 @@ export class SupabaseSessionService {
         lastRefreshDate: (sessionRow as any).last_refresh_date,
         refreshCount: (sessionRow as any).refresh_count,
         lastRefreshError: (sessionRow as any).last_refresh_error,
+        fingerprint: (sessionRow as any).fingerprint, // Include fingerprint from database
       };
     } catch (error) {
       console.error("Session retrieval error:", error);
@@ -153,13 +155,20 @@ export class SupabaseSessionService {
 
   static async updateRefreshToken(
     email: string,
-    refreshToken: string
+    refreshToken: string,
+    fingerprint?: string
   ): Promise<void> {
     try {
-      const updateData = {
+      const updateData: any = {
         aimharder_token: refreshToken,
         updated_at: new Date().toISOString(),
       };
+
+      // Store fingerprint if provided by setrefresh
+      if (fingerprint) {
+        updateData.fingerprint = fingerprint;
+        console.log("Storing fingerprint from setrefresh for user:", email);
+      }
 
       const { error } = await supabaseAdmin
         .from("auth_sessions")
