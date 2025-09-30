@@ -5,19 +5,19 @@ import { Button } from "@/common/ui/button";
 import { Input } from "@/common/ui/input";
 import { Label } from "@/common/ui/label";
 import { useState } from "react";
-import { useLogin } from "../hooks/useLogin.hook";
+import { useAuth } from "../../../hooks/useAuth.hook";
 
 export function LoginForm({
   className,
   ...props
 }: React.ComponentProps<"form">) {
-  const { isLoading, error, handleLogin } = useLogin();
+  const { isLoading, error, login } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await handleLogin({ email, password });
+    await login({ email, password });
   };
 
   return (
@@ -86,7 +86,6 @@ export function LoginForm({
         >
           {isLoading ? "Signing in..." : "Sign In"}
         </Button>
-
       </div>
     </form>
   );
