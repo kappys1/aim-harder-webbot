@@ -1,7 +1,7 @@
 "use client";
 
 import { Button } from "@/common/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent } from "@/common/ui/card";
 import { cn } from "@/lib/utils";
 import { usePreBooking } from "@/modules/prebooking/pods/prebooking/hooks/usePreBooking.hook";
 import { AlertCircle, RefreshCw } from "lucide-react";
@@ -48,7 +48,9 @@ function BookingDashboardContent({
   const { actions, state } = useBookingContext();
   const [bookingLoading, setBookingLoading] = useState<number | null>(null);
   const [cancelLoading, setCancelLoading] = useState<number | null>(null);
-  const [cancelPrebookingLoading, setCancelPrebookingLoading] = useState<string | null>(null);
+  const [cancelPrebookingLoading, setCancelPrebookingLoading] = useState<
+    string | null
+  >(null);
 
   // Get user email for prebookings
   const userEmail =

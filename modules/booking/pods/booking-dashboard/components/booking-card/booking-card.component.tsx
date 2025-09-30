@@ -1,14 +1,9 @@
 "use client";
 
+import { Avatar, AvatarFallback, AvatarImage } from "@/common/ui/avatar";
+import { Badge } from "@/common/ui/badge";
 import { Button } from "@/common/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardAction,
-  CardContent,
-  CardHeader,
-} from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardHeader } from "@/common/ui/card";
 import { Calendar, Clock, MapPin, Users } from "lucide-react";
 
 import { cn } from "@/lib/utils";

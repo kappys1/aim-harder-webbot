@@ -1,31 +1,34 @@
-import { format, parse, isValid, startOfDay, endOfDay } from 'date-fns';
-import { es } from 'date-fns/locale';
-import { Booking, BookingStatus, BookingFilter } from '../models/booking.model';
-import { BOOKING_CONSTANTS } from '../constants/booking.constants';
+import { format, isValid, startOfDay } from "date-fns";
+import { es } from "date-fns/locale";
+import { BOOKING_CONSTANTS } from "../constants/booking.constants";
+import { Booking, BookingFilter, BookingStatus } from "../models/booking.model";
 
 export class BookingUtils {
-  static formatDate(date: Date | string, formatString: string = BOOKING_CONSTANTS.DATE_FORMATS.DISPLAY): string {
-    const dateObj = typeof date === 'string' ? new Date(date) : date;
+  static formatDate(
+    date: Date | string,
+    formatString: string = BOOKING_CONSTANTS.DATE_FORMATS.DISPLAY
+  ): string {
+    const dateObj = typeof date === "string" ? new Date(date) : date;
 
     if (!isValid(dateObj)) {
-      return '';
+      return "";
     }
 
     return format(dateObj, formatString, { locale: es });
   }
 
   static formatDateForApi(date: Date | string): string {
-    const dateObj = typeof date === 'string' ? new Date(date) : date;
+    const dateObj = typeof date === "string" ? new Date(date) : date;
 
     if (!isValid(dateObj)) {
-      throw new Error('Invalid date provided');
+      throw new Error("Invalid date provided");
     }
 
-    return format(dateObj, 'yyyyMMdd');
+    return format(dateObj, "yyyyMMdd");
   }
 
   static parseTime(timeString: string): { hours: number; minutes: number } {
-    const [hoursStr, minutesStr] = timeString.split(':');
+    const [hoursStr, minutesStr] = timeString.split(":");
     return {
       hours: parseInt(hoursStr, 10) || 0,
       minutes: parseInt(minutesStr, 10) || 0,
@@ -63,38 +66,45 @@ export class BookingUtils {
   static getStatusText(status: BookingStatus): string {
     switch (status) {
       case BookingStatus.AVAILABLE:
-        return 'Disponible';
+        return "Disponible";
       case BookingStatus.BOOKED:
-        return 'Reservado';
+        return "Reservado";
       case BookingStatus.FULL:
-        return 'Completo';
+        return "Completo";
       case BookingStatus.WAITLIST:
-        return 'Lista de espera';
+        return "Lista de espera";
       case BookingStatus.DISABLED:
-        return 'No disponible';
+        return "No disponible";
       default:
-        return 'Desconocido';
+        return "Desconocido";
     }
   }
 
   static isBookingAvailable(booking: Booking): boolean {
-    return booking.status === BookingStatus.AVAILABLE ||
-           booking.status === BookingStatus.WAITLIST;
+    return (
+      booking.status === BookingStatus.AVAILABLE ||
+      booking.status === BookingStatus.WAITLIST
+    );
   }
 
   static canUserBook(booking: Booking): boolean {
-    return this.isBookingAvailable(booking) &&
-           booking.isIncludedInPlan &&
-           !booking.userBookingId;
+    return (
+      this.isBookingAvailable(booking) &&
+      booking.isIncludedInPlan &&
+      !booking.userBookingId
+    );
   }
 
   static canUserCancel(booking: Booking): boolean {
-    return booking.status === BookingStatus.BOOKED &&
-           booking.userBookingId !== null;
+    return (
+      booking.status === BookingStatus.BOOKED ||
+      (booking.status === BookingStatus.WAITLIST &&
+        booking.userBookingId !== null)
+    );
   }
 
   static filterBookings(bookings: Booking[], filter: BookingFilter): Booking[] {
-    return bookings.filter(booking => {
+    return bookings.filter((booking) => {
       if (filter.classTypes && filter.classTypes.length > 0) {
         if (!filter.classTypes.includes(booking.class.name)) {
           return false;
@@ -112,7 +122,10 @@ export class BookingUtils {
         const filterStartMinutes = filterStart.hours * 60 + filterStart.minutes;
         const filterEndMinutes = filterEnd.hours * 60 + filterEnd.minutes;
 
-        if (bookingStartMinutes < filterStartMinutes || bookingEndMinutes > filterEndMinutes) {
+        if (
+          bookingStartMinutes < filterStartMinutes ||
+          bookingEndMinutes > filterEndMinutes
+        ) {
           return false;
         }
       }
@@ -145,7 +158,9 @@ export class BookingUtils {
     });
   }
 
-  static groupBookingsByTimeSlot(bookings: Booking[]): Record<string, Booking[]> {
+  static groupBookingsByTimeSlot(
+    bookings: Booking[]
+  ): Record<string, Booking[]> {
     return bookings.reduce((groups, booking) => {
       const timeSlotId = booking.timeSlot.id;
       if (!groups[timeSlotId]) {
@@ -157,7 +172,7 @@ export class BookingUtils {
   }
 
   static getAvailableClassTypes(bookings: Booking[]): string[] {
-    const classTypes = new Set(bookings.map(booking => booking.class.name));
+    const classTypes = new Set(bookings.map((booking) => booking.class.name));
     return Array.from(classTypes).sort();
   }
 

@@ -1,7 +1,7 @@
 "use client";
 
-import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/common/ui/badge";
+import { Progress } from "@/common/ui/progress";
 import React from "react";
 
 import { cn } from "@/lib/utils";
