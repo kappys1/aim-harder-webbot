@@ -74,7 +74,7 @@ export class PreBookingScheduler {
         console.log("[PreBookingScheduler] No pending prebookings found");
         return {
           success: true,
-          message: "No pending prebookings",
+          message: "No pending prebookingss",
           details: { count: 0 },
         };
       }
