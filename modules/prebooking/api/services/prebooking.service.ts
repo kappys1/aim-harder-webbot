@@ -37,6 +37,12 @@ export class PreBookingService {
    * Ordered by created_at ASC for FIFO execution
    */
   async findPendingInTimeRange(startTime: Date, endTime: Date): Promise<PreBooking[]> {
+    console.log('[PreBookingService] Querying with:', {
+      status: 'pending',
+      availableAtStart: startTime.toISOString(),
+      availableAtEnd: endTime.toISOString()
+    });
+
     const { data, error } = await this.supabase
       .from('prebookings')
       .select('*')
@@ -49,6 +55,16 @@ export class PreBookingService {
       console.error('[PreBookingService] Error finding pending prebookings:', error);
       throw new Error(`Failed to find pending prebookings: ${error.message}`);
     }
+
+    console.log('[PreBookingService] Query result:', {
+      found: data?.length || 0,
+      prebookings: data?.map(p => ({
+        id: p.id,
+        email: p.user_email,
+        availableAt: p.available_at,
+        status: p.status
+      }))
+    });
 
     if (!data || data.length === 0) {
       return [];
