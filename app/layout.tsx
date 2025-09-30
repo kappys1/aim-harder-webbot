@@ -1,3 +1,4 @@
+import { Toaster } from "@/common/ui/sonner";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
@@ -18,8 +19,8 @@ export const metadata: Metadata = {
   viewport: "width=device-width, initial-scale=1, maximum-scale=1",
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#1e40af" },
-    { media: "(prefers-color-scheme: dark)", color: "#3b82f6" }
-  ]
+    { media: "(prefers-color-scheme: dark)", color: "#3b82f6" },
+  ],
 };
 
 export default function RootLayout({
@@ -33,6 +34,7 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         {children}
+        <Toaster />
       </body>
     </html>
   );

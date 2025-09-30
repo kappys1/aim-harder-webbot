@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
 import { AuthCookie } from "../../auth/api/services/cookie.service";
 import { BookingBusiness } from "../business/booking.business";
 import { BookingDay } from "../models/booking.model";
@@ -67,8 +68,9 @@ export function useBooking(options: UseBookingOptions = {}): UseBookingReturn {
         state.selectedBoxId,
         cookies
       );
-      actions.setLoading(false);
+
       actions.setCurrentDay(bookingDay);
+      actions.setLoading(false);
 
       if (enableCache) {
         actions.cacheDay(cacheKey, bookingDay);
@@ -77,7 +79,27 @@ export function useBooking(options: UseBookingOptions = {}): UseBookingReturn {
       const errorMessage =
         error instanceof Error ? error.message : "Error desconocido";
       actions.setError(errorMessage);
+      actions.setLoading(false);
       console.error("Error fetching bookings:", error);
+
+      // Show user-friendly error toast
+      if (errorMessage.includes("network") || errorMessage.includes("fetch")) {
+        toast.error("Error de conexión", {
+          description: "No se pudo conectar con el servidor. Verifica tu conexión a internet.",
+        });
+      } else if (errorMessage.includes("auth") || errorMessage.includes("unauthorized")) {
+        toast.error("Sesión expirada", {
+          description: "Tu sesión ha expirado. Por favor, inicia sesión nuevamente.",
+        });
+      } else if (errorMessage.includes("404") || errorMessage.includes("not found")) {
+        toast.error("Datos no encontrados", {
+          description: "No se encontraron reservas para la fecha seleccionada.",
+        });
+      } else {
+        toast.error("Error al cargar reservas", {
+          description: "Ocurrió un error inesperado. Intenta nuevamente.",
+        });
+      }
     }
   }, [state, actions, bookingBusiness, enableCache, cookies]);
 

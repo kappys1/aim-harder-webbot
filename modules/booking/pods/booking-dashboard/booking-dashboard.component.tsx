@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { usePreBooking } from "@/modules/prebooking/pods/prebooking/hooks/usePreBooking.hook";
 import { AlertCircle, RefreshCw } from "lucide-react";
 import { useCallback, useState } from "react";
+import { toast } from "sonner";
 import { AuthCookie } from "../../../auth/api/services/cookie.service";
 import { useBooking } from "../../hooks/useBooking.hook";
 import {
@@ -144,7 +145,9 @@ function BookingDashboardContent({
             actions.setCurrentDay(updatedDay);
           }
 
-          alert(`✅ Reserva exitosa! ID: ${data.bookingId}`);
+          toast.success("Reserva exitosa", {
+            description: `ID: ${data.bookingId}`,
+          });
           // Also refresh from server to ensure consistency
           refetch();
         } else {
@@ -162,9 +165,9 @@ function BookingDashboardContent({
               });
 
               // Show success message (not error) for prebooking creation
-              alert(
-                `✅ ¡Prereserva creada exitosamente!\n\n📅 Se reservará automáticamente el ${formattedDate}\n\nLa reserva se ejecutará cuando se abra el período de reservas.`
-              );
+              toast.success("¡Prereserva creada exitosamente!", {
+                description: `📅 Se reservará automáticamente el ${formattedDate}`,
+              });
 
               // Refresh prebookings to show the new one
               fetchPrebookings();
@@ -172,17 +175,17 @@ function BookingDashboardContent({
               // Optionally refresh bookings to update UI
               refetch();
             } else {
-              alert(`⏰ ${data.message}`);
+              toast.warning(data.message || "No se puede reservar aún");
             }
           } else if (data.error === "max_bookings_reached") {
-            alert(`🚫 ${data.message}`);
+            toast.error(data.message || "Máximo de reservas alcanzado");
           } else {
-            alert(`❌ Error: ${data.message || "Error desconocido"}`);
+            toast.error(data.message || "Error desconocido");
           }
         }
       } catch (error) {
         console.error("Booking error:", error);
-        alert("❌ Error de conexión al realizar la reserva");
+        toast.error("Error de conexión al realizar la reserva");
       } finally {
         setBookingLoading(null);
       }
@@ -197,9 +200,7 @@ function BookingDashboardContent({
       // Find the booking to get the userBookingId
       const booking = bookingDay.bookings.find((b) => b.id === bookingId);
       if (!booking || !booking.userBookingId) {
-        alert(
-          "❌ Error: No se encontró la información de la reserva para cancelar"
-        );
+        toast.error("No se encontró la información de la reserva para cancelar");
         return;
       }
 
@@ -267,16 +268,16 @@ function BookingDashboardContent({
           // Update local state immediately
           actions.setCurrentDay(updatedDay);
 
-          alert(`✅ Reserva cancelada exitosamente!`);
+          toast.success("Reserva cancelada exitosamente");
           // Also refresh from server to ensure consistency
           refetch();
         } else {
           // Handle error
-          alert(`❌ Error al cancelar: ${data.message || "Error desconocido"}`);
+          toast.error(`Error al cancelar: ${data.message || "Error desconocido"}`);
         }
       } catch (error) {
         console.error("Cancellation error:", error);
-        alert("❌ Error de conexión al cancelar la reserva");
+        toast.error("Error de conexión al cancelar la reserva");
       } finally {
         setCancelLoading(null);
       }
@@ -314,17 +315,17 @@ function BookingDashboardContent({
         const data = await response.json();
 
         if (data.success) {
-          alert(`✅ Prereserva cancelada exitosamente!`);
+          toast.success("Prereserva cancelada exitosamente");
           // Refresh prebookings list
           fetchPrebookings();
           // Optionally refresh bookings
           refetch();
         } else {
-          alert(`❌ Error al cancelar: ${data.message || "Error desconocido"}`);
+          toast.error(`Error al cancelar: ${data.message || "Error desconocido"}`);
         }
       } catch (error) {
         console.error("Cancel prebooking error:", error);
-        alert("❌ Error de conexión al cancelar la prereserva");
+        toast.error("Error de conexión al cancelar la prereserva");
       } finally {
         setCancelPrebookingLoading(null);
       }

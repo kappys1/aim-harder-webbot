@@ -4,7 +4,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/common/ui/avatar";
 import { Badge } from "@/common/ui/badge";
 import { Button } from "@/common/ui/button";
 import { Card, CardAction, CardContent, CardHeader } from "@/common/ui/card";
-import { Calendar, Clock, MapPin, Users } from "lucide-react";
+import { Calendar, Clock, Loader2, MapPin, Users } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Booking, BookingStatus } from "@/modules/booking/models/booking.model";
@@ -74,6 +74,9 @@ export function BookingCard({
           className="text-orange-600 border-orange-200 hover:bg-orange-50"
           disabled={isCancellingPrebooking}
         >
+          {isCancellingPrebooking && (
+            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+          )}
           {isCancellingPrebooking ? "Cancelando..." : "Cancelar Prereserva"}
         </Button>
       );
@@ -88,6 +91,7 @@ export function BookingCard({
           className="text-red-600 border-red-200 hover:bg-red-50"
           disabled={!canCancel || isCancelling}
         >
+          {isCancelling && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
           {isCancelling ? "Cancelando..." : "Cancelar"}
         </Button>
       );
