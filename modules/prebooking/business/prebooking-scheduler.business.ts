@@ -56,11 +56,14 @@ export class PreBookingScheduler {
     console.log("[PreBookingScheduler] Starting execution...");
 
     try {
-      // 1. Query prebookings that will become available in next 45-75 seconds
+      // 1. Query prebookings that will become available in next 10-90 seconds
       const now = new Date();
-      const startRange = new Date(now.getTime() + 45 * 1000); // Now + 45s
-      const endRange = new Date(now.getTime() + 75 * 1000); // Now + 75s
+      const startRange = new Date(now.getTime() + 10 * 1000); // Now + 10s
+      const endRange = new Date(now.getTime() + 90 * 1000); // Now + 90s
 
+      console.log(
+        `[PreBookingScheduler] Current time: ${now.toISOString()}`
+      );
       console.log(
         `[PreBookingScheduler] Querying prebookings between ${startRange.toISOString()} and ${endRange.toISOString()}`
       );
