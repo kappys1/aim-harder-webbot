@@ -162,6 +162,38 @@ export class PreBookingService {
     const validated = PreBookingApiSchema.parse(data);
     return PreBookingMapper.toDomain(validated);
   }
+
+  /**
+   * Atomically claim a pending prebooking by updating status from 'pending' to 'loaded'
+   * Returns the prebooking if successfully claimed, null if already claimed by another process
+   *
+   * This prevents race conditions when multiple cron jobs try to load the same prebooking
+   */
+  async claimPrebooking(id: string): Promise<PreBooking | null> {
+    const { data, error } = await this.supabase
+      .from('prebookings')
+      .update({
+        status: 'loaded',
+        loaded_at: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .eq('status', 'pending') // Only update if still pending (atomic check)
+      .select()
+      .single();
+
+    if (error) {
+      // PGRST116 = No rows matched (already claimed by another process)
+      if (error.code === 'PGRST116') {
+        console.log(`[PreBookingService] Prebooking ${id} already claimed by another process`);
+        return null;
+      }
+      console.error('[PreBookingService] Error claiming prebooking:', error);
+      throw new Error(`Failed to claim prebooking: ${error.message}`);
+    }
+
+    const validated = PreBookingApiSchema.parse(data);
+    return PreBookingMapper.toDomain(validated);
+  }
 }
 
 export const preBookingService = new PreBookingService();
