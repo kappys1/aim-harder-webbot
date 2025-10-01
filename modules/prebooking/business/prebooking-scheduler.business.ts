@@ -167,10 +167,11 @@ export class PreBookingScheduler {
           const success = bookingResponse.bookState === 1 || bookingResponse.id;
 
           if (success) {
-            await preBookingService.markCompleted(
-              prebooking.id,
-              bookingResponse.id
-            );
+            await preBookingService.markCompleted(prebooking.id, {
+              bookingId: bookingResponse.id,
+              bookState: bookingResponse.bookState,
+              message: bookingResponse.errorMssg || 'Booking created successfully',
+            });
             results.completed++;
             console.log(
               `[PreBookingScheduler ${this.instanceId}] ✅ Prebooking ${prebooking.id} completed successfully`
@@ -178,7 +179,8 @@ export class PreBookingScheduler {
           } else {
             await preBookingService.markFailed(
               prebooking.id,
-              bookingResponse.errorMssg || 'Booking failed'
+              bookingResponse.errorMssg || 'Booking failed',
+              { bookState: bookingResponse.bookState }
             );
             results.failed++;
             results.errors.push(

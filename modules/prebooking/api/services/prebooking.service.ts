@@ -275,15 +275,26 @@ export class PreBookingService {
   }
 
   /**
-   * Mark prebooking as completed
+   * Mark prebooking as completed with full result
    */
-  async markCompleted(id: string, bookingId?: string): Promise<void> {
+  async markCompleted(id: string, result: {
+    bookingId?: string;
+    bookState?: number;
+    message?: string;
+  }): Promise<void> {
+    const executedAt = new Date();
     const { error } = await this.supabase
       .from("prebookings")
       .update({
         status: "completed",
-        executed_at: new Date().toISOString(),
-        result: bookingId ? { bookingId } : null,
+        executed_at: executedAt.toISOString(),
+        result: {
+          success: true,
+          bookingId: result.bookingId,
+          bookState: result.bookState,
+          message: result.message,
+          executedAt: executedAt.toISOString(),
+        },
       })
       .eq("id", id);
 
@@ -294,15 +305,24 @@ export class PreBookingService {
   }
 
   /**
-   * Mark prebooking as failed
+   * Mark prebooking as failed with full result
    */
-  async markFailed(id: string, errorMessage: string): Promise<void> {
+  async markFailed(id: string, errorMessage: string, result?: {
+    bookState?: number;
+  }): Promise<void> {
+    const executedAt = new Date();
     const { error } = await this.supabase
       .from("prebookings")
       .update({
         status: "failed",
-        executed_at: new Date().toISOString(),
+        executed_at: executedAt.toISOString(),
         error_message: errorMessage,
+        result: {
+          success: false,
+          bookState: result?.bookState,
+          message: errorMessage,
+          executedAt: executedAt.toISOString(),
+        },
       })
       .eq("id", id);
 
