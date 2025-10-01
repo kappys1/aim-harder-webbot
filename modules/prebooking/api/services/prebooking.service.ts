@@ -160,6 +160,7 @@ export class PreBookingService {
     const { data, error } = await this.supabase
       .from("prebookings")
       .select("*")
+      .eq("status", "pending")
       .eq("user_email", userEmail)
       .order("created_at", { ascending: false });
 
@@ -300,11 +301,14 @@ export class PreBookingService {
   /**
    * Mark prebooking as completed with full result
    */
-  async markCompleted(id: string, result: {
-    bookingId?: string;
-    bookState?: number;
-    message?: string;
-  }): Promise<void> {
+  async markCompleted(
+    id: string,
+    result: {
+      bookingId?: string;
+      bookState?: number;
+      message?: string;
+    }
+  ): Promise<void> {
     const executedAt = new Date();
     const { error } = await this.supabase
       .from("prebookings")
@@ -330,9 +334,13 @@ export class PreBookingService {
   /**
    * Mark prebooking as failed with full result
    */
-  async markFailed(id: string, errorMessage: string, result?: {
-    bookState?: number;
-  }): Promise<void> {
+  async markFailed(
+    id: string,
+    errorMessage: string,
+    result?: {
+      bookState?: number;
+    }
+  ): Promise<void> {
     const executedAt = new Date();
     const { error } = await this.supabase
       .from("prebookings")
