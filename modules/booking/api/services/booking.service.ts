@@ -1,6 +1,19 @@
-import { CookieService, AuthCookie } from '../../../auth/api/services/cookie.service';
-import { BookingRequestParams, BookingResponseApi, BookingResponseApiSchema, BookingCreateRequest, BookingCreateResponse, BookingCreateResponseSchema, BookingCancelRequest, BookingCancelResponse, BookingCancelResponseSchema } from '../models/booking.api';
-import { BOOKING_CONSTANTS } from '../../constants/booking.constants';
+import {
+  AuthCookie,
+  CookieService,
+} from "../../../auth/api/services/cookie.service";
+import { BOOKING_CONSTANTS } from "../../constants/booking.constants";
+import {
+  BookingCancelRequest,
+  BookingCancelResponse,
+  BookingCancelResponseSchema,
+  BookingCreateRequest,
+  BookingCreateResponse,
+  BookingCreateResponseSchema,
+  BookingRequestParams,
+  BookingResponseApi,
+  BookingResponseApiSchema,
+} from "../models/booking.api";
 
 export interface BookingServiceConfig {
   baseUrl?: string;
@@ -23,21 +36,21 @@ export class BookingService {
     const url = this.buildUrl(BOOKING_CONSTANTS.API.ENDPOINTS.BOOKINGS, params);
 
     const headers: Record<string, string> = {
-      'Accept': '*/*',
-      'X-Requested-With': 'XMLHttpRequest',
-      'Content-Type': 'application/json',
+      Accept: "*/*",
+      "X-Requested-With": "XMLHttpRequest",
+      "Content-Type": "application/json",
     };
 
     // Add user email from localStorage if available
-    if (typeof window !== 'undefined') {
-      const userEmail = localStorage.getItem('user-email');
+    if (typeof window !== "undefined") {
+      const userEmail = localStorage.getItem("user-email");
       if (userEmail) {
-        headers['x-user-email'] = userEmail;
+        headers["x-user-email"] = userEmail;
       }
     }
 
     if (cookies && cookies.length > 0) {
-      headers['Cookie'] = CookieService.formatForRequest(cookies);
+      headers["Cookie"] = CookieService.formatForRequest(cookies);
     }
 
     try {
@@ -45,11 +58,11 @@ export class BookingService {
       const timeoutId = setTimeout(() => controller.abort(), this.timeout);
 
       const response = await fetch(url, {
-        method: 'GET',
+        method: "GET",
         headers,
         signal: controller.signal,
-        credentials: 'include',
-        mode: 'cors',
+        credentials: "include",
+        mode: "cors",
       });
 
       clearTimeout(timeoutId);
@@ -58,7 +71,7 @@ export class BookingService {
         throw new BookingApiError(
           `HTTP ${response.status}: ${response.statusText}`,
           response.status,
-          'HTTP_ERROR'
+          "HTTP_ERROR"
         );
       }
 
@@ -67,40 +80,35 @@ export class BookingService {
       const validatedData = BookingResponseApiSchema.safeParse(data);
       if (!validatedData.success) {
         throw new BookingApiError(
-          'Invalid API response format',
+          "Invalid API response format",
           400,
-          'VALIDATION_ERROR',
+          "VALIDATION_ERROR",
           validatedData.error.issues
         );
       }
 
       return validatedData.data;
-
     } catch (error) {
       if (error instanceof BookingApiError) {
         throw error;
       }
 
-      if (error instanceof DOMException && error.name === 'AbortError') {
-        throw new BookingApiError(
-          'Request timeout',
-          408,
-          'TIMEOUT_ERROR'
-        );
+      if (error instanceof DOMException && error.name === "AbortError") {
+        throw new BookingApiError("Request timeout", 408, "TIMEOUT_ERROR");
       }
 
       if (error instanceof TypeError) {
         throw new BookingApiError(
-          'Network error - please check your connection',
+          "Network error - please check your connection",
           0,
-          'NETWORK_ERROR'
+          "NETWORK_ERROR"
         );
       }
 
       throw new BookingApiError(
-        error instanceof Error ? error.message : 'Unknown error occurred',
+        error instanceof Error ? error.message : "Unknown error occurred",
         500,
-        'UNKNOWN_ERROR'
+        "UNKNOWN_ERROR"
       );
     }
   }
@@ -112,31 +120,32 @@ export class BookingService {
     const url = `${BOOKING_CONSTANTS.API.EXTERNAL_BASE_URL}${BOOKING_CONSTANTS.API.ENDPOINTS.CREATE_BOOKING}`;
 
     const headers: Record<string, string> = {
-      'Accept': '*/*',
-      'X-Requested-With': 'XMLHttpRequest',
-      'Content-Type': 'application/x-www-form-urlencoded',
-      'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
-      'Referer': 'https://crossfitcerdanyola300.aimharder.com/',
-      'Origin': 'https://crossfitcerdanyola300.aimharder.com',
+      Accept: "*/*",
+      "X-Requested-With": "XMLHttpRequest",
+      "Content-Type": "application/x-www-form-urlencoded",
+      "User-Agent":
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
+      Referer: "https://crossfitcerdanyola300.aimharder.com/",
+      Origin: "https://crossfitcerdanyola300.aimharder.com",
     };
 
     if (cookies && cookies.length > 0) {
-      headers['Cookie'] = CookieService.formatForRequest(cookies);
+      headers["Cookie"] = CookieService.formatForRequest(cookies);
     }
 
     // Format request body as URL-encoded form data
     const formData = new URLSearchParams();
-    formData.append('day', request.day);
-    formData.append('familyId', request.familyId);
-    formData.append('id', request.id);
-    formData.append('insist', request.insist.toString());
+    formData.append("day", request.day);
+    formData.append("familyId", request.familyId);
+    formData.append("id", request.id);
+    formData.append("insist", request.insist.toString());
 
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), this.timeout);
 
       const response = await fetch(url, {
-        method: 'POST',
+        method: "POST",
         headers,
         body: formData,
         signal: controller.signal,
@@ -148,49 +157,45 @@ export class BookingService {
         throw new BookingApiError(
           `HTTP ${response.status}: ${response.statusText}`,
           response.status,
-          'HTTP_ERROR'
+          "HTTP_ERROR"
         );
       }
 
       const data = await response.json();
 
       const validatedData = BookingCreateResponseSchema.safeParse(data);
+      console.log(validatedData);
       if (!validatedData.success) {
         throw new BookingApiError(
-          'Invalid booking response format',
+          "Invalid booking response format",
           400,
-          'VALIDATION_ERROR',
+          "VALIDATION_ERROR",
           validatedData.error.issues
         );
       }
 
       return validatedData.data;
-
     } catch (error) {
       if (error instanceof BookingApiError) {
         throw error;
       }
 
-      if (error instanceof DOMException && error.name === 'AbortError') {
-        throw new BookingApiError(
-          'Request timeout',
-          408,
-          'TIMEOUT_ERROR'
-        );
+      if (error instanceof DOMException && error.name === "AbortError") {
+        throw new BookingApiError("Request timeout", 408, "TIMEOUT_ERROR");
       }
 
       if (error instanceof TypeError) {
         throw new BookingApiError(
-          'Network error - please check your connection',
+          "Network error - please check your connection",
           0,
-          'NETWORK_ERROR'
+          "NETWORK_ERROR"
         );
       }
 
       throw new BookingApiError(
-        error instanceof Error ? error.message : 'Unknown error occurred',
+        error instanceof Error ? error.message : "Unknown error occurred",
         500,
-        'UNKNOWN_ERROR'
+        "UNKNOWN_ERROR"
       );
     }
   }
@@ -202,30 +207,31 @@ export class BookingService {
     const url = `${BOOKING_CONSTANTS.API.EXTERNAL_BASE_URL}${BOOKING_CONSTANTS.API.ENDPOINTS.CANCEL_BOOKING}`;
 
     const headers: Record<string, string> = {
-      'Accept': '*/*',
-      'X-Requested-With': 'XMLHttpRequest',
-      'Content-Type': 'application/x-www-form-urlencoded',
-      'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
-      'Referer': 'https://crossfitcerdanyola300.aimharder.com/',
-      'Origin': 'https://crossfitcerdanyola300.aimharder.com',
+      Accept: "*/*",
+      "X-Requested-With": "XMLHttpRequest",
+      "Content-Type": "application/x-www-form-urlencoded",
+      "User-Agent":
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
+      Referer: "https://crossfitcerdanyola300.aimharder.com/",
+      Origin: "https://crossfitcerdanyola300.aimharder.com",
     };
 
     if (cookies && cookies.length > 0) {
-      headers['Cookie'] = CookieService.formatForRequest(cookies);
+      headers["Cookie"] = CookieService.formatForRequest(cookies);
     }
 
     // Format request body as URL-encoded form data
     const formData = new URLSearchParams();
-    formData.append('id', request.id);
-    formData.append('late', request.late.toString());
-    formData.append('familyId', request.familyId);
+    formData.append("id", request.id);
+    formData.append("late", request.late.toString());
+    formData.append("familyId", request.familyId);
 
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), this.timeout);
 
       const response = await fetch(url, {
-        method: 'POST',
+        method: "POST",
         headers,
         body: formData,
         signal: controller.signal,
@@ -237,7 +243,7 @@ export class BookingService {
         throw new BookingApiError(
           `HTTP ${response.status}: ${response.statusText}`,
           response.status,
-          'HTTP_ERROR'
+          "HTTP_ERROR"
         );
       }
 
@@ -246,40 +252,35 @@ export class BookingService {
       const validatedData = BookingCancelResponseSchema.safeParse(data);
       if (!validatedData.success) {
         throw new BookingApiError(
-          'Invalid cancellation response format',
+          "Invalid cancellation response format",
           400,
-          'VALIDATION_ERROR',
+          "VALIDATION_ERROR",
           validatedData.error.issues
         );
       }
 
       return validatedData.data;
-
     } catch (error) {
       if (error instanceof BookingApiError) {
         throw error;
       }
 
-      if (error instanceof DOMException && error.name === 'AbortError') {
-        throw new BookingApiError(
-          'Request timeout',
-          408,
-          'TIMEOUT_ERROR'
-        );
+      if (error instanceof DOMException && error.name === "AbortError") {
+        throw new BookingApiError("Request timeout", 408, "TIMEOUT_ERROR");
       }
 
       if (error instanceof TypeError) {
         throw new BookingApiError(
-          'Network error - please check your connection',
+          "Network error - please check your connection",
           0,
-          'NETWORK_ERROR'
+          "NETWORK_ERROR"
         );
       }
 
       throw new BookingApiError(
-        error instanceof Error ? error.message : 'Unknown error occurred',
+        error instanceof Error ? error.message : "Unknown error occurred",
         500,
-        'UNKNOWN_ERROR'
+        "UNKNOWN_ERROR"
       );
     }
   }
@@ -301,21 +302,31 @@ export class BookingApiError extends Error {
   constructor(
     message: string,
     public readonly statusCode: number,
-    public readonly type: 'HTTP_ERROR' | 'VALIDATION_ERROR' | 'TIMEOUT_ERROR' | 'NETWORK_ERROR' | 'UNKNOWN_ERROR',
+    public readonly type:
+      | "HTTP_ERROR"
+      | "VALIDATION_ERROR"
+      | "TIMEOUT_ERROR"
+      | "NETWORK_ERROR"
+      | "UNKNOWN_ERROR",
     public readonly details?: any
   ) {
     super(message);
-    this.name = 'BookingApiError';
+    this.name = "BookingApiError";
   }
 
   get isRetryable(): boolean {
-    return this.type === 'TIMEOUT_ERROR' ||
-           this.type === 'NETWORK_ERROR' ||
-           (this.type === 'HTTP_ERROR' && this.statusCode >= 500);
+    return (
+      this.type === "TIMEOUT_ERROR" ||
+      this.type === "NETWORK_ERROR" ||
+      (this.type === "HTTP_ERROR" && this.statusCode >= 500)
+    );
   }
 
   get isAuthenticationError(): boolean {
-    return this.type === 'HTTP_ERROR' && (this.statusCode === 401 || this.statusCode === 403);
+    return (
+      this.type === "HTTP_ERROR" &&
+      (this.statusCode === 401 || this.statusCode === 403)
+    );
   }
 }
 
