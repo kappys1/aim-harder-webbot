@@ -77,6 +77,24 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
+    // Cancel scheduled execution in QStash if exists
+    if (prebooking.qstashScheduleId) {
+      try {
+        const { cancelScheduledExecution } = await import("@/core/qstash/client");
+        await cancelScheduledExecution(prebooking.qstashScheduleId);
+        console.log(
+          `[PreBooking API] Canceled QStash message ${prebooking.qstashScheduleId} for prebooking ${id}`
+        );
+      } catch (qstashError) {
+        // Log error but continue with deletion
+        // Message might already be executed or not exist
+        console.error(
+          `[PreBooking API] Failed to cancel QStash message for prebooking ${id}:`,
+          qstashError
+        );
+      }
+    }
+
     await preBookingService.delete(id);
 
     return NextResponse.json({

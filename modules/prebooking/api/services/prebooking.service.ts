@@ -37,6 +37,29 @@ export class PreBookingService {
   }
 
   /**
+   * Update qstash_schedule_id after scheduling in QStash
+   */
+  async updateQStashScheduleId(
+    id: string,
+    qstashScheduleId: string
+  ): Promise<void> {
+    const { error } = await this.supabase
+      .from("prebookings")
+      .update({
+        qstash_schedule_id: qstashScheduleId,
+      })
+      .eq("id", id);
+
+    if (error) {
+      console.error(
+        "[PreBookingService] Error updating qstash_schedule_id:",
+        error
+      );
+      throw new Error(`Failed to update qstash_schedule_id: ${error.message}`);
+    }
+  }
+
+  /**
    * Find pending prebookings within a time range
    * Ordered by created_at ASC for FIFO execution
    */

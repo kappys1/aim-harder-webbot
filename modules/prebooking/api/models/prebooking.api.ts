@@ -23,6 +23,7 @@ export const PreBookingApiSchema = z.object({
   booking_data: BookingCreateRequestSchema,
   available_at: z.string(), // Accept any string format from Supabase
   status: PreBookingStatusSchema,
+  qstash_schedule_id: z.string().nullable().optional(),
   result: PreBookingResultSchema.nullable().optional(),
   error_message: z.string().nullable().optional(),
   created_at: z.string(), // Accept any string format from Supabase

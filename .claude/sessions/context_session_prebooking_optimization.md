@@ -589,3 +589,152 @@ Notifications: Email on failure
    - Load tests for concurrent cron invocations
 
 **Full details**: See `.claude/doc/prebooking_optimization/nextjs_architect.md`
+
+---
+
+## QStash Migration Analysis (2025-10-01)
+
+**Status**: ✅ **HIGHLY RECOMMENDED - Proceed with migration**
+
+### Executive Summary
+
+User proposes migrating from cron-job.org (60s polling) to QStash (Upstash) for exact-timestamp scheduling of prebookings. After comprehensive analysis, **QStash is the PERFECT solution** for this use case.
+
+**Key Benefits:**
+- **Precision**: <100ms accuracy vs 1-10s jitter (solves core problem)
+- **Code reduction**: 62% less code - delete entire scheduler business logic
+- **Architecture**: Event-driven vs polling (cleaner, more efficient)
+- **Cost**: $1.80/month (trivial for benefits gained)
+- **Natural FIFO**: First scheduled = first executed (no stagger logic needed)
+
+### Critical Finding: QStash Free Tier Limitation
+
+**IMPORTANT**: QStash Free tier has **10 scheduled messages MAX** limit
+- Your usage: 50-100 prebookings/day
+- Peak concurrent: 30 users for same class
+
+**SOLUTION**: Use QStash Paid Plan
+- Cost: $0.60 per 1000 messages
+- Your usage: ~3000 messages/month = **$1.80/month**
+- Benefits: Unlimited scheduled messages, DLQ, advanced retry
+
+**Verdict**: $1.80/month is trivial cost for <100ms precision + 62% code reduction
+
+### Architecture Comparison
+
+#### CURRENT (cron-job.org)
+```
+External Cron (60s) → Query ALL ready → FIFO async (50ms stagger) → Execute
+Problems: Jitter (1-10s), polling overhead, complex FIFO logic
+```
+
+#### NEW (QStash)
+```
+User creates → Schedule QStash → QStash triggers at exact time → Execute single booking
+Benefits: <100ms precision, zero polling, natural FIFO, simple
+```
+
+### What Gets DELETED
+
+✅ **Entire files:**
+- `/app/api/cron/prebooking-scheduler/route.ts` (120 lines)
+- `/modules/prebooking/business/prebooking-scheduler.business.ts` (220 lines)
+
+✅ **Methods removed:**
+- `findReadyToExecute()` - No longer query "ready now"
+- `findPendingInTimeRange()` - No polling needed
+- `claimPrebooking()` - QStash handles deduplication
+
+**Result**: 450 lines deleted, 170 lines added = **62% code reduction**
+
+### What Gets ADDED
+
+**New files:**
+- `/core/qstash/client.ts` - QStash client + schedule/cancel functions
+- `/core/qstash/signature.ts` - Request signature verification
+- `/app/api/qstash/prebooking-execute/route.ts` - Webhook endpoint
+
+**Database change:**
+```sql
+ALTER TABLE prebookings ADD COLUMN qstash_schedule_id TEXT;
+```
+
+**Modified service:**
+- `PreBookingService.create()` - Schedule QStash message after insert
+- `PreBookingService.delete()` - Cancel QStash schedule before delete
+
+### Implementation Strategy
+
+**Phase 1: Setup (Day 1-7)**
+- Create QStash account (console.upstash.com)
+- Add environment variables
+- Database migration
+- Implement code
+
+**Phase 2: Parallel Running (Day 8-14)**
+- Deploy with both QStash + cron running
+- QStash handles new prebookings
+- Cron still active as backup
+- Monitor for conflicts
+
+**Phase 3: Full Migration (Day 15-21)**
+- Disable cron-job.org
+- Monitor QStash for 24 hours
+- Delete old code
+- Celebrate 🎉
+
+### Risk Assessment
+
+**HIGH CONFIDENCE (95%)** - QStash is purpose-built for this exact use case
+
+**Low Risk:**
+- Parallel running strategy provides safety net
+- Idempotency prevents duplicate executions
+- QStash has 99.9% SLA
+- Simple rollback via environment variable
+
+**Mitigations:**
+- Keep old code in Git branch for 1 month
+- Monitor DLQ for failed messages
+- Comprehensive testing before full migration
+
+### Cost-Benefit Analysis
+
+**QStash Paid: $1.80/month**
+
+**Benefits:**
+- Time saved debugging: 5-10 hours/year × $50/hr = $250-500/year
+- Code maintenance: 62% less code = 2-3 hours/year saved
+- User experience: Higher booking success rate
+
+**Net benefit: $228-478/year** (after subtracting $21.60 QStash cost)
+
+### Alternatives Considered (NOT Recommended)
+
+❌ **Inngest**: Overkill, $30/month, requires Pro plan for Vercel
+❌ **Trigger.dev**: Complex, $20/month, requires separate infrastructure
+❌ **Stay with cron**: Keeps jitter problem, maintains complex code
+❌ **Hybrid (QStash free + cron)**: Too complex, defeats simplicity benefit
+
+### Next Steps
+
+1. **User approval**: Get confirmation for $1.80/month QStash paid plan
+2. **Create QStash account**: console.upstash.com
+3. **Follow implementation plan**: See `.claude/doc/qstash_migration/nextjs_architect.md`
+4. **Deploy Phase 2**: Parallel running for 1 week
+5. **Deploy Phase 3**: Full migration + delete old code
+
+**Full implementation guide**: `.claude/doc/qstash_migration/nextjs_architect.md`
+
+### Questions Answered
+
+✅ **Is QStash the right solution?** YES - Purpose-built for exact-timestamp scheduling
+✅ **QStash vs alternatives?** QStash wins on cost, simplicity, Vercel integration
+✅ **100+ scheduled messages?** Use paid plan ($1.80/month) - free tier has 10-message limit
+✅ **Where to put client?** `/core/qstash/client.ts` (follows project structure)
+✅ **Signature verification?** Use `@upstash/qstash` SDK's built-in verification
+✅ **Database schema?** Add `qstash_schedule_id TEXT` column (simple, sufficient)
+✅ **Code cleanup?** Delete entire cron endpoint + scheduler class (450 lines)
+✅ **Migration strategy?** Parallel running for 1 week, then full migration
+✅ **Existing prebookings?** Let cron drain naturally (simpler than migration script)
+✅ **Local testing?** Use QStash dev mode (schedule for NOW instead of future)

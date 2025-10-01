@@ -174,13 +174,35 @@ export async function POST(request: NextRequest) {
             availableAt: parsed.availableAt,
           });
 
-          console.log(
-            `[Booking API] Created prebooking ${
-              prebooking.id
-            } for ${userEmail} - available at ${parsed.availableAt.toISOString()} (class time: ${
-              classTime || "not provided"
-            })`
-          );
+          // Schedule execution in QStash at exact timestamp
+          try {
+            const { schedulePrebookingExecution } = await import("@/core/qstash/client");
+            const qstashScheduleId = await schedulePrebookingExecution(
+              prebooking.id,
+              parsed.availableAt
+            );
+
+            // Save QStash message ID for cancellation
+            await preBookingService.updateQStashScheduleId(
+              prebooking.id,
+              qstashScheduleId
+            );
+
+            console.log(
+              `[Booking API] Created prebooking ${
+                prebooking.id
+              } for ${userEmail} - scheduled in QStash (${qstashScheduleId}) at ${parsed.availableAt.toISOString()} (class time: ${
+                classTime || "not provided"
+              })`
+            );
+          } catch (qstashError) {
+            // If QStash fails, log error but don't fail the whole request
+            // The prebooking is created, just not scheduled
+            console.error(
+              `[Booking API] Failed to schedule in QStash for prebooking ${prebooking.id}:`,
+              qstashError
+            );
+          }
 
           return NextResponse.json(
             {

@@ -13,6 +13,7 @@ export interface PreBooking {
   bookingData: BookingCreateRequest;
   availableAt: Date;
   status: PreBookingStatus;
+  qstashScheduleId?: string;
   result?: PreBookingResult;
   errorMessage?: string;
   createdAt: Date;

@@ -9,6 +9,7 @@ export class PreBookingMapper {
       bookingData: api.booking_data,
       availableAt: new Date(api.available_at),
       status: api.status,
+      qstashScheduleId: api.qstash_schedule_id ?? undefined,
       result: api.result
         ? {
             ...api.result,
