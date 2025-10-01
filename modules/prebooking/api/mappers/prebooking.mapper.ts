@@ -13,7 +13,7 @@ export class PreBookingMapper {
         ? {
             ...api.result,
             success: api.result.success ?? false,
-            executedAt: new Date(api.result.executedAt),
+            executedAt: new Date(api.result.executedAt || Date.now()),
           }
         : undefined,
       errorMessage: api.error_message ?? undefined,
