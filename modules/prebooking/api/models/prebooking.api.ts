@@ -1,14 +1,20 @@
-import { z } from 'zod';
-import { BookingCreateRequestSchema } from '@/modules/booking/api/models/booking.api';
+import { BookingCreateRequestSchema } from "@/modules/booking/api/models/booking.api";
+import { z } from "zod";
 
-export const PreBookingStatusSchema = z.enum(['pending', 'loaded', 'executing', 'completed', 'failed']);
+export const PreBookingStatusSchema = z.enum([
+  "pending",
+  "loaded",
+  "executing",
+  "completed",
+  "failed",
+]);
 
 export const PreBookingResultSchema = z.object({
-  success: z.boolean(),
+  success: z.boolean().optional(),
   bookingId: z.string().optional(),
   bookState: z.number().optional(),
   message: z.string().optional(),
-  executedAt: z.string().datetime(),
+  executedAt: z.string().datetime().optional(),
 });
 
 export const PreBookingApiSchema = z.object({
@@ -40,5 +46,9 @@ export const UpdatePreBookingStatusRequestSchema = z.object({
 });
 
 export type PreBookingApi = z.infer<typeof PreBookingApiSchema>;
-export type CreatePreBookingRequest = z.infer<typeof CreatePreBookingRequestSchema>;
-export type UpdatePreBookingStatusRequest = z.infer<typeof UpdatePreBookingStatusRequestSchema>;
+export type CreatePreBookingRequest = z.infer<
+  typeof CreatePreBookingRequestSchema
+>;
+export type UpdatePreBookingStatusRequest = z.infer<
+  typeof UpdatePreBookingStatusRequestSchema
+>;

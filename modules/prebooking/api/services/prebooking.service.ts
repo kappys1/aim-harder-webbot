@@ -1,7 +1,11 @@
-import { supabaseAdmin } from '@/core/database/supabase';
-import { PreBooking, CreatePreBookingInput, UpdatePreBookingStatusInput, PreBookingStatus } from '../../models/prebooking.model';
-import { PreBookingApi, PreBookingApiSchema } from '../models/prebooking.api';
-import { PreBookingMapper } from '../mappers/prebooking.mapper';
+import { supabaseAdmin } from "@/core/database/supabase";
+import {
+  CreatePreBookingInput,
+  PreBooking,
+  UpdatePreBookingStatusInput,
+} from "../../models/prebooking.model";
+import { PreBookingMapper } from "../mappers/prebooking.mapper";
+import { PreBookingApiSchema } from "../models/prebooking.api";
 
 export class PreBookingService {
   private get supabase() {
@@ -13,18 +17,18 @@ export class PreBookingService {
    */
   async create(input: CreatePreBookingInput): Promise<PreBooking> {
     const { data, error } = await this.supabase
-      .from('prebookings')
+      .from("prebookings")
       .insert({
         user_email: input.userEmail,
         booking_data: input.bookingData,
         available_at: input.availableAt.toISOString(),
-        status: 'pending',
+        status: "pending",
       })
       .select()
       .single();
 
     if (error) {
-      console.error('[PreBookingService] Error creating prebooking:', error);
+      console.error("[PreBookingService] Error creating prebooking:", error);
       throw new Error(`Failed to create prebooking: ${error.message}`);
     }
 
@@ -36,41 +40,47 @@ export class PreBookingService {
    * Find pending prebookings within a time range
    * Ordered by created_at ASC for FIFO execution
    */
-  async findPendingInTimeRange(startTime: Date, endTime: Date): Promise<PreBooking[]> {
-    console.log('[PreBookingService] Querying with:', {
-      status: 'pending',
+  async findPendingInTimeRange(
+    startTime: Date,
+    endTime: Date
+  ): Promise<PreBooking[]> {
+    console.log("[PreBookingService] Querying with:", {
+      status: "pending",
       availableAtStart: startTime.toISOString(),
-      availableAtEnd: endTime.toISOString()
+      availableAtEnd: endTime.toISOString(),
     });
 
     const { data, error } = await this.supabase
-      .from('prebookings')
-      .select('*')
-      .eq('status', 'pending')
-      .gte('available_at', startTime.toISOString())
-      .lte('available_at', endTime.toISOString())
-      .order('created_at', { ascending: true });
+      .from("prebookings")
+      .select("*")
+      .eq("status", "pending")
+      .gte("available_at", startTime.toISOString())
+      .lte("available_at", endTime.toISOString())
+      .order("created_at", { ascending: true });
 
     if (error) {
-      console.error('[PreBookingService] Error finding pending prebookings:', error);
+      console.error(
+        "[PreBookingService] Error finding pending prebookings:",
+        error
+      );
       throw new Error(`Failed to find pending prebookings: ${error.message}`);
     }
 
-    console.log('[PreBookingService] Query result:', {
+    console.log("[PreBookingService] Query result:", {
       found: data?.length || 0,
-      prebookings: data?.map(p => ({
+      prebookings: data?.map((p) => ({
         id: p.id,
         email: p.user_email,
         availableAt: p.available_at,
-        status: p.status
-      }))
+        status: p.status,
+      })),
     });
 
     if (!data || data.length === 0) {
       return [];
     }
 
-    const validated = data.map(item => PreBookingApiSchema.parse(item));
+    const validated = data.map((item) => PreBookingApiSchema.parse(item));
     return PreBookingMapper.toDomainList(validated);
   }
 
@@ -102,14 +112,17 @@ export class PreBookingService {
     }
 
     const { data, error } = await this.supabase
-      .from('prebookings')
+      .from("prebookings")
       .update(updateData)
-      .eq('id', input.id)
+      .eq("id", input.id)
       .select()
       .single();
 
     if (error) {
-      console.error('[PreBookingService] Error updating prebooking status:', error);
+      console.error(
+        "[PreBookingService] Error updating prebooking status:",
+        error
+      );
       throw new Error(`Failed to update prebooking status: ${error.message}`);
     }
 
@@ -122,13 +135,16 @@ export class PreBookingService {
    */
   async findByUser(userEmail: string): Promise<PreBooking[]> {
     const { data, error } = await this.supabase
-      .from('prebookings')
-      .select('*')
-      .eq('user_email', userEmail)
-      .order('created_at', { ascending: false });
+      .from("prebookings")
+      .select("*")
+      .eq("user_email", userEmail)
+      .order("created_at", { ascending: false });
 
     if (error) {
-      console.error('[PreBookingService] Error finding user prebookings:', error);
+      console.error(
+        "[PreBookingService] Error finding user prebookings:",
+        error
+      );
       throw new Error(`Failed to find user prebookings: ${error.message}`);
     }
 
@@ -136,7 +152,8 @@ export class PreBookingService {
       return [];
     }
 
-    const validated = data.map(item => PreBookingApiSchema.parse(item));
+    console.log(data);
+    const validated = data.map((item) => PreBookingApiSchema.parse(item));
     return PreBookingMapper.toDomainList(validated);
   }
 
@@ -145,12 +162,12 @@ export class PreBookingService {
    */
   async delete(id: string): Promise<void> {
     const { error } = await this.supabase
-      .from('prebookings')
+      .from("prebookings")
       .delete()
-      .eq('id', id);
+      .eq("id", id);
 
     if (error) {
-      console.error('[PreBookingService] Error deleting prebooking:', error);
+      console.error("[PreBookingService] Error deleting prebooking:", error);
       throw new Error(`Failed to delete prebooking: ${error.message}`);
     }
   }
@@ -160,17 +177,17 @@ export class PreBookingService {
    */
   async findById(id: string): Promise<PreBooking | null> {
     const { data, error } = await this.supabase
-      .from('prebookings')
-      .select('*')
-      .eq('id', id)
+      .from("prebookings")
+      .select("*")
+      .eq("id", id)
       .single();
 
     if (error) {
-      if (error.code === 'PGRST116') {
+      if (error.code === "PGRST116") {
         // No rows returned
         return null;
       }
-      console.error('[PreBookingService] Error finding prebooking:', error);
+      console.error("[PreBookingService] Error finding prebooking:", error);
       throw new Error(`Failed to find prebooking: ${error.message}`);
     }
 
@@ -186,23 +203,25 @@ export class PreBookingService {
    */
   async claimPrebooking(id: string): Promise<PreBooking | null> {
     const { data, error } = await this.supabase
-      .from('prebookings')
+      .from("prebookings")
       .update({
-        status: 'loaded',
+        status: "loaded",
         loaded_at: new Date().toISOString(),
       })
-      .eq('id', id)
-      .eq('status', 'pending') // Only update if still pending (atomic check)
+      .eq("id", id)
+      .eq("status", "pending") // Only update if still pending (atomic check)
       .select()
       .single();
 
     if (error) {
       // PGRST116 = No rows matched (already claimed by another process)
-      if (error.code === 'PGRST116') {
-        console.log(`[PreBookingService] Prebooking ${id} already claimed by another process`);
+      if (error.code === "PGRST116") {
+        console.log(
+          `[PreBookingService] Prebooking ${id} already claimed by another process`
+        );
         return null;
       }
-      console.error('[PreBookingService] Error claiming prebooking:', error);
+      console.error("[PreBookingService] Error claiming prebooking:", error);
       throw new Error(`Failed to claim prebooking: ${error.message}`);
     }
 
@@ -216,39 +235,42 @@ export class PreBookingService {
    * Orders by created_at ASC for FIFO execution
    */
   async findReadyToExecute(now: Date): Promise<PreBooking[]> {
-    console.log('[PreBookingService] Querying prebookings ready NOW:', {
+    console.log("[PreBookingService] Querying prebookings ready NOW:", {
       now: now.toISOString(),
-      status: 'pending',
+      status: "pending",
     });
 
     const { data, error } = await this.supabase
-      .from('prebookings')
-      .select('*')
-      .eq('status', 'pending')
-      .lte('available_at', now.toISOString()) // Ready NOW (not future)
-      .order('created_at', { ascending: true }) // FIFO
+      .from("prebookings")
+      .select("*")
+      .eq("status", "pending")
+      .lte("available_at", now.toISOString()) // Ready NOW (not future)
+      .order("created_at", { ascending: true }) // FIFO
       .limit(50); // Safety limit
 
     if (error) {
-      console.error('[PreBookingService] Error finding ready prebookings:', error);
+      console.error(
+        "[PreBookingService] Error finding ready prebookings:",
+        error
+      );
       throw new Error(`Failed to find ready prebookings: ${error.message}`);
     }
 
-    console.log('[PreBookingService] Query result:', {
+    console.log("[PreBookingService] Query result:", {
       found: data?.length || 0,
-      prebookings: data?.map(p => ({
+      prebookings: data?.map((p) => ({
         id: p.id,
         email: p.user_email,
         availableAt: p.available_at,
         createdAt: p.created_at,
-      }))
+      })),
     });
 
     if (!data || data.length === 0) {
       return [];
     }
 
-    const validated = data.map(item => PreBookingApiSchema.parse(item));
+    const validated = data.map((item) => PreBookingApiSchema.parse(item));
     return PreBookingMapper.toDomainList(validated);
   }
 
@@ -257,16 +279,16 @@ export class PreBookingService {
    */
   async markCompleted(id: string, bookingId?: string): Promise<void> {
     const { error } = await this.supabase
-      .from('prebookings')
+      .from("prebookings")
       .update({
-        status: 'completed',
+        status: "completed",
         executed_at: new Date().toISOString(),
         result: bookingId ? { bookingId } : null,
       })
-      .eq('id', id);
+      .eq("id", id);
 
     if (error) {
-      console.error('[PreBookingService] Error marking completed:', error);
+      console.error("[PreBookingService] Error marking completed:", error);
       throw new Error(`Failed to mark completed: ${error.message}`);
     }
   }
@@ -276,16 +298,16 @@ export class PreBookingService {
    */
   async markFailed(id: string, errorMessage: string): Promise<void> {
     const { error } = await this.supabase
-      .from('prebookings')
+      .from("prebookings")
       .update({
-        status: 'failed',
+        status: "failed",
         executed_at: new Date().toISOString(),
         error_message: errorMessage,
       })
-      .eq('id', id);
+      .eq("id", id);
 
     if (error) {
-      console.error('[PreBookingService] Error marking failed:', error);
+      console.error("[PreBookingService] Error marking failed:", error);
       throw new Error(`Failed to mark failed: ${error.message}`);
     }
   }
