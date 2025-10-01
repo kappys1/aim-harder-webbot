@@ -1,0 +1,19 @@
+{
+  "headers": [
+    {
+      "source": "/api/execute-prebooking",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex"
+        }
+      ]
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/api/execute-prebooking",
+      "destination": "/api/execute-prebooking"
+    }
+  ]
+}
