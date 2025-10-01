@@ -14,7 +14,7 @@ export const PreBookingResultSchema = z.object({
   bookingId: z.string().optional(),
   bookState: z.number().optional(),
   message: z.string().optional(),
-  executedAt: z.string().datetime().optional(),
+  executedAt: z.string().datetime(),
 });
 
 export const PreBookingApiSchema = z.object({
