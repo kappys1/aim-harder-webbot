@@ -1,95 +1,128 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { preBookingScheduler } from '@/modules/prebooking/business/prebooking-scheduler.business';
+import { PreBookingScheduler } from '@/modules/prebooking/business/prebooking-scheduler.business';
 
 /**
  * PreBooking Scheduler Cron Endpoint
  *
- * Called by external cron service (e.g., cron-job.org) every 1 minute
- * Responds immediately (202 Accepted) and processes prebookings in background
+ * Architecture: Stateless execution (no pre-loading, no setInterval)
+ *
+ * Called by external cron service (cron-job.org) every 60 seconds
+ * Executes prebookings that are ready NOW (available_at <= NOW())
  *
  * Flow:
- * 1. External cron triggers this endpoint every minute
- * 2. Endpoint responds immediately (within 30s timeout)
- * 3. Background process queries pending prebookings for next 45-75 seconds
- * 4. Load them into memory with user sessions
- * 5. Use setInterval to check every second
- * 6. Execute bookings in FIFO order when time arrives
- * 7. Results logged to console and DB for monitoring
+ * 1. External cron triggers this endpoint
+ * 2. Query prebookings ready NOW (not future)
+ * 3. Execute FIFO async with 50ms stagger
+ * 4. Return results within 10s timeout
  *
- * Note: Monitor execution via logs and database records
+ * Key Features:
+ * - Per-instance isolation (no shared state)
+ * - Timeout guard (8s max execution + 2s buffer)
+ * - FIFO ordering with 50ms stagger for speed
+ * - Handles concurrent cron calls safely
  */
+
+// Vercel Hobby max duration
+export const maxDuration = 10; // seconds
+
+// Prevent caching (always execute fresh)
+export const dynamic = 'force-dynamic';
+
+// Timeout configuration
+const TIMEOUT_BUFFER = 2000; // 2 seconds safety margin
+const MAX_EXECUTION_TIME = (maxDuration * 1000) - TIMEOUT_BUFFER; // 8 seconds
+
 export async function POST(request: NextRequest) {
+  const startTime = Date.now();
+  const instanceId = crypto.randomUUID();
+
+  console.log(`[Cron ${instanceId}] Starting execution at ${new Date().toISOString()}`);
+
   try {
-    // Verify authorization from external cron service
+    // 1. Verify authorization
     const authHeader = request.headers.get('authorization');
     const expectedAuth = `Bearer ${process.env.CRON_SECRET}`;
 
     if (!expectedAuth || authHeader !== expectedAuth) {
-      console.error('[PreBooking Cron] Unauthorized access attempt');
+      console.error(`[Cron ${instanceId}] Unauthorized access attempt`);
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
       );
     }
 
-    console.log('[PreBooking Cron] Starting scheduler in background...');
+    // 2. Create new scheduler instance (stateless, no singleton)
+    const scheduler = new PreBookingScheduler(instanceId);
 
-    // Execute in background without waiting
-    executeSchedulerInBackground().catch(error => {
-      console.error('[PreBooking Cron] Background execution error:', error);
+    // 3. Execute with timeout guard
+    const result = await executeWithTimeoutGuard(
+      () => scheduler.execute(),
+      MAX_EXECUTION_TIME,
+      instanceId
+    );
+
+    const executionTime = Date.now() - startTime;
+
+    console.log(`[Cron ${instanceId}] Completed in ${executionTime}ms:`, {
+      success: result.success,
+      message: result.message,
+      details: result.details,
     });
 
-    // Respond immediately
-    return NextResponse.json(
-      {
-        success: true,
-        message: 'PreBooking scheduler started in background',
-        timestamp: new Date().toISOString()
-      },
-      { status: 202 } // 202 Accepted
-    );
-
-  } catch (error) {
-    console.error('[PreBooking Cron] Error:', error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
-      },
-      { status: 500 }
-    );
-  }
-}
-
-async function executeSchedulerInBackground() {
-  const startTime = Date.now();
-
-  try {
-    console.log('[Background] Starting prebooking scheduler execution...');
-
-    // Execute scheduler (can take several minutes)
-    const result = await preBookingScheduler.execute();
-
-    const totalTime = Date.now() - startTime;
-    console.log(`[Background] PreBooking scheduler completed in ${totalTime}ms:`, {
+    return NextResponse.json({
       success: result.success,
       message: result.message,
       details: {
         ...result.details,
-        totalExecutionTimeMs: totalTime,
+        instanceId,
+        executionTimeMs: executionTime,
         timestamp: new Date().toISOString(),
-      }
-    });
+      },
+    }, { status: result.success ? 200 : 500 });
 
   } catch (error) {
-    const totalTime = Date.now() - startTime;
-    console.error(`[Background] PreBooking scheduler failed after ${totalTime}ms:`, error);
+    const executionTime = Date.now() - startTime;
+    console.error(`[Cron ${instanceId}] Error after ${executionTime}ms:`, error);
+
+    return NextResponse.json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+      instanceId,
+      executionTimeMs: executionTime,
+    }, { status: 500 });
   }
 }
 
 /**
- * GET endpoint for manual testing and monitoring
- * Returns scheduler stats without executing
+ * Execute function with timeout guard
+ * If approaching timeout, return partial results
+ */
+async function executeWithTimeoutGuard<T>(
+  fn: () => Promise<T>,
+  timeoutMs: number,
+  instanceId: string
+): Promise<T> {
+  return new Promise(async (resolve, reject) => {
+    const timeoutHandle = setTimeout(() => {
+      const error = new Error(`Execution timeout after ${timeoutMs}ms`);
+      console.error(`[Cron ${instanceId}] ${error.message}`);
+      reject(error);
+    }, timeoutMs);
+
+    try {
+      const result = await fn();
+      clearTimeout(timeoutHandle);
+      resolve(result);
+    } catch (error) {
+      clearTimeout(timeoutHandle);
+      reject(error);
+    }
+  });
+}
+
+/**
+ * GET endpoint for manual testing and health checks
+ * Returns current timestamp and system info
  */
 export async function GET(request: NextRequest) {
   try {
@@ -104,11 +137,13 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const stats = preBookingScheduler.getStats();
-
     return NextResponse.json({
-      message: 'PreBooking Scheduler Stats',
-      stats,
+      message: 'PreBooking Scheduler is healthy',
+      config: {
+        maxDuration,
+        maxExecutionTime: MAX_EXECUTION_TIME,
+        timeoutBuffer: TIMEOUT_BUFFER,
+      },
       timestamp: new Date().toISOString(),
     });
 

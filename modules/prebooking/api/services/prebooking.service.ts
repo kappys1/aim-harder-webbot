@@ -209,6 +209,86 @@ export class PreBookingService {
     const validated = PreBookingApiSchema.parse(data);
     return PreBookingMapper.toDomain(validated);
   }
+
+  /**
+   * Find prebookings ready to execute NOW
+   * Query: available_at <= NOW() AND status = 'pending'
+   * Orders by created_at ASC for FIFO execution
+   */
+  async findReadyToExecute(now: Date): Promise<PreBooking[]> {
+    console.log('[PreBookingService] Querying prebookings ready NOW:', {
+      now: now.toISOString(),
+      status: 'pending',
+    });
+
+    const { data, error } = await this.supabase
+      .from('prebookings')
+      .select('*')
+      .eq('status', 'pending')
+      .lte('available_at', now.toISOString()) // Ready NOW (not future)
+      .order('created_at', { ascending: true }) // FIFO
+      .limit(50); // Safety limit
+
+    if (error) {
+      console.error('[PreBookingService] Error finding ready prebookings:', error);
+      throw new Error(`Failed to find ready prebookings: ${error.message}`);
+    }
+
+    console.log('[PreBookingService] Query result:', {
+      found: data?.length || 0,
+      prebookings: data?.map(p => ({
+        id: p.id,
+        email: p.user_email,
+        availableAt: p.available_at,
+        createdAt: p.created_at,
+      }))
+    });
+
+    if (!data || data.length === 0) {
+      return [];
+    }
+
+    const validated = data.map(item => PreBookingApiSchema.parse(item));
+    return PreBookingMapper.toDomainList(validated);
+  }
+
+  /**
+   * Mark prebooking as completed
+   */
+  async markCompleted(id: string, bookingId?: string): Promise<void> {
+    const { error } = await this.supabase
+      .from('prebookings')
+      .update({
+        status: 'completed',
+        executed_at: new Date().toISOString(),
+        result: bookingId ? { bookingId } : null,
+      })
+      .eq('id', id);
+
+    if (error) {
+      console.error('[PreBookingService] Error marking completed:', error);
+      throw new Error(`Failed to mark completed: ${error.message}`);
+    }
+  }
+
+  /**
+   * Mark prebooking as failed
+   */
+  async markFailed(id: string, errorMessage: string): Promise<void> {
+    const { error } = await this.supabase
+      .from('prebookings')
+      .update({
+        status: 'failed',
+        executed_at: new Date().toISOString(),
+        error_message: errorMessage,
+      })
+      .eq('id', id);
+
+    if (error) {
+      console.error('[PreBookingService] Error marking failed:', error);
+      throw new Error(`Failed to mark failed: ${error.message}`);
+    }
+  }
 }
 
 export const preBookingService = new PreBookingService();
