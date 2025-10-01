@@ -428,7 +428,8 @@ function BookingDashboardContent({
                     prebookings.filter(
                       (val) =>
                         val.bookingData.day ===
-                        BookingUtils.formatDateForApi(state.selectedDate)
+                          BookingUtils.formatDateForApi(state.selectedDate) &&
+                        val.status === "pending"
                     ).length
                   }
                 </div>
