@@ -6,14 +6,12 @@
         {
           "key": "X-Robots-Tag",
           "value": "noindex"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "no-store, max-age=0"
         }
       ]
-    }
-  ],
-  "rewrites": [
-    {
-      "source": "/api/execute-prebooking",
-      "destination": "/api/execute-prebooking"
     }
   ]
 }
