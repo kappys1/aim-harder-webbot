@@ -1,6 +1,11 @@
-import { BookingCreateRequest } from '@/modules/booking/api/models/booking.api';
+import { BookingCreateRequest } from "@/modules/booking/api/models/booking.api";
 
-export type PreBookingStatus = 'pending' | 'loaded' | 'executing' | 'completed' | 'failed';
+export type PreBookingStatus =
+  | "pending"
+  | "loaded"
+  | "executing"
+  | "completed"
+  | "failed";
 
 export interface PreBooking {
   id: string;
