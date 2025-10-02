@@ -26,7 +26,8 @@ export class BookingService {
 
   constructor(config: BookingServiceConfig = {}) {
     this.baseUrl = config.baseUrl || BOOKING_CONSTANTS.API.BASE_URL;
-    this.timeout = config.timeout || 30000;
+    // OPTIMIZATION: Reduced from 30s to 8s for faster failure detection
+    this.timeout = config.timeout || 8000;
   }
 
   async getBookings(
