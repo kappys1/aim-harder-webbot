@@ -2,9 +2,8 @@
 
 import { Button } from "@/common/ui/button";
 import { Card, CardContent } from "@/common/ui/card";
-import { cn } from "@/lib/utils";
 import { usePreBooking } from "@/modules/prebooking/pods/prebooking/hooks/usePreBooking.hook";
-import { AlertCircle, RefreshCw } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
 import { AuthCookie } from "../../../auth/api/services/cookie.service";
@@ -384,7 +383,7 @@ function BookingDashboardContent({
         </div>
 
         <div className="flex items-center gap-2">
-          <Button
+          {/* <Button
             variant="outline"
             size="sm"
             onClick={refetch}
@@ -393,7 +392,7 @@ function BookingDashboardContent({
           >
             <RefreshCw className={cn("w-4 h-4", isLoading && "animate-spin")} />
             Actualizar
-          </Button>
+          </Button> */}
 
           <input
             type="date"
