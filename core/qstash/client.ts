@@ -43,8 +43,11 @@ export function getCallbackUrl(): string {
 /**
  * Schedule a prebooking execution at a specific timestamp
  *
+ * OPTIMIZATION: Executes 500ms BEFORE the actual available_at to compensate
+ * for network latency and API response time
+ *
  * @param prebookingId - ID of the prebooking to execute
- * @param executeAt - Date when to execute the prebooking
+ * @param executeAt - Date when the booking becomes available (will execute 500ms before)
  * @returns Message ID from QStash (use this to cancel later)
  */
 export async function schedulePrebookingExecution(
@@ -53,9 +56,18 @@ export async function schedulePrebookingExecution(
 ): Promise<string> {
   const callbackUrl = `${getCallbackUrl()}/api/execute-prebooking`;
 
+  // OPTIMIZATION: Schedule execution 800ms BEFORE available_at
+  // This compensates for:
+  // - QStash scheduling precision (~100ms)
+  // - Network latency (~50-200ms)
+  // - API processing time (~100-300ms)
+  const earlyExecutionTime = new Date(executeAt.getTime() - 800);
+
   console.log("[QStash] Scheduling prebooking:", {
     prebookingId,
-    executeAt: executeAt.toISOString(),
+    originalAvailableAt: executeAt.toISOString(),
+    scheduledExecutionAt: earlyExecutionTime.toISOString(),
+    earlyBy: "500ms",
     callbackUrl,
   });
 
@@ -63,13 +75,14 @@ export async function schedulePrebookingExecution(
     const response = await qstashClient.publishJSON({
       url: callbackUrl,
       body: { prebookingId },
-      notBefore: Math.floor(executeAt.getTime() / 1000), // Unix timestamp in seconds
+      notBefore: Math.floor(earlyExecutionTime.getTime() / 1000), // Unix timestamp in seconds
     });
 
     console.log("[QStash] Scheduled successfully:", {
       messageId: response.messageId,
       prebookingId,
-      executeAt: executeAt.toISOString(),
+      originalAvailableAt: executeAt.toISOString(),
+      willExecuteAt: earlyExecutionTime.toISOString(),
     });
 
     return response.messageId;
@@ -99,10 +112,7 @@ export async function cancelScheduledExecution(
   } catch (error) {
     // If message already executed or doesn't exist, that's ok
     if (error instanceof Error && error.message.includes("not found")) {
-      console.log(
-        "[QStash] Message not found (already executed?):",
-        messageId
-      );
+      console.log("[QStash] Message not found (already executed?):", messageId);
       return;
     }
     console.error("[QStash] Error canceling message:", error);
