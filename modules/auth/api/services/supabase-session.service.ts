@@ -14,6 +14,7 @@ export interface SessionData {
   refreshCount?: number;
   lastRefreshError?: string;
   fingerprint?: string; // Browser fingerprint for this session
+  isAdmin?: boolean; // Admin flag for bypassing limits
 }
 
 export interface SessionRow {
@@ -90,6 +91,7 @@ export class SupabaseSessionService {
         refreshCount: (sessionRow as any).refresh_count,
         lastRefreshError: (sessionRow as any).last_refresh_error,
         fingerprint: (sessionRow as any).fingerprint, // Include fingerprint from database
+        isAdmin: (sessionRow as any).is_admin || false, // Include admin flag from database
       };
     } catch (error) {
       console.error("Session retrieval error:", error);

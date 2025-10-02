@@ -168,6 +168,39 @@ export async function POST(request: NextRequest) {
         );
 
         if (parsed) {
+          // Check if user has reached the prebooking limit (15 for non-admins)
+          const isAdmin = session.isAdmin || false;
+
+          if (!isAdmin) {
+            const pendingCount = await preBookingService.countPendingByUser(
+              userEmail
+            );
+            const MAX_PREBOOKINGS = 15;
+
+            if (pendingCount >= MAX_PREBOOKINGS) {
+              return NextResponse.json(
+                {
+                  success: false,
+                  error: "max_prebookings_reached",
+                  message: `Has alcanzado el límite máximo de ${MAX_PREBOOKINGS} pre-reservas pendientes. Cancela o espera a que se te reserven para pre-reservar más.`,
+                  bookState: bookingResponse.bookState,
+                  currentPrebookings: pendingCount,
+                  maxPrebookings: MAX_PREBOOKINGS,
+                },
+                {
+                  status: 400,
+                  headers: {
+                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Allow-Methods":
+                      "GET, POST, PUT, DELETE, OPTIONS",
+                    "Access-Control-Allow-Headers":
+                      "Content-Type, Authorization",
+                  },
+                }
+              );
+            }
+          }
+
           const prebooking = await preBookingService.create({
             userEmail,
             bookingData: validatedRequest.data,
@@ -176,7 +209,9 @@ export async function POST(request: NextRequest) {
 
           // Schedule execution in QStash at exact timestamp
           try {
-            const { schedulePrebookingExecution } = await import("@/core/qstash/client");
+            const { schedulePrebookingExecution } = await import(
+              "@/core/qstash/client"
+            );
             const qstashScheduleId = await schedulePrebookingExecution(
               prebooking.id,
               parsed.availableAt

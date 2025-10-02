@@ -220,6 +220,24 @@ export class PreBookingService {
   }
 
   /**
+   * Count pending prebookings for a user
+   */
+  async countPendingByUser(userEmail: string): Promise<number> {
+    const { count, error } = await this.supabase
+      .from("prebookings")
+      .select("*", { count: "exact", head: true })
+      .eq("user_email", userEmail)
+      .eq("status", "pending");
+
+    if (error) {
+      console.error("[PreBookingService] Error counting pending prebookings:", error);
+      throw new Error(`Failed to count pending prebookings: ${error.message}`);
+    }
+
+    return count || 0;
+  }
+
+  /**
    * Atomically claim a pending prebooking by updating status from 'pending' to 'loaded'
    * Returns the prebooking if successfully claimed, null if already claimed by another process
    *
