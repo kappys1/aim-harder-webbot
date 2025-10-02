@@ -48,15 +48,20 @@ export function parseEarlyBookingError(
     return null;
   }
 
-  // Parse time if provided (format: "HH:mm" or "H:mm")
+  // Parse time if provided (format: "HH:mm", "H:mm", or "HH:mm:ss")
   let hours = 0;
   let minutes = 0;
   if (classTime) {
-    const timeMatch = classTime.match(/^(\d{1,2}):(\d{2})$/);
+    // Support formats: "07:00", "7:00", "07:00:00"
+    const timeMatch = classTime.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
     if (timeMatch) {
       hours = parseInt(timeMatch[1], 10);
       minutes = parseInt(timeMatch[2], 10);
+    } else {
+      console.warn('[PreBooking] Invalid time format:', classTime);
     }
+  } else {
+    console.warn('[PreBooking] No classTime provided, using 00:00');
   }
 
   // Set the time on the class date
