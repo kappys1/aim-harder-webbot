@@ -143,13 +143,18 @@ function BookingDashboardContent({
 
             // Update local state immediately
             actions.setCurrentDay(updatedDay);
+
+            // Update cache with the new data
+            const cacheKey = BookingUtils.getCacheKey(
+              bookingDay.date,
+              state.selectedBoxId
+            );
+            actions.cacheDay(cacheKey, updatedDay);
           }
 
           toast.success("Reserva exitosa", {
             description: `ID: ${data.bookingId}`,
           });
-          // Also refresh from server to ensure consistency
-          refetch();
         } else {
           // Handle different error types
           if (data.error === "early_booking") {
@@ -171,9 +176,6 @@ function BookingDashboardContent({
 
               // Refresh prebookings to show the new one
               fetchPrebookings();
-
-              // Optionally refresh bookings to update UI
-              refetch();
             } else {
               toast.warning(data.message || "No se puede reservar aún");
             }
@@ -190,7 +192,7 @@ function BookingDashboardContent({
         setBookingLoading(null);
       }
     },
-    [bookingDay, refetch, actions]
+    [bookingDay, actions, state.selectedBoxId, fetchPrebookings]
   );
 
   const handleCancelBooking = useCallback(
@@ -270,9 +272,14 @@ function BookingDashboardContent({
           // Update local state immediately
           actions.setCurrentDay(updatedDay);
 
+          // Update cache with the new data
+          const cacheKey = BookingUtils.getCacheKey(
+            bookingDay.date,
+            state.selectedBoxId
+          );
+          actions.cacheDay(cacheKey, updatedDay);
+
           toast.success("Reserva cancelada exitosamente");
-          // Also refresh from server to ensure consistency
-          refetch();
         } else {
           // Handle error
           toast.error(
@@ -286,7 +293,7 @@ function BookingDashboardContent({
         setCancelLoading(null);
       }
     },
-    [bookingDay, refetch, actions]
+    [bookingDay, actions, state.selectedBoxId]
   );
 
   const handleCancelPrebooking = useCallback(
@@ -322,8 +329,6 @@ function BookingDashboardContent({
           toast.success("Prereserva cancelada exitosamente");
           // Refresh prebookings list
           fetchPrebookings();
-          // Optionally refresh bookings
-          refetch();
         } else {
           toast.error(
             `Error al cancelar: ${data.message || "Error desconocido"}`
@@ -336,7 +341,7 @@ function BookingDashboardContent({
         setCancelPrebookingLoading(null);
       }
     },
-    [fetchPrebookings, refetch]
+    [fetchPrebookings]
   );
 
   const formatDate = (dateString: string) => {
