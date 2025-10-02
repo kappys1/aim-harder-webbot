@@ -55,7 +55,17 @@ export function Header() {
                 isActive("/booking") ? "text-primary" : "text-muted-foreground"
               }`}
             >
-              Reservas
+              Clases
+            </Link>
+            <Link
+              href="/my-prebookings"
+              className={`text-sm font-medium transition-colors hover:text-primary ${
+                isActive("/my-prebookings")
+                  ? "text-primary"
+                  : "text-muted-foreground"
+              }`}
+            >
+              Mis Pre-reservas
             </Link>
           </nav>
 
@@ -100,6 +110,16 @@ export function Header() {
             }`}
           >
             Reservas
+          </Link>
+          <Link
+            href="/my-prebookings"
+            className={`text-sm font-medium transition-colors hover:text-primary ${
+              isActive("/my-prebookings")
+                ? "text-primary"
+                : "text-muted-foreground"
+            }`}
+          >
+            Pre-reservas
           </Link>
         </nav>
       </div>

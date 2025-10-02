@@ -19,6 +19,21 @@
     "shadcn": {
       "command": "npx",
       "args": ["shadcn@latest", "mcp"]
+    },
+    "vercel": {
+      "command": "npx",
+      "args": ["mcp-remote", "https://mcp.vercel.com"]
+    },
+    "supabase": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@supabase/mcp-server-supabase",
+        "--project-ref=yilljwyvwbdzofsrwiwq"
+      ],
+      "env": {
+        "SUPABASE_ACCESS_TOKEN": "sbp_b3799db773b3734c9edece1dc911c2b0fa456466"
+      }
     }
   }
 }
