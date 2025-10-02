@@ -64,14 +64,33 @@ export function parseEarlyBookingError(
     console.warn('[PreBooking] No classTime provided, using 00:00');
   }
 
-  // Set the time on the class date
+  // CRITICAL FIX for timezone issue:
+  // Problem: In Vercel (UTC), new Date(year, month, day) creates UTC dates
+  // In local (Madrid), it creates Madrid dates
+  // This causes 2-hour difference in production vs development
+  //
+  // Solution: Always interpret the time as Europe/Madrid timezone
+  // We subtract the Madrid UTC offset to get the correct UTC timestamp
+
+  // Get Spain timezone offset for this date (handles DST automatically)
+  // Note: We create a temporary date to check the offset for that specific date
+  const tempDate = new Date(classDate.getFullYear(), classDate.getMonth(), classDate.getDate());
+
+  // Create a date with Madrid timezone using toLocaleString
+  const madridDateStr = tempDate.toLocaleString('en-US', { timeZone: 'Europe/Madrid' });
+  const madridDate = new Date(madridDateStr);
+
+  // Get the offset difference in milliseconds
+  const offset = madridDate.getTime() - tempDate.getTime();
+
+  // Set the time on the class date in local time
   classDate.setHours(hours, minutes, 0, 0);
 
-  // Calculate available date
-  // If class is on Friday 14th 20:30 and max advance is 4 days,
-  // booking becomes available on Monday 10th at 20:30 (exactly 4 days before)
-  const availableAt = new Date(classDate);
-  availableAt.setDate(availableAt.getDate() - daysAdvance);
+  // Adjust for Madrid timezone by subtracting the offset
+  const classDateInMadrid = new Date(classDate.getTime() - offset);
+
+  // Calculate available date (subtract days)
+  const availableAt = new Date(classDateInMadrid.getTime() - (daysAdvance * 24 * 60 * 60 * 1000));
 
   return {
     availableAt,
