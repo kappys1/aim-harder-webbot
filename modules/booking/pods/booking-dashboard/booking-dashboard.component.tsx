@@ -4,6 +4,7 @@ import { Button } from "@/common/ui/button";
 import { Card, CardContent } from "@/common/ui/card";
 import { usePreBooking } from "@/modules/prebooking/pods/prebooking/hooks/usePreBooking.hook";
 import { AlertCircle } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
 import { AuthCookie } from "../../../auth/api/services/cookie.service";
@@ -64,11 +65,19 @@ function BookingDashboardContent({
     getActivePrebookingForSlotDay,
   } = usePreBooking(userEmail || undefined);
 
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
   const handleDateChange = useCallback(
     (date: string) => {
       setDate(date);
+
+      // Update URL with new date
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("date", date);
+      router.push(`/booking?${params.toString()}`);
     },
-    [setDate]
+    [setDate, router, searchParams]
   );
 
   const handleBooking = useCallback(
@@ -396,7 +405,7 @@ function BookingDashboardContent({
 
           <input
             type="date"
-            value={bookingDay?.date || ""}
+            value={state.selectedDate}
             onChange={(e) => handleDateChange(e.target.value)}
             className="px-3 py-2 border rounded-md text-sm"
             disabled={isLoading}
@@ -405,7 +414,7 @@ function BookingDashboardContent({
       </div>
       <div className="flex justify-center">
         <WeekSelector
-          selectedDate={bookingDay?.date || ""}
+          selectedDate={state.selectedDate}
           onDateChange={handleDateChange}
           className="w-full max-w-md"
           disabled={isLoading}
