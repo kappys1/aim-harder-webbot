@@ -69,13 +69,17 @@ function bookingReducer(
       return { ...state, isLoading: action.payload };
 
     case "SET_ERROR":
-      return { ...state, error: action.payload, isLoading: false };
+      // Only set isLoading to false if there's an actual error (not null)
+      return {
+        ...state,
+        error: action.payload,
+        isLoading: action.payload !== null ? false : state.isLoading,
+      };
 
     case "SET_CURRENT_DAY":
       return {
         ...state,
         currentDay: action.payload,
-        isLoading: false,
         error: null,
       };
 

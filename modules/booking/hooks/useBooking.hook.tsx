@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { AuthCookie } from "../../auth/api/services/cookie.service";
 import { BookingBusiness } from "../business/booking.business";
@@ -40,76 +40,103 @@ export function useBooking(options: UseBookingOptions = {}): UseBookingReturn {
   const { state, actions, computed } = useBookingContext();
   const [bookingBusiness] = useState(() => new BookingBusiness());
 
-  const fetchBookings = useCallback(async (): Promise<void> => {
-    if (!state.selectedDate || !state.selectedBoxId) {
-      actions.setError("Fecha o box no seleccionado");
-      return;
-    }
+  // Use ref to avoid stale closures
+  const stateRef = useRef(state);
+  const actionsRef = useRef(actions);
 
-    const cacheKey = BookingUtils.getCacheKey(
-      state.selectedDate,
-      state.selectedBoxId
-    );
+  useEffect(() => {
+    stateRef.current = state;
+    actionsRef.current = actions;
+  });
 
-    if (enableCache && state.cache.has(cacheKey)) {
-      const cachedData = state.cache.get(cacheKey);
-      if (cachedData) {
-        actions.setCurrentDay(cachedData);
+  const fetchBookings = useCallback(
+    async (forceRefresh = false): Promise<void> => {
+      const currentState = stateRef.current;
+      const currentActions = actionsRef.current;
+
+      if (!currentState.selectedDate || !currentState.selectedBoxId) {
+        currentActions.setError("Fecha o box no seleccionado");
         return;
       }
-    }
 
-    try {
-      actions.setLoading(true);
-      actions.setError(null);
-
-      const bookingDay = await bookingBusiness.getBookingsForDay(
-        state.selectedDate,
-        state.selectedBoxId,
-        cookies
+      const cacheKey = BookingUtils.getCacheKey(
+        currentState.selectedDate,
+        currentState.selectedBoxId
       );
 
-      actions.setCurrentDay(bookingDay);
-      actions.setLoading(false);
+      // Skip cache if forceRefresh is true
+      if (!forceRefresh && enableCache && currentState.cache.has(cacheKey)) {
+        const cachedData = currentState.cache.get(cacheKey);
+        if (cachedData) {
+          currentActions.setLoading(true);
 
-      if (enableCache) {
-        actions.cacheDay(cacheKey, bookingDay);
-      }
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Error desconocido";
-      actions.setError(errorMessage);
-      actions.setLoading(false);
-      console.error("Error fetching bookings:", error);
+          // Use setTimeout to break React batching and ensure loading state is visible
+          setTimeout(() => {
+            currentActions.setCurrentDay(cachedData);
+            currentActions.setLoading(false);
+          }, 0);
 
-      // Show user-friendly error toast
-      if (errorMessage.includes("network") || errorMessage.includes("fetch")) {
-        toast.error("Error de conexión", {
-          description:
-            "No se pudo conectar con el servidor. Verifica tu conexión a internet.",
-        });
-      } else if (
-        errorMessage.includes("auth") ||
-        errorMessage.includes("unauthorized")
-      ) {
-        toast.error("Sesión expirada", {
-          description:
-            "Tu sesión ha expirado. Por favor, inicia sesión nuevamente.",
-        });
-      } else if (
-        errorMessage.includes("404") ||
-        errorMessage.includes("not found")
-      ) {
-        toast.error("Datos no encontrados", {
-          description: "No se encontraron reservas para la fecha seleccionada.",
-        });
-      } else {
-        toast.error("Error al cargar reservas", {
-          description: "Ocurrió un error inesperado. Intenta nuevamente.",
-        });
+          return;
+        }
       }
-    }
-  }, [state, actions, bookingBusiness, enableCache, cookies]);
+
+      try {
+        currentActions.setLoading(true);
+        currentActions.setError(null);
+
+        const bookingDay = await bookingBusiness.getBookingsForDay(
+          currentState.selectedDate,
+          currentState.selectedBoxId,
+          cookies
+        );
+
+        currentActions.setCurrentDay(bookingDay);
+        currentActions.setLoading(false);
+
+        if (enableCache) {
+          currentActions.cacheDay(cacheKey, bookingDay);
+        }
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : "Error desconocido";
+        currentActions.setError(errorMessage);
+        currentActions.setLoading(false);
+        console.error("Error fetching bookings:", error);
+
+        // Show user-friendly error toast
+        if (
+          errorMessage.includes("network") ||
+          errorMessage.includes("fetch")
+        ) {
+          toast.error("Error de conexión", {
+            description:
+              "No se pudo conectar con el servidor. Verifica tu conexión a internet.",
+          });
+        } else if (
+          errorMessage.includes("auth") ||
+          errorMessage.includes("unauthorized")
+        ) {
+          toast.error("Sesión expirada", {
+            description:
+              "Tu sesión ha expirado. Por favor, inicia sesión nuevamente.",
+          });
+        } else if (
+          errorMessage.includes("404") ||
+          errorMessage.includes("not found")
+        ) {
+          toast.error("Datos no encontrados", {
+            description:
+              "No se encontraron reservas para la fecha seleccionada.",
+          });
+        } else {
+          toast.error("Error al cargar reservas", {
+            description: "Ocurrió un error inesperado. Intenta nuevamente.",
+          });
+        }
+      }
+    },
+    [enableCache, cookies, bookingBusiness]
+  );
 
   const setDate = useCallback(
     (date: string): void => {
@@ -138,15 +165,20 @@ export function useBooking(options: UseBookingOptions = {}): UseBookingReturn {
 
   useEffect(() => {
     if (autoFetch) {
-      fetchBookings();
+      fetchBookings(false);
     }
-  }, [state.selectedDate, state.selectedBoxId, autoFetch]);
+  }, [state.selectedDate, state.selectedBoxId, autoFetch, fetchBookings]);
+
+  // Create a refetch function that forces a refresh
+  const refetch = useCallback(async (): Promise<void> => {
+    await fetchBookings(true);
+  }, [fetchBookings]);
 
   return {
     bookingDay: state.currentDay,
     isLoading: state.isLoading,
     error: state.error,
-    refetch: fetchBookings,
+    refetch,
     setDate,
     setBox,
     retryOnError,
