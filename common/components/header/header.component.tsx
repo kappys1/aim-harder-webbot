@@ -14,7 +14,6 @@ export function Header() {
   const isActive = (path: string) => pathname === path;
 
   useEffect(() => {
-    console.log(user);
     if (user) {
       startRefresh();
     }

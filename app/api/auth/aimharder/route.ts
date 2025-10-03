@@ -133,8 +133,8 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
-    // Logout user
-    await AimharderAuthService.logout(email)
+    // Soft logout - only clear browser cookies, keep Supabase session alive
+    // This allows background processes (like pre-bookings) to continue working
 
     // Create response and clear cookies
     const response = NextResponse.json({ success: true })
@@ -152,7 +152,7 @@ export async function DELETE(request: NextRequest) {
       })
     })
 
-    console.log(`Logout successful for email: ${email}`)
+    console.log(`Soft logout successful for email: ${email} - session kept alive in database`)
     return response
 
   } catch (error) {

@@ -80,16 +80,6 @@ export async function schedulePrebookingExecution(
   // Generate security token (faster than QStash signature verification)
   const securityToken = generatePrebookingToken(prebookingId, executeAt);
 
-  console.log("[QStash] Scheduling prebooking (HYBRID):", {
-    prebookingId,
-    boxSubdomain: boxData.subdomain,
-    boxAimharderId: boxData.aimharderId,
-    exactExecuteAt: executeAt.toISOString(),
-    qstashTriggerAt: earlyExecutionTime.toISOString(),
-    earlyBy: "3000ms",
-    callbackUrl,
-  });
-
   try {
     const executeAtMs = executeAt.getTime();
 
@@ -103,14 +93,6 @@ export async function schedulePrebookingExecution(
         securityToken, // HMAC token for fast validation
       },
       notBefore: Math.floor(earlyExecutionTime.getTime() / 1000), // Unix timestamp in seconds
-    });
-
-    console.log("[QStash] Scheduled successfully (HYBRID):", {
-      messageId: response.messageId,
-      prebookingId,
-      boxSubdomain: boxData.subdomain,
-      qstashTriggerAt: earlyExecutionTime.toISOString(),
-      exactExecuteAt: executeAt.toISOString(),
     });
 
     return response.messageId;
@@ -132,11 +114,8 @@ export async function schedulePrebookingExecution(
 export async function cancelScheduledExecution(
   messageId: string
 ): Promise<void> {
-  console.log("[QStash] Canceling scheduled message:", messageId);
-
   try {
     await qstashClient.messages.delete(messageId);
-    console.log("[QStash] Message canceled successfully:", messageId);
   } catch (error) {
     // If message already executed or doesn't exist, that's ok
     if (error instanceof Error && error.message.includes("not found")) {

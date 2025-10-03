@@ -59,13 +59,6 @@ export function useAuth() {
           }
         }
 
-        // Log successful login
-        console.log("Login successful for user:", response.user.email);
-
-        // // Start token refresh timer (25 min interval)
-        // startRefresh();
-
-        console.log("Login successful, navigating to dashboard");
         router.push("/dashboard");
       } else {
         setError(response.error || "Login failed");
@@ -83,43 +76,32 @@ export function useAuth() {
     setError(null);
 
     try {
-      // Call logout API to clear cookies
+      // Soft logout - only clear browser session, keep Supabase session alive for active pre-bookings
+
+      // Stop token refresh timer
+      stopRefresh();
+
+      // Clear user data
+      setUser(null);
+
+      // Clear localStorage
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("user-email");
+        localStorage.removeItem("refreshToken");
+        localStorage.removeItem("fingerprint");
+      }
+
+      // Clear browser cookies
       const response = await fetch("/api/auth/logout", {
         method: "POST",
       });
 
-      if (response.ok) {
-        // Stop token refresh timer
-        stopRefresh();
-
-        const userEmail =
-          user?.email ||
-          (typeof window !== "undefined"
-            ? localStorage.getItem("user-email")
-            : null);
-
-        if (userEmail) {
-          await authService.logout(userEmail);
-        }
-
-        // Clear user data
-        setUser(null);
-
-        // Clear localStorage
-        if (typeof window !== "undefined") {
-          localStorage.removeItem("user-email");
-          localStorage.removeItem("refreshToken");
-          localStorage.removeItem("fingerprint");
-        }
-
-        toast.success("Sesión cerrada exitosamente");
-        router.push("/login");
-
-        // Redirect to login
-        router.push("/login");
-      } else {
-        throw new Error("Failed to logout");
+      if (!response.ok) {
+        console.warn("Failed to clear browser cookies during logout");
       }
+
+      toast.success("Sesión cerrada exitosamente");
+      router.push("/login");
     } catch (err) {
       console.error("Logout hook error:", err);
       setError("Logout failed");

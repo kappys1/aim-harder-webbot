@@ -1,4 +1,4 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js'
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
 // Lazy initialization to ensure env vars are available at runtime
 let _supabase: SupabaseClient | null = null;
@@ -19,22 +19,22 @@ function initializeClients() {
 
   if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceKey) {
     const missing = [];
-    if (!supabaseUrl) missing.push('NEXT_PUBLIC_SUPABASE_URL');
-    if (!supabaseAnonKey) missing.push('NEXT_PUBLIC_SUPABASE_ANON_KEY');
-    if (!supabaseServiceKey) missing.push('SUPABASE_SERVICE_ROLE_KEY');
+    if (!supabaseUrl) missing.push("NEXT_PUBLIC_SUPABASE_URL");
+    if (!supabaseAnonKey) missing.push("NEXT_PUBLIC_SUPABASE_ANON_KEY");
+    if (!supabaseServiceKey) missing.push("SUPABASE_SERVICE_ROLE_KEY");
 
-    const error = `Missing Supabase environment variables: ${missing.join(', ')}`;
-    console.error('[Supabase] Initialization error:', error);
+    const error = `Missing Supabase environment variables: ${missing.join(
+      ", "
+    )}`;
+    console.error("[Supabase] Initialization error:", error);
     throw new Error(error);
   }
 
   if (!_supabase) {
-    console.log('[Supabase] Initializing PUBLIC client with URL:', supabaseUrl.substring(0, 30) + '...');
     _supabase = createClient(supabaseUrl, supabaseAnonKey);
   }
 
   if (!_supabaseAdmin) {
-    console.log('[Supabase] Initializing ADMIN client with URL:', supabaseUrl.substring(0, 30) + '...');
     _supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
   }
 }
@@ -45,7 +45,7 @@ export const supabase = new Proxy({} as SupabaseClient, {
       initializeClients();
     }
     return (_supabase as any)[prop];
-  }
+  },
 });
 
 export const supabaseAdmin = new Proxy({} as SupabaseClient, {
@@ -54,7 +54,7 @@ export const supabaseAdmin = new Proxy({} as SupabaseClient, {
       initializeClients();
     }
     return (_supabaseAdmin as any)[prop];
-  }
+  },
 });
 
 /**
@@ -71,21 +71,23 @@ export const supabaseAdmin = new Proxy({} as SupabaseClient, {
  * - Background tasks
  * - Any scenario where multiple serverless instances run concurrently
  */
-export function createIsolatedSupabaseAdmin(config?: SupabaseConfig): SupabaseClient {
+export function createIsolatedSupabaseAdmin(
+  config?: SupabaseConfig
+): SupabaseClient {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!supabaseUrl || !supabaseServiceKey) {
-    throw new Error('Missing Supabase environment variables');
+    throw new Error("Missing Supabase environment variables");
   }
 
   return createClient(supabaseUrl, supabaseServiceKey, {
     db: {
-      schema: 'public',
+      schema: "public",
     },
     global: {
       headers: {
-        'x-instance-id': config?.instanceId || crypto.randomUUID(),
+        "x-instance-id": config?.instanceId || crypto.randomUUID(),
       },
       fetch: createFetchWithRetry({
         maxRetries: 2,
@@ -106,7 +108,10 @@ function createFetchWithRetry(options: {
   maxRetries: number;
   timeout: number;
 }) {
-  return async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+  return async (
+    input: RequestInfo | URL,
+    init?: RequestInit
+  ): Promise<Response> => {
     let lastError: Error | undefined;
 
     for (let attempt = 0; attempt <= options.maxRetries; attempt++) {
@@ -123,21 +128,25 @@ function createFetchWithRetry(options: {
 
         // Return even if not ok (let caller handle HTTP errors)
         return response;
-
       } catch (error) {
         lastError = error as Error;
 
         // Don't retry on last attempt
         if (attempt < options.maxRetries) {
           const delay = 100 * (attempt + 1); // Exponential backoff: 100ms, 200ms
-          console.warn(`[Supabase] Fetch attempt ${attempt + 1} failed, retrying in ${delay}ms...`, error);
-          await new Promise(resolve => setTimeout(resolve, delay));
+          console.warn(
+            `[Supabase] Fetch attempt ${
+              attempt + 1
+            } failed, retrying in ${delay}ms...`,
+            error
+          );
+          await new Promise((resolve) => setTimeout(resolve, delay));
         }
       }
     }
 
     // All attempts failed
-    console.error('[Supabase] All fetch attempts failed:', lastError);
+    console.error("[Supabase] All fetch attempts failed:", lastError);
     throw lastError;
   };
 }
@@ -147,150 +156,150 @@ export type Database = {
     Tables: {
       auth_sessions: {
         Row: {
-          id: string
-          user_email: string
-          aimharder_token: string
-          aimharder_cookies: Array<{ name: string; value: string }>
-          is_admin: boolean
-          created_at: string
-          updated_at: string
-        }
+          id: string;
+          user_email: string;
+          aimharder_token: string;
+          aimharder_cookies: Array<{ name: string; value: string }>;
+          is_admin: boolean;
+          created_at: string;
+          updated_at: string;
+        };
         Insert: {
-          id?: string
-          user_email: string
-          aimharder_token: string
-          aimharder_cookies: Array<{ name: string; value: string }>
-          is_admin?: boolean
-          created_at?: string
-          updated_at?: string
-        }
+          id?: string;
+          user_email: string;
+          aimharder_token: string;
+          aimharder_cookies: Array<{ name: string; value: string }>;
+          is_admin?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
         Update: {
-          id?: string
-          user_email?: string
-          aimharder_token?: string
-          aimharder_cookies?: Array<{ name: string; value: string }>
-          is_admin?: boolean
-          created_at?: string
-          updated_at?: string
-        }
-      }
+          id?: string;
+          user_email?: string;
+          aimharder_token?: string;
+          aimharder_cookies?: Array<{ name: string; value: string }>;
+          is_admin?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
       boxes: {
         Row: {
-          id: string
-          box_id: string
-          subdomain: string
-          name: string
-          phone: string | null
-          email: string | null
-          address: string | null
-          website: string | null
-          logo_url: string | null
-          base_url: string
-          created_at: string
-          updated_at: string
-        }
+          id: string;
+          box_id: string;
+          subdomain: string;
+          name: string;
+          phone: string | null;
+          email: string | null;
+          address: string | null;
+          website: string | null;
+          logo_url: string | null;
+          base_url: string;
+          created_at: string;
+          updated_at: string;
+        };
         Insert: {
-          id?: string
-          box_id: string
-          subdomain: string
-          name: string
-          phone?: string | null
-          email?: string | null
-          address?: string | null
-          website?: string | null
-          logo_url?: string | null
-          base_url: string
-          created_at?: string
-          updated_at?: string
-        }
+          id?: string;
+          box_id: string;
+          subdomain: string;
+          name: string;
+          phone?: string | null;
+          email?: string | null;
+          address?: string | null;
+          website?: string | null;
+          logo_url?: string | null;
+          base_url: string;
+          created_at?: string;
+          updated_at?: string;
+        };
         Update: {
-          id?: string
-          box_id?: string
-          subdomain?: string
-          name?: string
-          phone?: string | null
-          email?: string | null
-          address?: string | null
-          website?: string | null
-          logo_url?: string | null
-          base_url?: string
-          created_at?: string
-          updated_at?: string
-        }
-      }
+          id?: string;
+          box_id?: string;
+          subdomain?: string;
+          name?: string;
+          phone?: string | null;
+          email?: string | null;
+          address?: string | null;
+          website?: string | null;
+          logo_url?: string | null;
+          base_url?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
       user_boxes: {
         Row: {
-          id: string
-          user_email: string
-          box_id: string
-          last_accessed_at: string | null
-          detected_at: string
-          created_at: string
-          updated_at: string
-        }
+          id: string;
+          user_email: string;
+          box_id: string;
+          last_accessed_at: string | null;
+          detected_at: string;
+          created_at: string;
+          updated_at: string;
+        };
         Insert: {
-          id?: string
-          user_email: string
-          box_id: string
-          last_accessed_at?: string | null
-          detected_at?: string
-          created_at?: string
-          updated_at?: string
-        }
+          id?: string;
+          user_email: string;
+          box_id: string;
+          last_accessed_at?: string | null;
+          detected_at?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
         Update: {
-          id?: string
-          user_email?: string
-          box_id?: string
-          last_accessed_at?: string | null
-          detected_at?: string
-          created_at?: string
-          updated_at?: string
-        }
-      }
+          id?: string;
+          user_email?: string;
+          box_id?: string;
+          last_accessed_at?: string | null;
+          detected_at?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
       prebookings: {
         Row: {
-          id: string
-          user_email: string
-          booking_data: any
-          available_at: string
-          status: string
-          qstash_schedule_id: string | null
-          box_id: string
-          result: any | null
-          error_message: string | null
-          created_at: string
-          loaded_at: string | null
-          executed_at: string | null
-        }
+          id: string;
+          user_email: string;
+          booking_data: any;
+          available_at: string;
+          status: string;
+          qstash_schedule_id: string | null;
+          box_id: string;
+          result: any | null;
+          error_message: string | null;
+          created_at: string;
+          loaded_at: string | null;
+          executed_at: string | null;
+        };
         Insert: {
-          id?: string
-          user_email: string
-          booking_data: any
-          available_at: string
-          status: string
-          qstash_schedule_id?: string | null
-          box_id: string
-          result?: any | null
-          error_message?: string | null
-          created_at?: string
-          loaded_at?: string | null
-          executed_at?: string | null
-        }
+          id?: string;
+          user_email: string;
+          booking_data: any;
+          available_at: string;
+          status: string;
+          qstash_schedule_id?: string | null;
+          box_id: string;
+          result?: any | null;
+          error_message?: string | null;
+          created_at?: string;
+          loaded_at?: string | null;
+          executed_at?: string | null;
+        };
         Update: {
-          id?: string
-          user_email?: string
-          booking_data?: any
-          available_at?: string
-          status?: string
-          qstash_schedule_id?: string | null
-          box_id?: string
-          result?: any | null
-          error_message?: string | null
-          created_at?: string
-          loaded_at?: string | null
-          executed_at?: string | null
-        }
-      }
-    }
-  }
-}
+          id?: string;
+          user_email?: string;
+          booking_data?: any;
+          available_at?: string;
+          status?: string;
+          qstash_schedule_id?: string | null;
+          box_id?: string;
+          result?: any | null;
+          error_message?: string | null;
+          created_at?: string;
+          loaded_at?: string | null;
+          executed_at?: string | null;
+        };
+      };
+    };
+  };
+};

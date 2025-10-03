@@ -46,9 +46,6 @@ export function DashboardClient() {
             session.token &&
             session.cookies.length > 0
           ) {
-            console.log(
-              "[Dashboard] No boxes found - triggering automatic detection"
-            );
             setIsDetectingBoxes(true);
             detectBoxes({
               userEmail,

@@ -122,7 +122,10 @@ export async function POST(request: NextRequest) {
     // Validate box data for prebookings
     if (!boxId || !boxSubdomain || !boxAimharderId) {
       return NextResponse.json(
-        { error: "Missing required box data (boxId, boxSubdomain, boxAimharderId)" },
+        {
+          error:
+            "Missing required box data (boxId, boxSubdomain, boxAimharderId)",
+        },
         { status: 400 }
       );
     }
@@ -144,7 +147,7 @@ export async function POST(request: NextRequest) {
     // Make booking request using the service
     // Extract activityName and boxName before sending to external API (they're not part of external API schema)
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { activityName, boxName, ...bookingData} = validatedRequest.data;
+    const { activityName, boxName, ...bookingData } = validatedRequest.data;
     const bookingResponse = await bookingService.createBooking(
       bookingData,
       session.cookies,
@@ -242,14 +245,6 @@ export async function POST(request: NextRequest) {
             await preBookingService.updateQStashScheduleId(
               prebooking.id,
               qstashScheduleId
-            );
-
-            console.log(
-              `[Booking API] Created prebooking ${
-                prebooking.id
-              } for ${userEmail} - scheduled in QStash (${qstashScheduleId}) at ${parsed.availableAt.toISOString()} (class time: ${
-                classTime || "not provided"
-              })`
             );
           } catch (qstashError) {
             // If QStash fails, log error but don't fail the whole request

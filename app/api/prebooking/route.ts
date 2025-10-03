@@ -39,7 +39,6 @@ export async function GET(request: NextRequest) {
       })),
     });
   } catch (error) {
-    console.log(error);
     console.error("[PreBooking API] Error fetching prebookings:", error);
     return NextResponse.json(
       { error: "Internal server error" },
@@ -85,11 +84,10 @@ export async function DELETE(request: NextRequest) {
     // Cancel scheduled execution in QStash if exists
     if (prebooking.qstashScheduleId) {
       try {
-        const { cancelScheduledExecution } = await import("@/core/qstash/client");
-        await cancelScheduledExecution(prebooking.qstashScheduleId);
-        console.log(
-          `[PreBooking API] Canceled QStash message ${prebooking.qstashScheduleId} for prebooking ${id}`
+        const { cancelScheduledExecution } = await import(
+          "@/core/qstash/client"
         );
+        await cancelScheduledExecution(prebooking.qstashScheduleId);
       } catch (qstashError) {
         // Log error but continue with deletion
         // Message might already be executed or not exist

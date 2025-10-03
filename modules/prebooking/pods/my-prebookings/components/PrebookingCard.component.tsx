@@ -93,7 +93,6 @@ export function PrebookingCard({
   const activityName = prebooking.bookingData.activityName || "Clase";
   const boxName = prebooking.bookingData.boxName;
 
-  console.log("Rendering PrebookingCard for:", prebooking);
   return (
     <Card className="hover:shadow-md transition-shadow active:scale-[0.99] relative">
       <CardHeader className="pb-3">

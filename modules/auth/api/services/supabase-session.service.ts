@@ -1,7 +1,6 @@
 import { supabaseAdmin } from "@/core/database/supabase";
 import { AuthCookie } from "./cookie.service";
 import { TokenData } from "./html-parser.service";
-import { ENV } from "@/core/config/environment";
 
 export interface SessionData {
   email: string;
@@ -49,8 +48,6 @@ export class SupabaseSessionService {
         console.error("Session storage error:", error);
         throw new Error(`Failed to store session: ${error.message}`);
       }
-
-      console.log("Session stored successfully for user:", sessionData.email);
     } catch (error) {
       console.error("Session storage error:", error);
       throw error;
@@ -110,8 +107,6 @@ export class SupabaseSessionService {
         console.error("Session deletion error:", error);
         throw new Error(`Failed to delete session: ${error.message}`);
       }
-
-      console.log("Session deleted successfully for user:", email);
     } catch (error) {
       console.error("Session deletion error:", error);
       throw error;
@@ -147,8 +142,6 @@ export class SupabaseSessionService {
         console.error("Session update error:", error);
         throw new Error(`Failed to update session: ${error.message}`);
       }
-
-      console.log("Session updated successfully for user:", email);
     } catch (error) {
       console.error("Session update error:", error);
       throw error;
@@ -169,7 +162,6 @@ export class SupabaseSessionService {
       // Store fingerprint if provided by setrefresh
       if (fingerprint) {
         updateData.fingerprint = fingerprint;
-        console.log("Storing fingerprint from setrefresh for user:", email);
       }
 
       const { error } = await supabaseAdmin
@@ -181,8 +173,6 @@ export class SupabaseSessionService {
         console.error("Refresh token update error:", error);
         throw new Error(`Failed to update refresh token: ${error.message}`);
       }
-
-      console.log("Refresh token updated successfully for user:", email);
     } catch (error) {
       console.error("Refresh token update error:", error);
       throw error;
@@ -211,11 +201,6 @@ export class SupabaseSessionService {
         console.error("Cookie update error:", error);
         throw new Error(`Failed to update cookies: ${error.message}`);
       }
-
-      console.log("Cookies updated successfully for user:", email, {
-        cookieCount: cookies.length,
-        cookieNames: cookies.map((c) => c.name),
-      });
     } catch (error) {
       console.error("Cookie update error:", error);
       throw error;
@@ -240,7 +225,6 @@ export class SupabaseSessionService {
       return false;
     }
   }
-
 
   static async getAllActiveSessions(): Promise<SessionData[]> {
     try {
@@ -276,7 +260,6 @@ export class SupabaseSessionService {
     }
   }
 
-
   static async cleanupExpiredSessions(): Promise<number> {
     try {
       const oneWeekAgo = new Date();
@@ -294,7 +277,6 @@ export class SupabaseSessionService {
       }
 
       const cleanedCount = data?.length || 0;
-      console.log(`Cleaned up ${cleanedCount} expired sessions`);
 
       return cleanedCount;
     } catch (error) {
@@ -376,5 +358,4 @@ export class SupabaseSessionService {
       throw error;
     }
   }
-
 }

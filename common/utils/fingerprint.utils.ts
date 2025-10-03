@@ -3,7 +3,7 @@
  * Based on Aimharder's fingerprint generation system
  */
 
-const FINGERPRINT_KEY = 'fingerprint';
+const FINGERPRINT_KEY = "fingerprint";
 const FINGERPRINT_LENGTH = 50;
 
 /**
@@ -18,9 +18,11 @@ const FINGERPRINT_LENGTH = 50;
  */
 export function generateFingerprint(): string {
   // Check if running in browser environment
-  if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
+  if (typeof window === "undefined" || typeof localStorage === "undefined") {
     // Return a default fingerprint for server-side rendering
-    return 'server-side-fingerprint-' + Math.random().toString(36).substr(2, 27);
+    return (
+      "server-side-fingerprint-" + Math.random().toString(36).substr(2, 27)
+    );
   }
 
   // Check if fingerprint already exists in localStorage
@@ -28,7 +30,7 @@ export function generateFingerprint(): string {
 
   // If no fingerprint exists, generate a new one
   if (!fingerprint) {
-    fingerprint = '';
+    fingerprint = "";
 
     // Generate a 50-character identifier
     while (fingerprint.length < FINGERPRINT_LENGTH) {
@@ -41,10 +43,6 @@ export function generateFingerprint(): string {
 
     // Store the fingerprint in localStorage
     localStorage.setItem(FINGERPRINT_KEY, fingerprint);
-
-    console.log('New fingerprint generated and stored:', fingerprint);
-  } else {
-    console.log('Existing fingerprint retrieved:', fingerprint);
   }
 
   return fingerprint;
@@ -54,9 +52,8 @@ export function generateFingerprint(): string {
  * Clears the stored fingerprint (useful for testing or logout)
  */
 export function clearFingerprint(): void {
-  if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
+  if (typeof window !== "undefined" && typeof localStorage !== "undefined") {
     localStorage.removeItem(FINGERPRINT_KEY);
-    console.log('Fingerprint cleared from localStorage');
   }
 }
 
@@ -65,7 +62,7 @@ export function clearFingerprint(): void {
  * @returns The stored fingerprint or null if none exists
  */
 export function getStoredFingerprint(): string | null {
-  if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
+  if (typeof window === "undefined" || typeof localStorage === "undefined") {
     return null;
   }
 

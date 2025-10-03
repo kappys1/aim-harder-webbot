@@ -14,7 +14,6 @@ export function useTokenRefresh({ email, onLogout }: UseTokenRefreshOptions) {
   const updateToken = useCallback(async () => {
     // Prevent concurrent updates
     if (isRefreshingRef.current) {
-      console.log("Token refresh already in progress, skipping");
       return;
     }
 
@@ -30,8 +29,6 @@ export function useTokenRefresh({ email, onLogout }: UseTokenRefreshOptions) {
         stopRefresh();
         return;
       }
-
-      console.log("Updating token for:", email);
 
       // Call backend API
       const response = await fetch("/api/auth/token-update", {
@@ -50,7 +47,6 @@ export function useTokenRefresh({ email, onLogout }: UseTokenRefreshOptions) {
 
       // Handle logout response
       if (data.logout) {
-        console.log("Logout required, clearing session");
         localStorage.removeItem("refreshToken");
         localStorage.removeItem("fingerprint");
         stopRefresh();
@@ -68,7 +64,6 @@ export function useTokenRefresh({ email, onLogout }: UseTokenRefreshOptions) {
       // Update localStorage with new token
       if (data.newToken) {
         localStorage.setItem("refreshToken", data.newToken);
-        console.log("Token updated successfully");
       }
     } catch (error) {
       console.error("Token refresh error:", error);
@@ -93,8 +88,6 @@ export function useTokenRefresh({ email, onLogout }: UseTokenRefreshOptions) {
       return;
     }
 
-    console.log("Starting token refresh timer (25 min interval)");
-
     // Start new timer
     timerRef.current = setInterval(() => {
       updateToken();
@@ -105,7 +98,6 @@ export function useTokenRefresh({ email, onLogout }: UseTokenRefreshOptions) {
   }, [email, updateToken]);
 
   const stopRefresh = useCallback(() => {
-    console.log("Stopping token refresh timer");
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
