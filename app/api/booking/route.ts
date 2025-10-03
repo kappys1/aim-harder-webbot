@@ -103,6 +103,10 @@ export async function POST(request: NextRequest) {
     // Parse and validate request body
     const body = await request.json();
     const classTime = body.classTime; // Extract classTime before validation (not part of original external API schema)
+    const boxId = body.boxId; // Extract boxId (for prebooking reference)
+    const boxSubdomain = body.boxSubdomain; // Extract box subdomain (for dynamic URL)
+    const boxAimharderId = body.boxAimharderId; // Extract box aimharder ID (for QStash payload)
+
     const validatedRequest = BookingCreateRequestSchema.safeParse(body);
 
     if (!validatedRequest.success) {
@@ -111,6 +115,14 @@ export async function POST(request: NextRequest) {
           error: "Invalid request parameters",
           details: validatedRequest.error.issues,
         },
+        { status: 400 }
+      );
+    }
+
+    // Validate box data for prebookings
+    if (!boxId || !boxSubdomain || !boxAimharderId) {
+      return NextResponse.json(
+        { error: "Missing required box data (boxId, boxSubdomain, boxAimharderId)" },
         { status: 400 }
       );
     }
@@ -132,10 +144,11 @@ export async function POST(request: NextRequest) {
     // Make booking request using the service
     // Extract activityName and boxName before sending to external API (they're not part of external API schema)
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { activityName, boxName, ...bookingData } = validatedRequest.data;
+    const { activityName, boxName, ...bookingData} = validatedRequest.data;
     const bookingResponse = await bookingService.createBooking(
       bookingData,
-      session.cookies
+      session.cookies,
+      boxSubdomain
     );
 
     // Check booking state and handle accordingly
@@ -208,6 +221,7 @@ export async function POST(request: NextRequest) {
             userEmail,
             bookingData: validatedRequest.data,
             availableAt: parsed.availableAt,
+            boxId,
           });
 
           // Schedule execution in QStash at exact timestamp
@@ -217,7 +231,11 @@ export async function POST(request: NextRequest) {
             );
             const qstashScheduleId = await schedulePrebookingExecution(
               prebooking.id,
-              parsed.availableAt
+              parsed.availableAt,
+              {
+                subdomain: boxSubdomain,
+                aimharderId: boxAimharderId,
+              }
             );
 
             // Save QStash message ID for cancellation

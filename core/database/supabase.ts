@@ -151,6 +151,7 @@ export type Database = {
           user_email: string
           aimharder_token: string
           aimharder_cookies: Array<{ name: string; value: string }>
+          is_admin: boolean
           created_at: string
           updated_at: string
         }
@@ -159,6 +160,7 @@ export type Database = {
           user_email: string
           aimharder_token: string
           aimharder_cookies: Array<{ name: string; value: string }>
+          is_admin?: boolean
           created_at?: string
           updated_at?: string
         }
@@ -167,8 +169,126 @@ export type Database = {
           user_email?: string
           aimharder_token?: string
           aimharder_cookies?: Array<{ name: string; value: string }>
+          is_admin?: boolean
           created_at?: string
           updated_at?: string
+        }
+      }
+      boxes: {
+        Row: {
+          id: string
+          box_id: string
+          subdomain: string
+          name: string
+          phone: string | null
+          email: string | null
+          address: string | null
+          website: string | null
+          logo_url: string | null
+          base_url: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          box_id: string
+          subdomain: string
+          name: string
+          phone?: string | null
+          email?: string | null
+          address?: string | null
+          website?: string | null
+          logo_url?: string | null
+          base_url: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          box_id?: string
+          subdomain?: string
+          name?: string
+          phone?: string | null
+          email?: string | null
+          address?: string | null
+          website?: string | null
+          logo_url?: string | null
+          base_url?: string
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      user_boxes: {
+        Row: {
+          id: string
+          user_email: string
+          box_id: string
+          last_accessed_at: string | null
+          detected_at: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_email: string
+          box_id: string
+          last_accessed_at?: string | null
+          detected_at?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_email?: string
+          box_id?: string
+          last_accessed_at?: string | null
+          detected_at?: string
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      prebookings: {
+        Row: {
+          id: string
+          user_email: string
+          booking_data: any
+          available_at: string
+          status: string
+          qstash_schedule_id: string | null
+          box_id: string
+          result: any | null
+          error_message: string | null
+          created_at: string
+          loaded_at: string | null
+          executed_at: string | null
+        }
+        Insert: {
+          id?: string
+          user_email: string
+          booking_data: any
+          available_at: string
+          status: string
+          qstash_schedule_id?: string | null
+          box_id: string
+          result?: any | null
+          error_message?: string | null
+          created_at?: string
+          loaded_at?: string | null
+          executed_at?: string | null
+        }
+        Update: {
+          id?: string
+          user_email?: string
+          booking_data?: any
+          available_at?: string
+          status?: string
+          qstash_schedule_id?: string | null
+          box_id?: string
+          result?: any | null
+          error_message?: string | null
+          created_at?: string
+          loaded_at?: string | null
+          executed_at?: string | null
         }
       }
     }

@@ -48,11 +48,16 @@ export function getCallbackUrl(): string {
  *
  * @param prebookingId - ID of the prebooking to execute
  * @param executeAt - Date when the booking becomes available (will execute 500ms before)
+ * @param boxData - Box information needed for executing the booking (subdomain and aimharder ID)
  * @returns Message ID from QStash (use this to cancel later)
  */
 export async function schedulePrebookingExecution(
   prebookingId: string,
-  executeAt: Date
+  executeAt: Date,
+  boxData: {
+    subdomain: string;
+    aimharderId: string;
+  }
 ): Promise<string> {
   const callbackUrl = `${getCallbackUrl()}/api/execute-prebooking`;
 
@@ -65,6 +70,8 @@ export async function schedulePrebookingExecution(
 
   console.log("[QStash] Scheduling prebooking:", {
     prebookingId,
+    boxSubdomain: boxData.subdomain,
+    boxAimharderId: boxData.aimharderId,
     originalAvailableAt: executeAt.toISOString(),
     scheduledExecutionAt: earlyExecutionTime.toISOString(),
     earlyBy: "500ms",
@@ -74,13 +81,18 @@ export async function schedulePrebookingExecution(
   try {
     const response = await qstashClient.publishJSON({
       url: callbackUrl,
-      body: { prebookingId },
+      body: {
+        prebookingId,
+        boxSubdomain: boxData.subdomain,
+        boxAimharderId: boxData.aimharderId,
+      },
       notBefore: Math.floor(earlyExecutionTime.getTime() / 1000), // Unix timestamp in seconds
     });
 
     console.log("[QStash] Scheduled successfully:", {
       messageId: response.messageId,
       prebookingId,
+      boxSubdomain: boxData.subdomain,
       originalAvailableAt: executeAt.toISOString(),
       willExecuteAt: earlyExecutionTime.toISOString(),
     });

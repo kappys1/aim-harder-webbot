@@ -22,6 +22,8 @@ export class AuthMapper {
           name: response.data.user.name,
         },
         token: response.data.token,
+        aimharderToken: response.aimharderToken,
+        cookies: response.cookies,
       };
     }
 

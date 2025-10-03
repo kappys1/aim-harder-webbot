@@ -32,6 +32,8 @@ export const dynamic = "force-dynamic";
 
 interface WebhookBody {
   prebookingId: string;
+  boxSubdomain: string;
+  boxAimharderId: string;
 }
 
 export async function POST(request: NextRequest) {
@@ -67,13 +69,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 2. Extract prebookingId from parsed body
-    const { prebookingId } = parsedBody;
+    // 2. Extract data from parsed body
+    const { prebookingId, boxSubdomain, boxAimharderId } = parsedBody;
 
-    if (!prebookingId) {
-      console.error(`[QStash Webhook ${executionId}] Missing prebookingId`);
+    if (!prebookingId || !boxSubdomain || !boxAimharderId) {
+      console.error(`[QStash Webhook ${executionId}] Missing required fields`);
       return NextResponse.json(
-        { error: "Missing prebookingId" },
+        { error: "Missing required fields (prebookingId, boxSubdomain, boxAimharderId)" },
         { status: 400 }
       );
     }
@@ -135,15 +137,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 5. Execute booking on AimHarder API
+    // 5. Execute booking on AimHarder API using box subdomain from payload
     // console.log(
-    //   `[QStash Webhook ${executionId}] Executing booking for ${prebooking.userEmail}...`
+    //   `[QStash Webhook ${executionId}] Executing booking for ${prebooking.userEmail} on box ${boxSubdomain}...`
     // );
 
     const bookingExecutionStart = Date.now();
     const bookingResponse = await bookingService.createBooking(
       prebooking.bookingData,
-      session.cookies
+      session.cookies,
+      boxSubdomain
     );
     const bookingExecutionTime = Date.now() - bookingExecutionStart;
 

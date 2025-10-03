@@ -15,7 +15,12 @@ export const LoginResponseSchema = z.object({
     name: z.string().optional()
   }).optional(),
   token: z.string().optional(),
-  error: z.string().optional()
+  error: z.string().optional(),
+  aimharderToken: z.string().optional(),
+  cookies: z.array(z.object({
+    name: z.string(),
+    value: z.string()
+  })).optional()
 })
 
 // TypeScript types derived from schemas

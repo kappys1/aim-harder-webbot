@@ -116,9 +116,14 @@ export class BookingService {
 
   async createBooking(
     request: BookingCreateRequest,
-    cookies?: AuthCookie[]
+    cookies?: AuthCookie[],
+    boxSubdomain?: string
   ): Promise<BookingCreateResponse> {
-    const url = `${BOOKING_CONSTANTS.API.EXTERNAL_BASE_URL}${BOOKING_CONSTANTS.API.ENDPOINTS.CREATE_BOOKING}`;
+    const baseUrl = boxSubdomain
+      ? `https://${boxSubdomain}.aimharder.com`
+      : BOOKING_CONSTANTS.API.EXTERNAL_BASE_URL;
+
+    const url = `${baseUrl}${BOOKING_CONSTANTS.API.ENDPOINTS.CREATE_BOOKING}`;
 
     const headers: Record<string, string> = {
       Accept: "*/*",
@@ -126,8 +131,8 @@ export class BookingService {
       "Content-Type": "application/x-www-form-urlencoded",
       "User-Agent":
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
-      Referer: "https://crossfitcerdanyola300.aimharder.com/",
-      Origin: "https://crossfitcerdanyola300.aimharder.com",
+      Referer: `${baseUrl}/`,
+      Origin: baseUrl,
     };
 
     if (cookies && cookies.length > 0) {
@@ -203,9 +208,14 @@ export class BookingService {
 
   async cancelBooking(
     request: BookingCancelRequest,
-    cookies?: AuthCookie[]
+    cookies?: AuthCookie[],
+    boxSubdomain?: string
   ): Promise<BookingCancelResponse> {
-    const url = `${BOOKING_CONSTANTS.API.EXTERNAL_BASE_URL}${BOOKING_CONSTANTS.API.ENDPOINTS.CANCEL_BOOKING}`;
+    const baseUrl = boxSubdomain
+      ? `https://${boxSubdomain}.aimharder.com`
+      : BOOKING_CONSTANTS.API.EXTERNAL_BASE_URL;
+
+    const url = `${baseUrl}${BOOKING_CONSTANTS.API.ENDPOINTS.CANCEL_BOOKING}`;
 
     const headers: Record<string, string> = {
       Accept: "*/*",
@@ -213,8 +223,8 @@ export class BookingService {
       "Content-Type": "application/x-www-form-urlencoded",
       "User-Agent":
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
-      Referer: "https://crossfitcerdanyola300.aimharder.com/",
-      Origin: "https://crossfitcerdanyola300.aimharder.com",
+      Referer: `${baseUrl}/`,
+      Origin: baseUrl,
     };
 
     if (cookies && cookies.length > 0) {

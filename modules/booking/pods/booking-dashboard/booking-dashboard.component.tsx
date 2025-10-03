@@ -3,9 +3,10 @@
 import { Button } from "@/common/ui/button";
 import { Card, CardContent } from "@/common/ui/card";
 import { usePreBooking } from "@/modules/prebooking/pods/prebooking/hooks/usePreBooking.hook";
+import { useBoxFromUrl } from "@/modules/boxes/hooks/useBoxFromUrl.hook";
 import { AlertCircle } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useState } from "react";
+import { useCallback, useState, useEffect } from "react";
 import { toast } from "sonner";
 import { AuthCookie } from "../../../auth/api/services/cookie.service";
 import { useBooking } from "../../hooks/useBooking.hook";
@@ -57,6 +58,9 @@ function BookingDashboardContent({
   const userEmail =
     typeof window !== "undefined" ? localStorage.getItem("user-email") : null;
 
+  // Get current box from URL
+  const { boxId } = useBoxFromUrl();
+
   // Prebooking hook
   const {
     prebookings,
@@ -87,11 +91,37 @@ function BookingDashboardContent({
       setBookingLoading(bookingId);
 
       try {
+        // Get user email first
+        const currentUserEmail =
+          typeof window !== "undefined"
+            ? localStorage.getItem("user-email")
+            : null;
+
         const apiDate = BookingUtils.formatDateForApi(bookingDay.date);
 
         // Find the booking to get its time
         const booking = bookingDay.bookings.find((b) => b.id === bookingId);
         const classTime = booking?.timeSlot.startTime || booking?.timeSlot.time;
+
+        // Validate boxId is available
+        if (!boxId) {
+          toast.error("Error", {
+            description: "No se pudo obtener el box seleccionado. Recarga la página.",
+          });
+          return;
+        }
+
+        // Fetch box data just-in-time to ensure we have the latest data
+        const boxResponse = await fetch(`/api/boxes/${boxId}?email=${currentUserEmail}`);
+        if (!boxResponse.ok) {
+          toast.error("Error", {
+            description: "No se pudo obtener la información del box.",
+          });
+          return;
+        }
+
+        const boxResponseData = await boxResponse.json();
+        const boxData = boxResponseData.box;
 
         const bookingRequest = {
           day: apiDate,
@@ -101,19 +131,16 @@ function BookingDashboardContent({
           classTime, // Add classTime for prebooking calculation
           activityName: booking?.class?.name || "Clase",
           boxName: booking?.box.name,
+          boxId: boxId,
+          boxSubdomain: boxData.subdomain,
+          boxAimharderId: boxData.box_id,
         };
-
-        // Use our internal API endpoint instead of external service directly
-        const userEmail =
-          typeof window !== "undefined"
-            ? localStorage.getItem("user-email")
-            : null;
 
         const response = await fetch("/api/booking", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            ...(userEmail && { "x-user-email": userEmail }),
+            ...(currentUserEmail && { "x-user-email": currentUserEmail }),
           },
           body: JSON.stringify(bookingRequest),
         });

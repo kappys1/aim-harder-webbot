@@ -22,6 +22,7 @@ export class PreBookingService {
         user_email: input.userEmail,
         booking_data: input.bookingData,
         available_at: input.availableAt.toISOString(),
+        box_id: input.boxId,
         status: "pending",
       })
       .select()
@@ -155,14 +156,20 @@ export class PreBookingService {
 
   /**
    * Find all prebookings for a user
+   * Optionally filter by boxId
    */
-  async findByUser(userEmail: string): Promise<PreBooking[]> {
-    const { data, error } = await this.supabase
+  async findByUser(userEmail: string, boxId?: string): Promise<PreBooking[]> {
+    let query = this.supabase
       .from("prebookings")
       .select("*")
       .eq("status", "pending")
-      .eq("user_email", userEmail)
-      .order("created_at", { ascending: false });
+      .eq("user_email", userEmail);
+
+    if (boxId) {
+      query = query.eq("box_id", boxId);
+    }
+
+    const { data, error } = await query.order("created_at", { ascending: false });
 
     if (error) {
       console.error(

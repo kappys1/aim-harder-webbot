@@ -65,6 +65,8 @@ export async function POST(request: NextRequest) {
         success: true,
         data: result.data,
         aimharderSession: true,
+        aimharderToken: result.data?.token,
+        cookies: result.cookies,
         cookiesUpdated: true,
         cookieCount: result.cookies.length
       })

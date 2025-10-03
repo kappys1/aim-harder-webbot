@@ -4,12 +4,14 @@ import { NextRequest, NextResponse } from "next/server";
 /**
  * GET /api/prebooking
  * List prebookings for a user
+ * Optionally filter by boxId
  */
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
     const userEmail =
       searchParams.get("user_email") || request.headers.get("x-user-email");
+    const boxId = searchParams.get("boxId"); // Optional filter by box
 
     if (!userEmail) {
       return NextResponse.json(
@@ -18,7 +20,10 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const prebookings = await preBookingService.findByUser(userEmail);
+    const prebookings = await preBookingService.findByUser(
+      userEmail,
+      boxId || undefined
+    );
 
     return NextResponse.json({
       success: true,

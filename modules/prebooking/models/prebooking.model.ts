@@ -14,6 +14,7 @@ export interface PreBooking {
   availableAt: Date;
   status: PreBookingStatus;
   qstashScheduleId?: string;
+  boxId: string; // Reference to box for filtering and access validation
   result?: PreBookingResult;
   errorMessage?: string;
   createdAt: Date;
@@ -33,11 +34,13 @@ export interface CreatePreBookingInput {
   userEmail: string;
   bookingData: BookingCreateRequest;
   availableAt: Date;
+  boxId: string; // Box reference for filtering
 }
 
 export interface PreBookingFilter {
   status?: PreBookingStatus | PreBookingStatus[];
   userEmail?: string;
+  boxId?: string; // Filter by box
   availableAtStart?: Date;
   availableAtEnd?: Date;
 }

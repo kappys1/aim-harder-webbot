@@ -24,6 +24,7 @@ export interface LoginApiResponse {
   error?: string
   // Aimharder-specific fields
   aimharderSession?: boolean
+  aimharderToken?: string
   cookies?: Array<{ name: string; value: string }>
   rateLimited?: boolean
   minutesRemaining?: number
