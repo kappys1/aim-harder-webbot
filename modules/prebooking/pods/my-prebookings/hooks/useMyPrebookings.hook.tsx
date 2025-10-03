@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { PreBooking } from '@/modules/prebooking/models/prebooking.model';
-import { toast } from 'sonner';
+import { PreBooking } from "@/modules/prebooking/models/prebooking.model";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
 interface PrebookingsResponse {
   success: boolean;
@@ -35,16 +35,18 @@ export function useMyPrebookings(userEmail: string | null) {
     error,
     refetch,
   } = useQuery<PreBooking[]>({
-    queryKey: ['my-prebookings', userEmail],
+    queryKey: ["my-prebookings", userEmail],
     queryFn: async () => {
       if (!userEmail) {
         return [];
       }
 
-      const response = await fetch(`/api/prebooking?user_email=${encodeURIComponent(userEmail)}`);
+      const response = await fetch(
+        `/api/prebooking?user_email=${encodeURIComponent(userEmail)}`
+      );
 
       if (!response.ok) {
-        throw new Error('Error al cargar pre-reservas');
+        throw new Error("Error al cargar pre-reservas");
       }
 
       const data: PrebookingsResponse = await response.json();
@@ -53,6 +55,7 @@ export function useMyPrebookings(userEmail: string | null) {
       return data.prebookings.map((pb) => ({
         id: pb.id,
         userEmail: userEmail,
+        boxId: pb.bookingData?.boxId || "",
         bookingData: pb.bookingData,
         availableAt: new Date(pb.availableAt),
         status: pb.status as any,
@@ -71,12 +74,12 @@ export function useMyPrebookings(userEmail: string | null) {
   const cancelMutation = useMutation({
     mutationFn: async (prebookingId: string) => {
       const response = await fetch(`/api/prebooking?id=${prebookingId}`, {
-        method: 'DELETE',
+        method: "DELETE",
       });
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.error || 'Error al cancelar pre-reserva');
+        throw new Error(error.error || "Error al cancelar pre-reserva");
       }
 
       return response.json();
@@ -84,14 +87,19 @@ export function useMyPrebookings(userEmail: string | null) {
     // Optimistic update
     onMutate: async (prebookingId) => {
       // Cancel any outgoing refetches
-      await queryClient.cancelQueries({ queryKey: ['my-prebookings', userEmail] });
+      await queryClient.cancelQueries({
+        queryKey: ["my-prebookings", userEmail],
+      });
 
       // Snapshot the previous value
-      const previousPrebookings = queryClient.getQueryData<PreBooking[]>(['my-prebookings', userEmail]);
+      const previousPrebookings = queryClient.getQueryData<PreBooking[]>([
+        "my-prebookings",
+        userEmail,
+      ]);
 
       // Optimistically remove the prebooking
       queryClient.setQueryData<PreBooking[]>(
-        ['my-prebookings', userEmail],
+        ["my-prebookings", userEmail],
         (old) => old?.filter((pb) => pb.id !== prebookingId) || []
       );
 
@@ -100,14 +108,21 @@ export function useMyPrebookings(userEmail: string | null) {
     onError: (error, _prebookingId, context) => {
       // Rollback on error
       if (context?.previousPrebookings) {
-        queryClient.setQueryData(['my-prebookings', userEmail], context.previousPrebookings);
+        queryClient.setQueryData(
+          ["my-prebookings", userEmail],
+          context.previousPrebookings
+        );
       }
-      toast.error(error instanceof Error ? error.message : 'Error al cancelar pre-reserva');
+      toast.error(
+        error instanceof Error ? error.message : "Error al cancelar pre-reserva"
+      );
     },
     onSuccess: () => {
-      toast.success('Pre-reserva cancelada correctamente');
+      toast.success("Pre-reserva cancelada correctamente");
       // Refetch to ensure consistency
-      queryClient.invalidateQueries({ queryKey: ['my-prebookings', userEmail] });
+      queryClient.invalidateQueries({
+        queryKey: ["my-prebookings", userEmail],
+      });
     },
   });
 

@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { BoxManagementBusiness } from '../business/box-management.business';
+import { useEffect, useState } from "react";
+import { BoxManagementBusiness } from "../business/box-management.business";
 
 export function useBoxAccess(boxId: string | null, userEmail: string) {
   const [hasAccess, setHasAccess] = useState<boolean | null>(null);
@@ -22,6 +22,9 @@ export function useBoxAccess(boxId: string | null, userEmail: string) {
         setIsLoading(true);
         setError(null);
 
+        // TypeScript narrowing: boxId is guaranteed to be string here due to early return
+        if (!boxId) throw new Error("Invalid boxId");
+
         const access = await BoxManagementBusiness.validateAccess(
           boxId,
           userEmail
@@ -33,7 +36,7 @@ export function useBoxAccess(boxId: string | null, userEmail: string) {
       } catch (err) {
         if (isMounted) {
           setError(
-            err instanceof Error ? err : new Error('Failed to validate access')
+            err instanceof Error ? err : new Error("Failed to validate access")
           );
           setHasAccess(false);
         }

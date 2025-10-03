@@ -1,18 +1,18 @@
-'use client';
+"use client";
 
-import { useBoxes } from '@/modules/boxes/hooks/useBoxes.hook';
-import { useBoxFromUrl } from '@/modules/boxes/hooks/useBoxFromUrl.hook';
-import { BoxCard } from '@/modules/boxes/pods/box-card/box-card.component';
-import { UpdateBoxesButton } from '@/modules/boxes/pods/update-boxes-button/update-boxes-button.component';
-import { useAuth } from '@/modules/auth/hooks/useAuth.hook';
-import { Skeleton } from '@/common/ui/skeleton';
-import { Alert, AlertDescription, AlertTitle } from '@/common/ui/alert';
-import { InfoIcon } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { Alert, AlertDescription, AlertTitle } from "@/common/ui/alert";
+import { Skeleton } from "@/common/ui/skeleton";
+import { useAuth } from "@/modules/auth/hooks/useAuth.hook";
+import { useBoxes } from "@/modules/boxes/hooks/useBoxes.hook";
+import { useBoxFromUrl } from "@/modules/boxes/hooks/useBoxFromUrl.hook";
+import { BoxCard } from "@/modules/boxes/pods/box-card/box-card.component";
+import { UpdateBoxesButton } from "@/modules/boxes/pods/update-boxes-button/update-boxes-button.component";
+import { InfoIcon } from "lucide-react";
+import { useEffect, useState } from "react";
 
 export function DashboardClient() {
-  const { user, getAimharderCookies } = useAuth();
-  const userEmail = user?.email || '';
+  const { user } = useAuth();
+  const userEmail = user?.email || "";
 
   const [sessionData, setSessionData] = useState<{
     token: string;
@@ -33,15 +33,22 @@ export function DashboardClient() {
         if (response.ok) {
           const data = await response.json();
           const session = {
-            token: data.aimharderToken || '',
+            token: data.aimharderToken || "",
             cookies: data.cookies || [],
           };
           setSessionData(session);
 
           // Trigger box detection if user has no boxes
           // This runs on first application access, not during login
-          if (!isLoading && boxes.length === 0 && session.token && session.cookies.length > 0) {
-            console.log('[Dashboard] No boxes found - triggering automatic detection');
+          if (
+            !isLoading &&
+            boxes.length === 0 &&
+            session.token &&
+            session.cookies.length > 0
+          ) {
+            console.log(
+              "[Dashboard] No boxes found - triggering automatic detection"
+            );
             setIsDetectingBoxes(true);
             detectBoxes({
               userEmail,
@@ -52,7 +59,7 @@ export function DashboardClient() {
           }
         }
       } catch (error) {
-        console.error('Error fetching session data:', error);
+        console.error("Error fetching session data:", error);
       }
     }
 
@@ -86,7 +93,8 @@ export function DashboardClient() {
                   <InfoIcon className="h-4 w-4" />
                   <AlertTitle>Detectando boxes</AlertTitle>
                   <AlertDescription>
-                    Estamos detectando automáticamente tus boxes. Esto puede tardar unos segundos...
+                    Estamos detectando automáticamente tus boxes. Esto puede
+                    tardar unos segundos...
                   </AlertDescription>
                 </Alert>
               </div>
@@ -147,7 +155,7 @@ export function DashboardClient() {
                 <InfoIcon className="h-4 w-4" />
                 <AlertTitle>No tienes boxes asignados</AlertTitle>
                 <AlertDescription>
-                  Haz clic en "Actualizar boxes" para detectar tus boxes
+                  Haz clic en Actualizar boxes para detectar tus boxes
                   automáticamente.
                 </AlertDescription>
               </Alert>
@@ -158,7 +166,7 @@ export function DashboardClient() {
                     key={box.id}
                     box={box}
                     isActive={boxId === box.id}
-                    onClick={() => navigateToBox(box.id, '/booking')}
+                    onClick={() => navigateToBox(box.id, "/booking")}
                   />
                 ))}
               </div>

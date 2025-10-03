@@ -21,6 +21,7 @@ export class PreBookingMapper {
       createdAt: new Date(api.created_at),
       loadedAt: api.loaded_at ? new Date(api.loaded_at) : undefined,
       executedAt: api.executed_at ? new Date(api.executed_at) : undefined,
+      boxId: api.box_id ?? "",
     };
   }
 

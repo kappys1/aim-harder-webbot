@@ -27,6 +27,7 @@ export const PreBookingApiSchema = z.object({
   result: PreBookingResultSchema.nullable().optional(),
   error_message: z.string().nullable().optional(),
   created_at: z.string(), // Accept any string format from Supabase
+  box_id: z.string().nullable().optional(),
   loaded_at: z.string().nullable().optional(),
   executed_at: z.string().nullable().optional(),
 });
