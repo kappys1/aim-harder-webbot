@@ -23,17 +23,22 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "AIM-WOD-BOT",
+  title: "AIM WOD BOT",
   description: "Automatically book CrossFit classes when they become available",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
-    statusBarStyle: "default",
-    title: "AIM-WOD-BOT",
+    statusBarStyle: "black-translucent",
+    title: "AIM WOD BOT",
   },
   icons: {
-    icon: "/icon-192x192.png",
-    apple: "/icon-192x192.png",
+    icon: [
+      { url: "/icon-192x192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512x512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [
+      { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
+    ],
   },
 };
 
@@ -48,9 +53,10 @@ export default function RootLayout({
         <link rel="manifest" href="/manifest.json" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-        <meta name="apple-mobile-web-app-title" content="AIM-WOD-BOT" />
-        <link rel="apple-touch-icon" href="/icon-192x192.png" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-title" content="AIM WOD BOT" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+        <meta name="application-name" content="AIM WOD BOT" />
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
