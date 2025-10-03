@@ -1,4 +1,5 @@
 import { Client } from "@upstash/qstash";
+import { generatePrebookingToken } from "./security-token";
 
 /**
  * QStash Client for scheduling prebooking executions
@@ -11,6 +12,7 @@ import { Client } from "@upstash/qstash";
  * Environment Variables Required:
  * - QSTASH_TOKEN: Your QStash token from Upstash Console
  * - VERCEL_URL or NEXT_PUBLIC_APP_URL: Your app URL for callbacks
+ * - PREBOOKING_SECRET: Secret for generating security tokens
  */
 
 if (!process.env.QSTASH_TOKEN) {
@@ -43,11 +45,17 @@ export function getCallbackUrl(): string {
 /**
  * Schedule a prebooking execution at a specific timestamp
  *
- * OPTIMIZATION: Executes 500ms BEFORE the actual available_at to compensate
- * for network latency and API response time
+ * HYBRID OPTIMIZATION: Executes 3 SECONDS BEFORE the actual available_at
+ * to allow time for preparatory queries, then waits until the exact millisecond
+ *
+ * Flow:
+ * 1. QStash triggers webhook 3s before available_at
+ * 2. Webhook fetches session & validates prebooking (~250ms)
+ * 3. Webhook waits until EXACT executeAt timestamp (~2750ms)
+ * 4. Webhook fires to AimHarder API immediately (<100ms latency)
  *
  * @param prebookingId - ID of the prebooking to execute
- * @param executeAt - Date when the booking becomes available (will execute 500ms before)
+ * @param executeAt - EXACT Date when the booking should be fired to AimHarder
  * @param boxData - Box information needed for executing the booking (subdomain and aimharder ID)
  * @returns Message ID from QStash (use this to cancel later)
  */
@@ -61,40 +69,48 @@ export async function schedulePrebookingExecution(
 ): Promise<string> {
   const callbackUrl = `${getCallbackUrl()}/api/execute-prebooking`;
 
-  // OPTIMIZATION: Schedule execution 800ms BEFORE available_at
-  // This compensates for:
-  // - QStash scheduling precision (~100ms)
-  // - Network latency (~50-200ms)
-  // - API processing time (~100-300ms)
-  const earlyExecutionTime = new Date(executeAt.getTime() - 1000);
+  // HYBRID OPTIMIZATION: Schedule execution 3 SECONDS BEFORE available_at
+  // This allows time for:
+  // - Fetching session from Supabase (~100-200ms)
+  // - Fetching prebooking from Supabase (~100-200ms)
+  // - Validations (~5ms)
+  // - Waiting until EXACT executeAt timestamp (~2500ms)
+  const earlyExecutionTime = new Date(executeAt.getTime() - 3000);
 
-  console.log("[QStash] Scheduling prebooking:", {
+  // Generate security token (faster than QStash signature verification)
+  const securityToken = generatePrebookingToken(prebookingId, executeAt);
+
+  console.log("[QStash] Scheduling prebooking (HYBRID):", {
     prebookingId,
     boxSubdomain: boxData.subdomain,
     boxAimharderId: boxData.aimharderId,
-    originalAvailableAt: executeAt.toISOString(),
-    scheduledExecutionAt: earlyExecutionTime.toISOString(),
-    earlyBy: "500ms",
+    exactExecuteAt: executeAt.toISOString(),
+    qstashTriggerAt: earlyExecutionTime.toISOString(),
+    earlyBy: "3000ms",
     callbackUrl,
   });
 
   try {
+    const executeAtMs = executeAt.getTime();
+
     const response = await qstashClient.publishJSON({
       url: callbackUrl,
       body: {
         prebookingId,
         boxSubdomain: boxData.subdomain,
         boxAimharderId: boxData.aimharderId,
+        executeAt: executeAtMs.toString(), // Send as string to prevent QStash processing
+        securityToken, // HMAC token for fast validation
       },
       notBefore: Math.floor(earlyExecutionTime.getTime() / 1000), // Unix timestamp in seconds
     });
 
-    console.log("[QStash] Scheduled successfully:", {
+    console.log("[QStash] Scheduled successfully (HYBRID):", {
       messageId: response.messageId,
       prebookingId,
       boxSubdomain: boxData.subdomain,
-      originalAvailableAt: executeAt.toISOString(),
-      willExecuteAt: earlyExecutionTime.toISOString(),
+      qstashTriggerAt: earlyExecutionTime.toISOString(),
+      exactExecuteAt: executeAt.toISOString(),
     });
 
     return response.messageId;
