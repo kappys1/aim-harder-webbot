@@ -99,6 +99,8 @@ function BookingDashboardContent({
           id: bookingId.toString(),
           insist: 0,
           classTime, // Add classTime for prebooking calculation
+          activityName: booking?.class?.name || "Clase",
+          boxName: booking?.box.name,
         };
 
         // Use our internal API endpoint instead of external service directly

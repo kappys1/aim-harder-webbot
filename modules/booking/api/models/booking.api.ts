@@ -59,6 +59,8 @@ export const BookingCreateRequestSchema = z.object({
   familyId: z.string().default(""),
   id: z.string().min(1, "Slot ID is required"),
   insist: z.number().default(0),
+  activityName: z.string().optional(),
+  boxName: z.string().optional(),
 });
 
 export const BookingCreateResponseSchema = z.object({

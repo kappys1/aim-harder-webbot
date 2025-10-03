@@ -102,7 +102,7 @@ export async function POST(request: NextRequest) {
   try {
     // Parse and validate request body
     const body = await request.json();
-    const classTime = body.classTime; // Extract classTime before validation (not part of schema)
+    const classTime = body.classTime; // Extract classTime before validation (not part of original external API schema)
     const validatedRequest = BookingCreateRequestSchema.safeParse(body);
 
     if (!validatedRequest.success) {
@@ -130,8 +130,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Make booking request using the service
+    // Extract activityName and boxName before sending to external API (they're not part of external API schema)
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { activityName, boxName, ...bookingData } = validatedRequest.data;
     const bookingResponse = await bookingService.createBooking(
-      validatedRequest.data,
+      bookingData,
       session.cookies
     );
 
