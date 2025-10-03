@@ -197,7 +197,9 @@ function BookingDashboardContent({
         }
       } catch (error) {
         console.error("Booking error:", error);
-        toast.error("Error de conexión al realizar la reserva");
+        toast.error(
+          "Error de conexión al realizar la reserva / pre reserva. Si has hecho muchas seguidas espera unos segundos"
+        );
       } finally {
         setBookingLoading(null);
       }
