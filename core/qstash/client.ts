@@ -66,7 +66,7 @@ export async function schedulePrebookingExecution(
   // - QStash scheduling precision (~100ms)
   // - Network latency (~50-200ms)
   // - API processing time (~100-300ms)
-  const earlyExecutionTime = new Date(executeAt.getTime() - 800);
+  const earlyExecutionTime = new Date(executeAt.getTime() - 1000);
 
   console.log("[QStash] Scheduling prebooking:", {
     prebookingId,
