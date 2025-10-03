@@ -110,14 +110,14 @@ export function Header() {
           >
             Dashboard
           </Link>
-          <Link
+          {/* <Link
             href="/booking"
             className={`text-sm font-medium transition-colors hover:text-primary ${
               isActive("/booking") ? "text-primary" : "text-muted-foreground"
             }`}
           >
             Reservas
-          </Link>
+          </Link> */}
           <Link
             href="/my-prebookings"
             className={`text-sm font-medium transition-colors hover:text-primary ${
