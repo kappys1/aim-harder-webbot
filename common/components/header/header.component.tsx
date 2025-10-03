@@ -49,24 +49,30 @@ export function Header() {
             >
               Dashboard
             </Link>
-            <Link
-              href="/booking"
-              className={`text-sm font-medium transition-colors hover:text-primary ${
-                isActive("/booking") ? "text-primary" : "text-muted-foreground"
-              }`}
-            >
-              Clases
-            </Link>
-            <Link
-              href="/my-prebookings"
-              className={`text-sm font-medium transition-colors hover:text-primary ${
-                isActive("/my-prebookings")
-                  ? "text-primary"
-                  : "text-muted-foreground"
-              }`}
-            >
-              Mis Pre-reservas
-            </Link>
+            {!isActive("/dashboard") && (
+              <>
+                <Link
+                  href="/booking"
+                  className={`text-sm font-medium transition-colors hover:text-primary ${
+                    isActive("/booking")
+                      ? "text-primary"
+                      : "text-muted-foreground"
+                  }`}
+                >
+                  Clases
+                </Link>
+                <Link
+                  href="/my-prebookings"
+                  className={`text-sm font-medium transition-colors hover:text-primary ${
+                    isActive("/my-prebookings")
+                      ? "text-primary"
+                      : "text-muted-foreground"
+                  }`}
+                >
+                  Mis Pre-reservas
+                </Link>
+              </>
+            )}
           </nav>
 
           {/* User & Logout */}
