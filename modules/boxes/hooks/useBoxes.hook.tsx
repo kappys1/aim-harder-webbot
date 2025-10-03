@@ -1,9 +1,9 @@
-'use client';
+"use client";
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { BoxManagementBusiness } from '../business/box-management.business';
-import type { DetectBoxesRequest } from '../api/models/box.api';
-import type { BoxWithAccess } from '../models/box.model';
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { DetectBoxesRequest } from "../api/models/box.api";
+import { BoxManagementBusiness } from "../business/box-management.business";
+import type { BoxWithAccess } from "../models/box.model";
 
 export function useBoxes(userEmail: string) {
   const queryClient = useQueryClient();
@@ -14,7 +14,7 @@ export function useBoxes(userEmail: string) {
     isLoading,
     error,
   } = useQuery<BoxWithAccess[], Error>({
-    queryKey: ['boxes', userEmail],
+    queryKey: ["boxes", userEmail],
     queryFn: () => BoxManagementBusiness.getUserBoxes(userEmail),
     enabled: !!userEmail,
   });
@@ -25,7 +25,7 @@ export function useBoxes(userEmail: string) {
       BoxManagementBusiness.detectBoxes(request),
     onSuccess: () => {
       // Invalidate and refetch boxes
-      queryClient.invalidateQueries({ queryKey: ['boxes', userEmail] });
+      queryClient.invalidateQueries({ queryKey: ["boxes", userEmail] });
     },
   });
 
@@ -35,13 +35,13 @@ export function useBoxes(userEmail: string) {
       BoxManagementBusiness.updateLastAccessed(boxId, userEmail),
     onSuccess: () => {
       // Invalidate and refetch boxes
-      queryClient.invalidateQueries({ queryKey: ['boxes', userEmail] });
+      queryClient.invalidateQueries({ queryKey: ["boxes", userEmail] });
     },
   });
 
   return {
     boxes,
-    isLoading,
+    isLoading: isLoading || detectBoxesMutation.isPending,
     error,
     detectBoxes: detectBoxesMutation.mutate,
     isDetecting: detectBoxesMutation.isPending,
