@@ -167,7 +167,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const queriesTime = Date.now() - queriesStart;
+    const queriesTime = Date.now() - queriesStart + 1;
     console.log(
       `[HYBRID ${executionId}] Queries completed in ${queriesTime}ms`
     );

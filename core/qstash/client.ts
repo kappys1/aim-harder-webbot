@@ -75,7 +75,7 @@ export async function schedulePrebookingExecution(
   // - Fetching prebooking from Supabase (~100-200ms)
   // - Validations (~5ms)
   // - Waiting until EXACT executeAt timestamp (~2500ms)
-  const earlyExecutionTime = new Date(executeAt.getTime() - 3000);
+  const earlyExecutionTime = new Date(executeAt.getTime() - 4000);
 
   // Generate security token (faster than QStash signature verification)
   const securityToken = generatePrebookingToken(prebookingId, executeAt);
