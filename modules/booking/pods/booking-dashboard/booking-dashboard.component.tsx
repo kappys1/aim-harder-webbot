@@ -446,7 +446,7 @@ function BookingDashboardContent({
           />
         </div>
       </div>
-      <div className="flex justify-center sticky top-[102px] md:static bg-background z-40 py-4 -mx-4 px-4 md:mx-0 md:px-0 md:py-0">
+      <div className="flex justify-center sticky top-[102px] md:static bg-background md:bg-transparent z-40 py-4 -mx-4 px-4 md:mx-0 md:px-0 md:py-0">
         <WeekSelector
           selectedDate={state.selectedDate}
           onDateChange={handleDateChange}
