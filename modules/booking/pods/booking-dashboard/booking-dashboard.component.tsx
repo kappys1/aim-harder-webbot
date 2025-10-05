@@ -2,11 +2,11 @@
 
 import { Button } from "@/common/ui/button";
 import { Card, CardContent } from "@/common/ui/card";
-import { usePreBooking } from "@/modules/prebooking/pods/prebooking/hooks/usePreBooking.hook";
 import { useBoxFromUrl } from "@/modules/boxes/hooks/useBoxFromUrl.hook";
+import { usePreBooking } from "@/modules/prebooking/pods/prebooking/hooks/usePreBooking.hook";
 import { AlertCircle } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useState, useEffect } from "react";
+import { useCallback, useState } from "react";
 import { toast } from "sonner";
 import { AuthCookie } from "../../../auth/api/services/cookie.service";
 import { useBooking } from "../../hooks/useBooking.hook";
@@ -106,13 +106,16 @@ function BookingDashboardContent({
         // Validate boxId is available
         if (!boxId) {
           toast.error("Error", {
-            description: "No se pudo obtener el box seleccionado. Recarga la página.",
+            description:
+              "No se pudo obtener el box seleccionado. Recarga la página.",
           });
           return;
         }
 
         // Fetch box data just-in-time to ensure we have the latest data
-        const boxResponse = await fetch(`/api/boxes/${boxId}?email=${currentUserEmail}`);
+        const boxResponse = await fetch(
+          `/api/boxes/${boxId}?email=${currentUserEmail}`
+        );
         if (!boxResponse.ok) {
           toast.error("Error", {
             description: "No se pudo obtener la información del box.",
@@ -443,7 +446,7 @@ function BookingDashboardContent({
           />
         </div>
       </div>
-      <div className="flex justify-center">
+      <div className="flex justify-center sticky top-[102px] md:static bg-background z-40 py-4 -mx-4 px-4 md:mx-0 md:px-0 md:py-0">
         <WeekSelector
           selectedDate={state.selectedDate}
           onDateChange={handleDateChange}
