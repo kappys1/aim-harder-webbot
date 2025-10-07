@@ -76,6 +76,11 @@
   --sidebar-accent-foreground: oklch(0.21 0.006 285.885);
   --sidebar-border: oklch(0.92 0.004 286.32);
   --sidebar-ring: oklch(0.623 0.214 259.815);
+
+  --sat: env(safe-area-inset-top);
+  --sar: env(safe-area-inset-right);
+  --sab: env(safe-area-inset-bottom);
+  --sal: env(safe-area-inset-left);
 }
 .dark {
   --background: oklch(0.141 0.005 285.823);
@@ -117,8 +122,22 @@
   }
   body {
     @apply bg-background text-foreground;
-  }
-  body {
     background-color: var(--background);
+  }
+  .app {
+    padding-top: max(0px, var(--sat));
+    padding-right: max(0px, var(--sar));
+    padding-bottom: max(0px, var(--sab));
+    padding-left: max(0px, var(--sal));
+  }
+
+  /* si tienes un header fijo/pegajoso */
+  .header {
+    position: sticky; /* o fixed */
+    top: 0;
+    height: calc(56px + var(--sat));
+    padding-top: var(--sat);
+    background: white; /* para cubrir debajo */
+    z-index: 10;
   }
 }
