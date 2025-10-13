@@ -1,22 +1,22 @@
-name: Refresh Aimharder Tokens
+# name: Refresh Aimharder Tokens
 
-on:
-  schedule:
-    # Run every 29 minutes
-    - cron: '*/29 * * * *'
-  workflow_dispatch: # Allow manual trigger for testing
+# on:
+#   schedule:
+#     # Run every 29 minutes
+#     - cron: '*/29 * * * *'
+#   workflow_dispatch: # Allow manual trigger for testing
 
-jobs:
-  refresh-tokens:
-    runs-on: ubuntu-latest
+# jobs:
+#   refresh-tokens:
+#     runs-on: ubuntu-latest
 
-    steps:
-      - name: Refresh all active sessions
-        run: |
-          curl -X POST ${{ secrets.APP_URL }}/api/cron/refresh-tokens \
-            -H "Content-Type: application/json" \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            -d '{}'
+#     steps:
+#       - name: Refresh all active sessions
+#         run: |
+#           curl -X POST ${{ secrets.APP_URL }}/api/cron/refresh-tokens \
+#             -H "Content-Type: application/json" \
+#             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+#             -d '{}'
 
-      - name: Log completion
-        run: echo "Token refresh cron completed at $(date)"
+#       - name: Log completion
+#         run: echo "Token refresh cron completed at $(date)"
