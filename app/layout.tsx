@@ -61,7 +61,7 @@ export default function RootLayout({
           name="viewport"
           content="width=device-width, initial-scale=1, viewport-fit=cover"
         />
-        <meta name="theme-color" content="#0A84FF" />
+        <meta name="theme-color" content="#3b82f6" />
         <link
           rel="apple-touch-startup-image"
           href="/splash/launch-640x1136.png"

@@ -43,8 +43,8 @@ export const BOOKING_CONSTANTS = {
   },
 
   DATE_FORMATS: {
-    API: 'YYYYMMDD',
-    DISPLAY: 'DD MMM YYYY',
+    API: 'yyyyMMdd',
+    DISPLAY: 'dd MMM yyyy',
     TIME: 'HH:mm',
   },
 

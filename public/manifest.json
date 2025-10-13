@@ -4,8 +4,9 @@
   "description": "Sistema de reservas automáticas para box de CrossFit",
   "start_url": "/",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
   "background_color": "#000000",
-  "theme_color": "#4A9EFF",
+  "theme_color": "#3b82f6",
   "orientation": "portrait",
   "icons": [
     {
