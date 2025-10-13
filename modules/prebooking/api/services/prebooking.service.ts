@@ -325,6 +325,7 @@ export class PreBookingService {
 
   /**
    * Mark prebooking as completed with full result
+   * @param alreadyBookedManually - Indicates if user booked manually before auto-booking
    */
   async markCompleted(
     id: string,
@@ -332,6 +333,7 @@ export class PreBookingService {
       bookingId?: string;
       bookState?: number;
       message?: string;
+      alreadyBookedManually?: boolean;
     }
   ): Promise<void> {
     const executedAt = new Date();
@@ -345,6 +347,7 @@ export class PreBookingService {
           bookingId: result.bookingId,
           bookState: result.bookState,
           message: result.message,
+          alreadyBookedManually: result.alreadyBookedManually,
           executedAt: executedAt.toISOString(),
         },
       })

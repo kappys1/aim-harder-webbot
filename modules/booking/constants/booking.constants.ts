@@ -53,7 +53,10 @@ export const BOOKING_CONSTANTS = {
     BOOKED: 1,
     CANCELLED: 1, // cancelState: 1 means successful cancellation
     ERROR_MAX_BOOKINGS: -8,
-    ERROR_EARLY_BOOKING: -12,
+    ERROR_EARLY_BOOKING: -12, // Used for multiple cases:
+                               // 1. "No puedes reservar con más de X días" (too many days in advance)
+                               // 2. "No puedes hacer más de una reserva a la misma hora" (already booked manually)
+                               // The BookingMapper.mapBookingCreateResult() method distinguishes between these cases
   },
 
   CLASS_TYPES: {

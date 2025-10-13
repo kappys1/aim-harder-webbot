@@ -137,6 +137,7 @@ export class BookingMapper {
     canRetryLater?: boolean;
     availableFrom?: Date;
     maxBookings?: number;
+    alreadyBookedManually?: boolean;
   } {
     const isSuccess = response.bookState === BOOKING_CONSTANTS.BOOKING_STATES.BOOKED;
     const isEarlyBookingError = response.bookState === BOOKING_CONSTANTS.BOOKING_STATES.ERROR_EARLY_BOOKING;
@@ -146,6 +147,17 @@ export class BookingMapper {
       return {
         success: true,
         bookingId: response.id,
+      };
+    }
+
+    // Check if user already booked manually before auto-booking
+    if (isEarlyBookingError && this.isAlreadyBookedManually(response.errorMssg)) {
+      return {
+        success: true, // Treat as success since the booking goal was achieved
+        error: 'already_booked_manually',
+        errorMessage: response.errorMssg,
+        canRetryLater: false,
+        alreadyBookedManually: true,
       };
     }
 
@@ -176,6 +188,23 @@ export class BookingMapper {
       errorMessage: response.errorMssg || 'Unknown booking error',
       canRetryLater: false,
     };
+  }
+
+  /**
+   * Detects if the user already booked manually at the same time
+   * This happens when bookState=-12 with message "No puedes hacer más de una reserva a la misma hora"
+   */
+  private static isAlreadyBookedManually(errorMessage?: string): boolean {
+    if (!errorMessage) return false;
+
+    // Patterns that indicate user already booked manually
+    const patterns = [
+      /no\s+puedes\s+hacer\s+más\s+de\s+una\s+reserva\s+a\s+la\s+misma\s+hora/i,
+      /ya\s+tienes\s+una\s+reserva\s+a\s+esa\s+hora/i,
+      /ya\s+has\s+reservado\s+a\s+esa\s+hora/i,
+    ];
+
+    return patterns.some(pattern => pattern.test(errorMessage));
   }
 
   private static extractAvailabilityDate(errorMessage?: string): Date | undefined {

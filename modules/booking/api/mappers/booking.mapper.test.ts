@@ -506,4 +506,98 @@ describe('BookingMapper', () => {
       expect(result.availableFrom).toBeInstanceOf(Date);
     });
   });
+
+  describe('already booked manually detection', () => {
+    it('should treat "already booked at same time" as success', () => {
+      const response: BookingCreateResponse = {
+        clasesContratadas: '10',
+        bookState: -12,
+        errorMssg: 'No puedes hacer más de una reserva a la misma hora',
+      };
+
+      const result = BookingMapper.mapBookingCreateResult(response);
+
+      expect(result).toMatchObject({
+        success: true, // Should be success, not failure
+        error: 'already_booked_manually',
+        errorMessage: response.errorMssg,
+        canRetryLater: false,
+        alreadyBookedManually: true,
+      });
+      expect(result.bookingId).toBeUndefined();
+      expect(result.availableFrom).toBeUndefined();
+    });
+
+    it('should detect case-insensitive "misma hora" message', () => {
+      const response: BookingCreateResponse = {
+        clasesContratadas: '10',
+        bookState: -12,
+        errorMssg: 'NO PUEDES HACER MÁS DE UNA RESERVA A LA MISMA HORA',
+      };
+
+      const result = BookingMapper.mapBookingCreateResult(response);
+
+      expect(result.success).toBe(true);
+      expect(result.alreadyBookedManually).toBe(true);
+    });
+
+    it('should detect alternative "ya tienes una reserva" message', () => {
+      const response: BookingCreateResponse = {
+        clasesContratadas: '10',
+        bookState: -12,
+        errorMssg: 'Ya tienes una reserva a esa hora',
+      };
+
+      const result = BookingMapper.mapBookingCreateResult(response);
+
+      expect(result.success).toBe(true);
+      expect(result.error).toBe('already_booked_manually');
+      expect(result.alreadyBookedManually).toBe(true);
+    });
+
+    it('should detect alternative "ya has reservado" message', () => {
+      const response: BookingCreateResponse = {
+        clasesContratadas: '10',
+        bookState: -12,
+        errorMssg: 'Ya has reservado a esa hora',
+      };
+
+      const result = BookingMapper.mapBookingCreateResult(response);
+
+      expect(result.success).toBe(true);
+      expect(result.error).toBe('already_booked_manually');
+      expect(result.alreadyBookedManually).toBe(true);
+    });
+
+    it('should still treat "too many days in advance" as failure', () => {
+      const response: BookingCreateResponse = {
+        clasesContratadas: '10',
+        bookState: -12,
+        errorMssg: 'No puedes reservar clases con más de 4 días de antelación',
+      };
+
+      const result = BookingMapper.mapBookingCreateResult(response);
+
+      expect(result).toMatchObject({
+        success: false, // Should remain as failure
+        error: 'early_booking',
+        canRetryLater: true,
+      });
+      expect(result.alreadyBookedManually).toBeUndefined();
+    });
+
+    it('should handle bookState -12 without matching message as early_booking', () => {
+      const response: BookingCreateResponse = {
+        clasesContratadas: '10',
+        bookState: -12,
+        errorMssg: 'Some other error message',
+      };
+
+      const result = BookingMapper.mapBookingCreateResult(response);
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('early_booking');
+      expect(result.alreadyBookedManually).toBeUndefined();
+    });
+  });
 });

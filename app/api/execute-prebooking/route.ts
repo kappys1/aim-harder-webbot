@@ -1,6 +1,7 @@
 import { verifyPrebookingToken } from "@/core/qstash/security-token";
 import { SupabaseSessionService } from "@/modules/auth/api/services/supabase-session.service";
 import { bookingService } from "@/modules/booking/api/services/booking.service";
+import { BookingMapper } from "@/modules/booking/api/mappers/booking.mapper";
 import { preBookingService } from "@/modules/prebooking/api/services/prebooking.service";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -214,15 +215,23 @@ export async function POST(request: NextRequest) {
     );
 
     // PHASE 5: UPDATE STATUS (BACKGROUND)
-    const success = bookingResponse.bookState === 1 || bookingResponse.id;
+    // Use mapper to determine success (handles "already booked manually" case)
+    const mappedResult = BookingMapper.mapBookingCreateResult(bookingResponse);
+    const success = mappedResult.success;
     const totalTime = Date.now() - startTime;
 
     if (success) {
+      // Determine appropriate message
+      const message = mappedResult.alreadyBookedManually
+        ? 'Booking already created manually by user'
+        : bookingResponse.errorMssg || 'Booking created successfully';
+
       preBookingService
         .markCompleted(prebookingId, {
           bookingId: bookingResponse.id,
           bookState: bookingResponse.bookState,
-          message: bookingResponse.errorMssg || "Booking created successfully",
+          message,
+          alreadyBookedManually: mappedResult.alreadyBookedManually,
         })
         .catch((err) =>
           setImmediate(() =>
@@ -233,17 +242,22 @@ export async function POST(request: NextRequest) {
           )
         );
 
+      const logMessage = mappedResult.alreadyBookedManually
+        ? `✅ SUCCESS (user booked manually) in ${totalTime}ms (fire latency: ${latency}ms)`
+        : `✅ SUCCESS in ${totalTime}ms (fire latency: ${latency}ms)`;
+
       setImmediate(() =>
-        console.log(
-          `[HYBRID ${executionId}] ✅ SUCCESS in ${totalTime}ms (fire latency: ${latency}ms)`
-        )
+        console.log(`[HYBRID ${executionId}] ${logMessage}`)
       );
 
       return NextResponse.json({
         success: true,
-        message: "Prebooking executed successfully",
+        message: mappedResult.alreadyBookedManually
+          ? "User already booked manually"
+          : "Prebooking executed successfully",
         prebookingId,
         bookingId: bookingResponse.id,
+        alreadyBookedManually: mappedResult.alreadyBookedManually,
         executionTime: totalTime,
         fireLatency: latency,
       });
