@@ -8,7 +8,7 @@ export const mockTimeSlot = {
 };
 
 export const mockBooking: Booking = {
-  id: 'booking-1',
+  id: 12345,
   timeSlot: mockTimeSlot,
   class: {
     id: 101,
@@ -46,7 +46,7 @@ export const mockBooking: Booking = {
 export const mockBookingDay: BookingDay = {
   date: '2025-10-05',
   description: '5 de Octubre de 2025',
-  availableClasses: 5,
+  availableClasses: '5',
   bookings: [mockBooking],
   timeSlots: [mockTimeSlot],
   specialEvents: [],
