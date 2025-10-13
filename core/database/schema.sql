@@ -5,7 +5,16 @@ CREATE TABLE IF NOT EXISTS auth_sessions (
   aimharder_token TEXT NOT NULL,
   aimharder_cookies JSONB NOT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  last_refresh_date TIMESTAMPTZ,
+  refresh_count INTEGER DEFAULT 0,
+  last_refresh_error TEXT,
+  auto_refresh_enabled BOOLEAN DEFAULT true,
+  last_token_update_date TIMESTAMP,
+  token_update_count INTEGER DEFAULT 0,
+  last_token_update_error TEXT,
+  fingerprint VARCHAR(50),
+  is_admin BOOLEAN NOT NULL DEFAULT false
 );
 
 -- Index for faster lookups by email
@@ -13,6 +22,14 @@ CREATE INDEX IF NOT EXISTS idx_auth_sessions_email ON auth_sessions(user_email);
 
 -- Index for faster lookups by creation date (for cleanup)
 CREATE INDEX IF NOT EXISTS idx_auth_sessions_created_at ON auth_sessions(created_at);
+
+-- Index for refresh tracking
+CREATE INDEX IF NOT EXISTS idx_auth_sessions_last_refresh ON auth_sessions(last_refresh_date, auto_refresh_enabled)
+  WHERE auto_refresh_enabled = true;
+
+-- Index for refresh errors
+CREATE INDEX IF NOT EXISTS idx_auth_sessions_refresh_errors ON auth_sessions(last_refresh_error, last_refresh_date)
+  WHERE last_refresh_error IS NOT NULL;
 
 -- Enable Row Level Security
 ALTER TABLE auth_sessions ENABLE ROW LEVEL SECURITY;
@@ -50,3 +67,12 @@ COMMENT ON TABLE auth_sessions IS 'Stores Aimharder authentication sessions with
 COMMENT ON COLUMN auth_sessions.user_email IS 'User email as unique identifier';
 COMMENT ON COLUMN auth_sessions.aimharder_token IS 'Token extracted from Aimharder login response';
 COMMENT ON COLUMN auth_sessions.aimharder_cookies IS 'JSON array of cookies (AWSALB, AWSALBCORS, PHPSESSID, amhrdrauth)';
+COMMENT ON COLUMN auth_sessions.last_refresh_date IS 'Last time the token was refreshed via setrefresh endpoint';
+COMMENT ON COLUMN auth_sessions.refresh_count IS 'Number of successful token refreshes';
+COMMENT ON COLUMN auth_sessions.last_refresh_error IS 'Last error message from token refresh attempt';
+COMMENT ON COLUMN auth_sessions.auto_refresh_enabled IS 'Whether automatic token refresh is enabled for this session';
+COMMENT ON COLUMN auth_sessions.last_token_update_date IS 'Last time the token was updated via tokenUpdate endpoint';
+COMMENT ON COLUMN auth_sessions.token_update_count IS 'Number of successful token updates';
+COMMENT ON COLUMN auth_sessions.last_token_update_error IS 'Last error message from token update attempt';
+COMMENT ON COLUMN auth_sessions.fingerprint IS 'Browser fingerprint for this session';
+COMMENT ON COLUMN auth_sessions.is_admin IS 'Whether this user has admin privileges';

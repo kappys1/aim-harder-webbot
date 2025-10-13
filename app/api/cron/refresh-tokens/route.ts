@@ -95,7 +95,7 @@ async function processTokenRefreshInBackground() {
             `[Background] Failed to update token for ${session.email}:`,
             updateResult.error
           );
-          await SupabaseSessionService.updateRefreshData(
+          await SupabaseSessionService.updateTokenUpdateData(
             session.email,
             false,
             updateResult.error
@@ -118,8 +118,8 @@ async function processTokenRefreshInBackground() {
           );
         }
 
-        // Track successful refresh
-        await SupabaseSessionService.updateRefreshData(session.email, true);
+        // Track successful token update
+        await SupabaseSessionService.updateTokenUpdateData(session.email, true);
 
         results.updated++;
       } catch (error) {

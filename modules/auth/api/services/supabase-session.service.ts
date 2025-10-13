@@ -12,6 +12,10 @@ export interface SessionData {
   lastRefreshDate?: string;
   refreshCount?: number;
   lastRefreshError?: string;
+  autoRefreshEnabled?: boolean;
+  lastTokenUpdateDate?: string;
+  tokenUpdateCount?: number;
+  lastTokenUpdateError?: string;
   fingerprint?: string; // Browser fingerprint for this session
   isAdmin?: boolean; // Admin flag for bypassing limits
 }
@@ -23,6 +27,15 @@ export interface SessionRow {
   aimharder_cookies: Array<{ name: string; value: string }>;
   created_at: string;
   updated_at: string;
+  last_refresh_date?: string;
+  refresh_count?: number;
+  last_refresh_error?: string;
+  auto_refresh_enabled?: boolean;
+  last_token_update_date?: string;
+  token_update_count?: number;
+  last_token_update_error?: string;
+  fingerprint?: string;
+  is_admin?: boolean;
 }
 
 export class SupabaseSessionService {
@@ -84,11 +97,15 @@ export class SupabaseSessionService {
         })),
         createdAt: sessionRow.created_at,
         updatedAt: sessionRow.updated_at,
-        lastRefreshDate: (sessionRow as any).last_refresh_date,
-        refreshCount: (sessionRow as any).refresh_count,
-        lastRefreshError: (sessionRow as any).last_refresh_error,
-        fingerprint: (sessionRow as any).fingerprint, // Include fingerprint from database
-        isAdmin: (sessionRow as any).is_admin || false, // Include admin flag from database
+        lastRefreshDate: sessionRow.last_refresh_date,
+        refreshCount: sessionRow.refresh_count,
+        lastRefreshError: sessionRow.last_refresh_error,
+        autoRefreshEnabled: sessionRow.auto_refresh_enabled,
+        lastTokenUpdateDate: sessionRow.last_token_update_date,
+        tokenUpdateCount: sessionRow.token_update_count,
+        lastTokenUpdateError: sessionRow.last_token_update_error,
+        fingerprint: sessionRow.fingerprint,
+        isAdmin: sessionRow.is_admin || false,
       };
     } catch (error) {
       console.error("Session retrieval error:", error);
@@ -250,9 +267,15 @@ export class SupabaseSessionService {
         })),
         createdAt: row.created_at,
         updatedAt: row.updated_at,
-        lastRefreshDate: (row as any).last_refresh_date,
-        refreshCount: (row as any).refresh_count,
-        lastRefreshError: (row as any).last_refresh_error,
+        lastRefreshDate: row.last_refresh_date,
+        refreshCount: row.refresh_count,
+        lastRefreshError: row.last_refresh_error,
+        autoRefreshEnabled: row.auto_refresh_enabled,
+        lastTokenUpdateDate: row.last_token_update_date,
+        tokenUpdateCount: row.token_update_count,
+        lastTokenUpdateError: row.last_token_update_error,
+        fingerprint: row.fingerprint,
+        isAdmin: row.is_admin || false,
       }));
     } catch (error) {
       console.error("Active sessions retrieval error:", error);
@@ -355,6 +378,46 @@ export class SupabaseSessionService {
       }
     } catch (error) {
       console.error("Refresh data update error:", error);
+      throw error;
+    }
+  }
+
+  // Token update tracking methods
+  static async updateTokenUpdateData(
+    email: string,
+    success: boolean,
+    error?: string
+  ): Promise<void> {
+    try {
+      // Get current session to increment token update count
+      const session = await this.getSession(email);
+      if (!session) return;
+
+      const updateData: any = {
+        last_token_update_date: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      if (success) {
+        updateData.token_update_count = (session.tokenUpdateCount || 0) + 1;
+        updateData.last_token_update_error = null;
+      } else {
+        updateData.last_token_update_error = error;
+      }
+
+      const { error: updateError } = await supabaseAdmin
+        .from("auth_sessions")
+        .update(updateData)
+        .eq("user_email", email);
+
+      if (updateError) {
+        console.error("Token update data update error:", updateError);
+        throw new Error(
+          `Failed to update token update data: ${updateError.message}`
+        );
+      }
+    } catch (error) {
+      console.error("Token update data update error:", error);
       throw error;
     }
   }

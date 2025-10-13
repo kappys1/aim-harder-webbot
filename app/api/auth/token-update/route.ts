@@ -49,6 +49,14 @@ export async function POST(request: NextRequest) {
     // Handle error
     if (!updateResult.success || !updateResult.newToken) {
       console.error("Token update failed for:", email, updateResult.error);
+
+      // Track failed token update
+      await SupabaseSessionService.updateTokenUpdateData(
+        email,
+        false,
+        updateResult.error
+      );
+
       return NextResponse.json(
         { success: false, error: updateResult.error || "Token update failed" },
         { status: 500 }
@@ -64,6 +72,9 @@ export async function POST(request: NextRequest) {
     if (updateResult.cookies && updateResult.cookies.length > 0) {
       await SupabaseSessionService.updateCookies(email, updateResult.cookies);
     }
+
+    // Track successful token update
+    await SupabaseSessionService.updateTokenUpdateData(email, true);
 
     return NextResponse.json({
       success: true,

@@ -172,6 +172,7 @@ export class BookingService {
       const validatedData = BookingCreateResponseSchema.safeParse(data);
 
       if (!validatedData.success) {
+        console.error(validatedData.error);
         throw new BookingApiError(
           "Invalid booking response format",
           400,
