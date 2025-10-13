@@ -80,11 +80,22 @@ export class BookingService {
 
       const validatedData = BookingResponseApiSchema.safeParse(data);
       if (!validatedData.success) {
+        // LOG: Detailed validation error for getBookings
+        console.error('[BOOKING_API] Validation failed for getBookings:', {
+          zodError: validatedData.error.issues,
+          rawResponse: data,
+          requestParams: params,
+          url,
+        });
         throw new BookingApiError(
           "Invalid API response format",
           400,
           "VALIDATION_ERROR",
-          validatedData.error.issues
+          {
+            zodIssues: validatedData.error.issues,
+            rawResponse: data,
+            requestParams: params,
+          }
         );
       }
 
@@ -169,15 +180,44 @@ export class BookingService {
 
       const data = await response.json();
 
+      // LOG: Capture raw response for debugging
+      console.log('[BOOKING_API] Raw createBooking response:', {
+        url,
+        statusCode: response.status,
+        statusText: response.statusText,
+        headers: Object.fromEntries(response.headers.entries()),
+        body: data,
+      });
+
       const validatedData = BookingCreateResponseSchema.safeParse(data);
 
       if (!validatedData.success) {
-        console.error(validatedData.error);
+        // LOG: Detailed validation error with raw response
+        console.error('[BOOKING_API] Validation failed for createBooking:', {
+          zodError: validatedData.error.issues,
+          rawResponse: data,
+          requestBody: {
+            day: request.day,
+            familyId: request.familyId,
+            id: request.id,
+            insist: request.insist,
+          },
+          url,
+        });
         throw new BookingApiError(
           "Invalid booking response format",
           400,
           "VALIDATION_ERROR",
-          validatedData.error.issues
+          {
+            zodIssues: validatedData.error.issues,
+            rawResponse: data,
+            requestBody: {
+              day: request.day,
+              familyId: request.familyId,
+              id: request.id,
+              insist: request.insist,
+            },
+          }
         );
       }
 
@@ -263,11 +303,30 @@ export class BookingService {
 
       const validatedData = BookingCancelResponseSchema.safeParse(data);
       if (!validatedData.success) {
+        // LOG: Detailed validation error for cancelBooking
+        console.error('[BOOKING_API] Validation failed for cancelBooking:', {
+          zodError: validatedData.error.issues,
+          rawResponse: data,
+          requestBody: {
+            id: request.id,
+            late: request.late,
+            familyId: request.familyId,
+          },
+          url,
+        });
         throw new BookingApiError(
           "Invalid cancellation response format",
           400,
           "VALIDATION_ERROR",
-          validatedData.error.issues
+          {
+            zodIssues: validatedData.error.issues,
+            rawResponse: data,
+            requestBody: {
+              id: request.id,
+              late: request.late,
+              familyId: request.familyId,
+            },
+          }
         );
       }
 

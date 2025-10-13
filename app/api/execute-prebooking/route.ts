@@ -44,6 +44,7 @@ interface WebhookBody {
 export async function POST(request: NextRequest) {
   const startTime = Date.now();
   const executionId = crypto.randomUUID();
+  let parsedBody: WebhookBody | undefined;
 
   console.log(
     `[HYBRID ${executionId}] Triggered at ${new Date(startTime).toISOString()}`
@@ -52,7 +53,7 @@ export async function POST(request: NextRequest) {
   try {
     // PHASE 1: FAST TOKEN VALIDATION (~1-2ms vs ~50-100ms QStash signature)
     const body = await request.json();
-    const parsedBody = body as WebhookBody;
+    parsedBody = body as WebhookBody;
 
     const {
       prebookingId,
@@ -299,13 +300,46 @@ export async function POST(request: NextRequest) {
     }
   } catch (error) {
     const totalTime = Date.now() - startTime;
-    console.error(`[HYBRID ${executionId}] Error after ${totalTime}ms:`, error);
+
+    // LOG: Detailed structured error logging
+    const errorDetails = {
+      executionId,
+      prebookingId: parsedBody?.prebookingId,
+      boxSubdomain: parsedBody?.boxSubdomain,
+      boxAimharderId: parsedBody?.boxAimharderId,
+      executeAt: parsedBody?.executeAt,
+      totalTime,
+      timestamp: new Date().toISOString(),
+      errorName: error instanceof Error ? error.name : 'Unknown',
+      errorMessage: error instanceof Error ? error.message : 'Unknown error',
+      errorStack: error instanceof Error ? error.stack : undefined,
+    };
+
+    // Add BookingApiError specific details if available
+    if (error instanceof Error && error.name === 'BookingApiError') {
+      const bookingError = error as Error & {
+        type?: string;
+        statusCode?: number;
+        details?: unknown;
+      };
+      Object.assign(errorDetails, {
+        errorType: bookingError.type,
+        errorStatusCode: bookingError.statusCode,
+        errorDetails: bookingError.details,
+      });
+    }
+
+    console.error(
+      `[HYBRID ${executionId}] DETAILED ERROR after ${totalTime}ms:`,
+      JSON.stringify(errorDetails, null, 2)
+    );
 
     return NextResponse.json(
       {
         success: false,
         error: error instanceof Error ? error.message : "Unknown error",
         executionTime: totalTime,
+        executionId, // Include for tracking
       },
       { status: 500 }
     );
