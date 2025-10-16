@@ -1,7 +1,8 @@
 import { verifyPrebookingToken } from "@/core/qstash/security-token";
+import { AimharderRefreshService } from "@/modules/auth/api/services/aimharder-refresh.service";
 import { SupabaseSessionService } from "@/modules/auth/api/services/supabase-session.service";
-import { bookingService } from "@/modules/booking/api/services/booking.service";
 import { BookingMapper } from "@/modules/booking/api/mappers/booking.mapper";
+import { bookingService } from "@/modules/booking/api/services/booking.service";
 import { preBookingService } from "@/modules/prebooking/api/services/prebooking.service";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -9,28 +10,31 @@ import { NextRequest, NextResponse } from "next/server";
  * QStash Webhook Endpoint - Execute Single Prebooking (HYBRID OPTIMIZATION)
  *
  * HYBRID OPTIMIZATION FLOW:
- * 1. QStash triggers 3 SECONDS BEFORE available_at
+ * 1. QStash triggers 4 SECONDS BEFORE available_at
  * 2. Verify security token (fast: ~1-2ms vs ~50-100ms QStash signature)
  * 3. Fetch session & prebooking in parallel (~250ms)
  * 4. Validate prebooking state (~5ms)
- * 5. Wait until EXACT executeAt timestamp (~2750ms)
- * 6. Fire to AimHarder API immediately
- * 7. Update prebooking status (background)
+ * 5. Check and refresh token if needed (~500ms if refresh needed)
+ * 6. Wait until EXACT executeAt timestamp (~3250ms or ~2750ms if no refresh)
+ * 7. Fire to AimHarder API immediately
+ * 8. Update prebooking status (background)
  *
  * Benefits:
- * - Session fetched fresh (3s before, not expired)
+ * - Session fetched fresh (4s before, not expired)
+ * - Token refreshed if older than 25 minutes (prevents logout)
  * - All queries done during wait time (zero latency at execute time)
  * - Fires at EXACT millisecond specified
  * - Fast token validation instead of QStash signature
  *
  * Timeline Example:
- * 19:29:57.000 - QStash triggers
- * 19:29:57.250 - Queries completed
+ * 19:29:56.000 - QStash triggers
+ * 19:29:56.250 - Queries completed
+ * 19:29:56.750 - Token refreshed (if needed)
  * 19:30:00.000 - Fire to AimHarder (EXACT)
  * 19:30:01.500 - AimHarder responds
  */
 
-export const maxDuration = 10; // Vercel Hobby limit (enough for 3s wait + execution)
+export const maxDuration = 10; // Vercel Hobby limit (enough for 4s wait + execution)
 export const dynamic = "force-dynamic";
 
 interface WebhookBody {
@@ -139,7 +143,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Fetch session (FRESH: obtained 3s before execution)
+    // Fetch session (FRESH: obtained 4s before execution)
     const session = await SupabaseSessionService.getSession(
       prebooking.userEmail
     );
@@ -173,6 +177,142 @@ export async function POST(request: NextRequest) {
     console.log(
       `[HYBRID ${executionId}] Queries completed in ${queriesTime}ms`
     );
+
+    // PHASE 2.5: CHECK AND REFRESH TOKEN IF NEEDED
+    // Refresh token if it's older than 25 minutes to prevent { logout: 1 } errors
+    const shouldRefreshToken = () => {
+      if (!session.lastTokenUpdateDate) {
+        console.log(
+          `[HYBRID ${executionId}] Token never updated, needs refresh`
+        );
+        return true;
+      }
+
+      const lastUpdate = new Date(session.lastTokenUpdateDate);
+      const now = new Date();
+      const minutesSinceUpdate =
+        (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
+
+      if (minutesSinceUpdate > 20) {
+        console.log(
+          `[HYBRID ${executionId}] Token is ${minutesSinceUpdate.toFixed(
+            1
+          )} minutes old, needs refresh`
+        );
+        return true;
+      }
+
+      console.log(
+        `[HYBRID ${executionId}] Token is ${minutesSinceUpdate.toFixed(
+          1
+        )} minutes old, still fresh`
+      );
+      return false;
+    };
+
+    if (shouldRefreshToken()) {
+      const refreshStart = Date.now();
+      console.log(`[HYBRID ${executionId}] 🔄 Refreshing token...`);
+
+      try {
+        const refreshResult = await AimharderRefreshService.updateToken({
+          token: session.token,
+          fingerprint:
+            session.fingerprint ||
+            process.env.AIMHARDER_FINGERPRINT ||
+            "default-fingerprint",
+          cookies: session.cookies,
+        });
+
+        const refreshTime = Date.now() - refreshStart;
+
+        if (refreshResult.logout) {
+          console.error(
+            `[HYBRID ${executionId}] Token refresh failed - session expired (${refreshTime}ms)`
+          );
+          preBookingService
+            .markFailed(prebookingId, "Session expired - please login again")
+            .catch((err) =>
+              setImmediate(() =>
+                console.error(
+                  `[HYBRID ${executionId}] Background update failed:`,
+                  err
+                )
+              )
+            );
+          return NextResponse.json(
+            {
+              success: false,
+              error: "Session expired - please login again",
+              prebookingId,
+            },
+            { status: 401 }
+          );
+        }
+
+        if (!refreshResult.success || !refreshResult.newToken) {
+          console.error(
+            `[HYBRID ${executionId}] Token refresh failed: ${refreshResult.error} (${refreshTime}ms)`
+          );
+          preBookingService
+            .markFailed(
+              prebookingId,
+              `Token refresh failed: ${refreshResult.error}`
+            )
+            .catch((err) =>
+              setImmediate(() =>
+                console.error(
+                  `[HYBRID ${executionId}] Background update failed:`,
+                  err
+                )
+              )
+            );
+          return NextResponse.json(
+            {
+              success: false,
+              error: "Failed to refresh authentication",
+              prebookingId,
+            },
+            { status: 500 }
+          );
+        }
+
+        // Update session in database with new token
+        await SupabaseSessionService.updateRefreshToken(
+          prebooking.userEmail,
+          refreshResult.newToken
+        );
+
+        if (refreshResult.cookies && refreshResult.cookies.length > 0) {
+          await SupabaseSessionService.updateCookies(
+            prebooking.userEmail,
+            refreshResult.cookies
+          );
+        }
+
+        await SupabaseSessionService.updateTokenUpdateData(
+          prebooking.userEmail,
+          true
+        );
+
+        console.log(
+          `[HYBRID ${executionId}] ✅ Token refreshed successfully (${refreshTime}ms)`
+        );
+
+        // Update session object with fresh token for booking
+        session.token = refreshResult.newToken;
+        if (refreshResult.cookies && refreshResult.cookies.length > 0) {
+          session.cookies = refreshResult.cookies;
+        }
+      } catch (error) {
+        const refreshTime = Date.now() - refreshStart;
+        console.error(
+          `[HYBRID ${executionId}] Token refresh error (${refreshTime}ms):`,
+          error
+        );
+        // Continue with existing token (cron might have refreshed it)
+      }
+    }
 
     // PHASE 3: WAIT UNTIL EXACT EXECUTION TIME
     const now = Date.now();
@@ -224,8 +364,8 @@ export async function POST(request: NextRequest) {
     if (success) {
       // Determine appropriate message
       const message = mappedResult.alreadyBookedManually
-        ? 'Booking already created manually by user'
-        : bookingResponse.errorMssg || 'Booking created successfully';
+        ? "Booking already created manually by user"
+        : bookingResponse.errorMssg || "Booking created successfully";
 
       preBookingService
         .markCompleted(prebookingId, {
@@ -247,9 +387,7 @@ export async function POST(request: NextRequest) {
         ? `✅ SUCCESS (user booked manually) in ${totalTime}ms (fire latency: ${latency}ms)`
         : `✅ SUCCESS in ${totalTime}ms (fire latency: ${latency}ms)`;
 
-      setImmediate(() =>
-        console.log(`[HYBRID ${executionId}] ${logMessage}`)
-      );
+      setImmediate(() => console.log(`[HYBRID ${executionId}] ${logMessage}`));
 
       return NextResponse.json({
         success: true,
@@ -310,13 +448,13 @@ export async function POST(request: NextRequest) {
       executeAt: parsedBody?.executeAt,
       totalTime,
       timestamp: new Date().toISOString(),
-      errorName: error instanceof Error ? error.name : 'Unknown',
-      errorMessage: error instanceof Error ? error.message : 'Unknown error',
+      errorName: error instanceof Error ? error.name : "Unknown",
+      errorMessage: error instanceof Error ? error.message : "Unknown error",
       errorStack: error instanceof Error ? error.stack : undefined,
     };
 
     // Add BookingApiError specific details if available
-    if (error instanceof Error && error.name === 'BookingApiError') {
+    if (error instanceof Error && error.name === "BookingApiError") {
       const bookingError = error as Error & {
         type?: string;
         statusCode?: number;

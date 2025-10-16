@@ -80,13 +80,13 @@ export class BookingService {
 
       const validatedData = BookingResponseApiSchema.safeParse(data);
       if (!validatedData.success) {
-        // LOG: Detailed validation error for getBookings
-        console.error('[BOOKING_API] Validation failed for getBookings:', {
+        // LOG: Detailed validation error for getBookings (stringified for production visibility)
+        console.error('[BOOKING_API] Validation failed for getBookings:', JSON.stringify({
           zodError: validatedData.error.issues,
           rawResponse: data,
           requestParams: params,
           url,
-        });
+        }, null, 2));
         throw new BookingApiError(
           "Invalid API response format",
           400,
@@ -180,20 +180,51 @@ export class BookingService {
 
       const data = await response.json();
 
-      // LOG: Capture raw response for debugging
-      console.log('[BOOKING_API] Raw createBooking response:', {
+      // CRITICAL: Detect session expiration BEFORE validation
+      // Aimharder returns { logout: 1 } when token/session is expired
+      if (data.logout === 1) {
+        console.error('[BOOKING_API] Session expired (logout: 1):', JSON.stringify({
+          url,
+          statusCode: response.status,
+          rawResponse: data,
+          requestBody: {
+            day: request.day,
+            familyId: request.familyId,
+            id: request.id,
+            insist: request.insist,
+          },
+        }, null, 2));
+
+        throw new BookingApiError(
+          "Session expired - authentication required",
+          401,
+          "AUTH_ERROR",
+          {
+            rawResponse: data,
+            requestBody: {
+              day: request.day,
+              familyId: request.familyId,
+              id: request.id,
+              insist: request.insist,
+            },
+          }
+        );
+      }
+
+      // LOG: Capture raw response for debugging (using console.error to ensure visibility in production)
+      console.error('[BOOKING_API] Raw createBooking response:', JSON.stringify({
         url,
         statusCode: response.status,
         statusText: response.statusText,
         headers: Object.fromEntries(response.headers.entries()),
         body: data,
-      });
+      }, null, 2));
 
       const validatedData = BookingCreateResponseSchema.safeParse(data);
 
       if (!validatedData.success) {
-        // LOG: Detailed validation error with raw response
-        console.error('[BOOKING_API] Validation failed for createBooking:', {
+        // LOG: Detailed validation error with raw response (stringified for production visibility)
+        console.error('[BOOKING_API] Validation failed for createBooking:', JSON.stringify({
           zodError: validatedData.error.issues,
           rawResponse: data,
           requestBody: {
@@ -203,7 +234,7 @@ export class BookingService {
             insist: request.insist,
           },
           url,
-        });
+        }, null, 2));
         throw new BookingApiError(
           "Invalid booking response format",
           400,
@@ -303,8 +334,8 @@ export class BookingService {
 
       const validatedData = BookingCancelResponseSchema.safeParse(data);
       if (!validatedData.success) {
-        // LOG: Detailed validation error for cancelBooking
-        console.error('[BOOKING_API] Validation failed for cancelBooking:', {
+        // LOG: Detailed validation error for cancelBooking (stringified for production visibility)
+        console.error('[BOOKING_API] Validation failed for cancelBooking:', JSON.stringify({
           zodError: validatedData.error.issues,
           rawResponse: data,
           requestBody: {
@@ -313,7 +344,7 @@ export class BookingService {
             familyId: request.familyId,
           },
           url,
-        });
+        }, null, 2));
         throw new BookingApiError(
           "Invalid cancellation response format",
           400,
@@ -378,6 +409,7 @@ export class BookingApiError extends Error {
       | "VALIDATION_ERROR"
       | "TIMEOUT_ERROR"
       | "NETWORK_ERROR"
+      | "AUTH_ERROR"
       | "UNKNOWN_ERROR",
     public readonly details?: any
   ) {
@@ -395,8 +427,9 @@ export class BookingApiError extends Error {
 
   get isAuthenticationError(): boolean {
     return (
-      this.type === "HTTP_ERROR" &&
-      (this.statusCode === 401 || this.statusCode === 403)
+      this.type === "AUTH_ERROR" ||
+      (this.type === "HTTP_ERROR" &&
+        (this.statusCode === 401 || this.statusCode === 403))
     );
   }
 }
