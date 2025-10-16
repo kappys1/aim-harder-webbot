@@ -10,31 +10,31 @@ import { NextRequest, NextResponse } from "next/server";
  * QStash Webhook Endpoint - Execute Single Prebooking (HYBRID OPTIMIZATION)
  *
  * HYBRID OPTIMIZATION FLOW:
- * 1. QStash triggers 4 SECONDS BEFORE available_at
+ * 1. QStash triggers 5 SECONDS BEFORE available_at
  * 2. Verify security token (fast: ~1-2ms vs ~50-100ms QStash signature)
  * 3. Fetch session & prebooking in parallel (~250ms)
  * 4. Validate prebooking state (~5ms)
  * 5. Check and refresh token if needed (~500ms if refresh needed)
- * 6. Wait until EXACT executeAt timestamp (~3250ms or ~2750ms if no refresh)
+ * 6. Wait until EXACT executeAt timestamp (~4250ms or ~3750ms if no refresh)
  * 7. Fire to AimHarder API immediately
  * 8. Update prebooking status (background)
  *
  * Benefits:
- * - Session fetched fresh (4s before, not expired)
+ * - Session fetched fresh (5s before, not expired)
  * - Token refreshed if older than 25 minutes (prevents logout)
  * - All queries done during wait time (zero latency at execute time)
  * - Fires at EXACT millisecond specified
  * - Fast token validation instead of QStash signature
  *
  * Timeline Example:
- * 19:29:56.000 - QStash triggers
- * 19:29:56.250 - Queries completed
- * 19:29:56.750 - Token refreshed (if needed)
+ * 19:29:55.000 - QStash triggers
+ * 19:29:55.250 - Queries completed
+ * 19:29:55.750 - Token refreshed (if needed)
  * 19:30:00.000 - Fire to AimHarder (EXACT)
  * 19:30:01.500 - AimHarder responds
  */
 
-export const maxDuration = 10; // Vercel Hobby limit (enough for 4s wait + execution)
+export const maxDuration = 10; // Vercel Hobby limit (enough for 5s wait + execution)
 export const dynamic = "force-dynamic";
 
 interface WebhookBody {
@@ -143,7 +143,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Fetch session (FRESH: obtained 4s before execution)
+    // Fetch session (FRESH: obtained 5s before execution)
     const session = await SupabaseSessionService.getSession(
       prebooking.userEmail
     );

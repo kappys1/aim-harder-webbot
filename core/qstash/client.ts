@@ -45,14 +45,14 @@ export function getCallbackUrl(): string {
 /**
  * Schedule a prebooking execution at a specific timestamp
  *
- * HYBRID OPTIMIZATION: Executes 4 SECONDS BEFORE the actual available_at
+ * HYBRID OPTIMIZATION: Executes 5 SECONDS BEFORE the actual available_at
  * to allow time for preparatory queries, token refresh if needed, then waits until the exact millisecond
  *
  * Flow:
- * 1. QStash triggers webhook 4s before available_at
+ * 1. QStash triggers webhook 5s before available_at
  * 2. Webhook fetches session & validates prebooking (~250ms)
- * 3. Webhook refreshes token if older than 25 minutes (~500ms if needed)
- * 4. Webhook waits until EXACT executeAt timestamp (~3250ms or ~2750ms if no refresh)
+ * 3. Webhook refreshes token if older than 25 minutes (~1000ms if needed)
+ * 4. Webhook waits until EXACT executeAt timestamp (~3750ms or ~4250ms if no refresh)
  * 5. Webhook fires to AimHarder API immediately (<100ms latency)
  *
  * @param prebookingId - ID of the prebooking to execute
@@ -70,14 +70,14 @@ export async function schedulePrebookingExecution(
 ): Promise<string> {
   const callbackUrl = `${getCallbackUrl()}/api/execute-prebooking`;
 
-  // HYBRID OPTIMIZATION: Schedule execution 4 SECONDS BEFORE available_at
+  // HYBRID OPTIMIZATION: Schedule execution 5 SECONDS BEFORE available_at
   // This allows time for:
   // - Fetching session from Supabase (~100-200ms)
   // - Fetching prebooking from Supabase (~100-200ms)
-  // - Token refresh if needed (~500ms, only if token > 25min old)
+  // - Token refresh if needed (~1000ms, only if token > 25min old)
   // - Validations (~5ms)
-  // - Waiting until EXACT executeAt timestamp (~3250ms or ~2750ms)
-  const earlyExecutionTime = new Date(executeAt.getTime() - 4000);
+  // - Waiting until EXACT executeAt timestamp (~3750ms or ~4250ms)
+  const earlyExecutionTime = new Date(executeAt.getTime() - 5000);
 
   // Generate security token (faster than QStash signature verification)
   const securityToken = generatePrebookingToken(prebookingId, executeAt);
