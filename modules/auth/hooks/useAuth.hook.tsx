@@ -18,14 +18,15 @@ export function useAuth() {
   const { startRefresh, stopRefresh } = useTokenRefresh({
     email: user?.email || null,
     onLogout: () => {
-      // Handle forced logout from token refresh
+      // Handle forced logout from token refresh (when token expires)
       setUser(null);
       if (typeof window !== "undefined") {
         localStorage.removeItem("user-email");
         localStorage.removeItem("refreshToken");
         localStorage.removeItem("fingerprint");
+        // Use window.location for guaranteed redirect
+        window.location.href = "/login";
       }
-      router.push("/login");
     },
   });
 
@@ -85,10 +86,10 @@ export function useAuth() {
       // Stop token refresh timer
       stopRefresh();
 
-      // Clear user data from state
+      // Clear user data from state FIRST
       setUser(null);
 
-      // Clear localStorage
+      // Clear localStorage BEFORE API call to prevent race conditions
       if (typeof window !== "undefined") {
         localStorage.removeItem("user-email");
         localStorage.removeItem("refreshToken");
@@ -96,32 +97,56 @@ export function useAuth() {
       }
 
       // Delete device session from database (if we have email)
+      // CRITICAL: This is best-effort - if it fails, we still logout the user
       if (email) {
-        const response = await fetch("/api/auth/aimharder", {
-          method: "DELETE",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            email,
-            fingerprint, // May be null if not stored
-          }),
-        });
+        try {
+          const response = await fetch("/api/auth/aimharder", {
+            method: "DELETE",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              email,
+              fingerprint, // May be null if not stored
+            }),
+          });
 
-        if (!response.ok) {
-          console.warn("Failed to delete device session during logout");
-        } else {
-          console.log("[LOGOUT] Device session deleted successfully");
+          if (!response.ok) {
+            console.warn("[LOGOUT] Failed to delete device session from database, but proceeding with logout");
+          } else {
+            console.log("[LOGOUT] Device session deleted successfully from database");
+          }
+        } catch (apiError) {
+          // API call failed, but we still logout the user client-side
+          console.warn("[LOGOUT] API call failed, but proceeding with client-side logout:", apiError);
         }
+      } else {
+        console.log("[LOGOUT] No email found, skipping database cleanup");
       }
 
+      // CRITICAL: Always show success message
       toast.success("Sesión cerrada exitosamente");
-      router.push("/login");
+
+      // CRITICAL: Use window.location for guaranteed navigation (bypasses Next.js router)
+      // This ensures a full page reload that clears all state and cookies
+      if (typeof window !== "undefined") {
+        // Small delay to let the toast show
+        setTimeout(() => {
+          window.location.href = "/login";
+        }, 500);
+      }
     } catch (err) {
-      console.error("Logout hook error:", err);
-      setError("Logout failed");
+      console.error("[LOGOUT] Unexpected error during logout:", err);
+
+      // Even on error, force logout the user
+      setUser(null);
+      if (typeof window !== "undefined") {
+        localStorage.clear(); // Clear everything to be safe
+        window.location.href = "/login";
+      }
     } finally {
-      setIsLoading(false);
+      // Don't set loading to false here because we're doing a full page redirect
+      // setIsLoading(false);
     }
   };
 
