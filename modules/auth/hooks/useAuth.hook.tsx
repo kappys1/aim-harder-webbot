@@ -25,8 +25,8 @@ export function useAuth() {
         localStorage.removeItem("refreshToken");
         localStorage.removeItem("fingerprint");
         // Use window.location for guaranteed redirect
-        window.location.href = "/login";
       }
+      router.push("/login");
     },
   });
 
@@ -80,8 +80,14 @@ export function useAuth() {
     try {
       // Multi-session logout - delete ONLY device session, preserve background session
       // Get email and fingerprint before clearing localStorage
-      const email = typeof window !== "undefined" ? localStorage.getItem("user-email") : null;
-      const fingerprint = typeof window !== "undefined" ? localStorage.getItem("fingerprint") : null;
+      const email =
+        typeof window !== "undefined"
+          ? localStorage.getItem("user-email")
+          : null;
+      const fingerprint =
+        typeof window !== "undefined"
+          ? localStorage.getItem("fingerprint")
+          : null;
 
       // Stop token refresh timer
       stopRefresh();
@@ -112,13 +118,20 @@ export function useAuth() {
           });
 
           if (!response.ok) {
-            console.warn("[LOGOUT] Failed to delete device session from database, but proceeding with logout");
+            console.warn(
+              "[LOGOUT] Failed to delete device session from database, but proceeding with logout"
+            );
           } else {
-            console.log("[LOGOUT] Device session deleted successfully from database");
+            console.log(
+              "[LOGOUT] Device session deleted successfully from database"
+            );
           }
         } catch (apiError) {
           // API call failed, but we still logout the user client-side
-          console.warn("[LOGOUT] API call failed, but proceeding with client-side logout:", apiError);
+          console.warn(
+            "[LOGOUT] API call failed, but proceeding with client-side logout:",
+            apiError
+          );
         }
       } else {
         console.log("[LOGOUT] No email found, skipping database cleanup");
@@ -132,7 +145,8 @@ export function useAuth() {
       if (typeof window !== "undefined") {
         // Small delay to let the toast show
         setTimeout(() => {
-          window.location.href = "/login";
+          // window.location.href = "/login";
+          router.push("/login");
         }, 500);
       }
     } catch (err) {
@@ -142,7 +156,8 @@ export function useAuth() {
       setUser(null);
       if (typeof window !== "undefined") {
         localStorage.clear(); // Clear everything to be safe
-        window.location.href = "/login";
+        // window.location.href = "/login";
+        router.push("/login");
       }
     } finally {
       // Don't set loading to false here because we're doing a full page redirect
