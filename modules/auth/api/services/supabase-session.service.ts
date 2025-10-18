@@ -2,10 +2,20 @@ import { supabaseAdmin } from "@/core/database/supabase";
 import { AuthCookie } from "./cookie.service";
 import { TokenData } from "./html-parser.service";
 
+/**
+ * Session Types for Multi-Session Architecture
+ * - background: Used for cron jobs and pre-bookings (never expires)
+ * - device: Used for user devices (expires after 7 days)
+ */
+export type SessionType = 'background' | 'device';
+
 export interface SessionData {
   email: string;
   token: string;
   cookies: AuthCookie[];
+  fingerprint: string; // NOW REQUIRED (not optional)
+  sessionType: SessionType; // NEW: Identifies session purpose
+  protected?: boolean; // NEW: Safety flag for background sessions
   tokenData?: TokenData;
   createdAt: string;
   updatedAt?: string;
@@ -16,7 +26,6 @@ export interface SessionData {
   lastTokenUpdateDate?: string;
   tokenUpdateCount?: number;
   lastTokenUpdateError?: string;
-  fingerprint?: string; // Browser fingerprint for this session
   isAdmin?: boolean; // Admin flag for bypassing limits
 }
 
@@ -25,6 +34,9 @@ export interface SessionRow {
   user_email: string;
   aimharder_token: string;
   aimharder_cookies: Array<{ name: string; value: string }>;
+  fingerprint: string; // NOW REQUIRED
+  session_type: SessionType; // NEW: Session type field
+  protected: boolean; // NEW: Protected flag
   created_at: string;
   updated_at: string;
   last_refresh_date?: string;
@@ -34,11 +46,62 @@ export interface SessionRow {
   last_token_update_date?: string;
   token_update_count?: number;
   last_token_update_error?: string;
-  fingerprint?: string;
   is_admin?: boolean;
 }
 
+/**
+ * Options for querying sessions
+ */
+export interface SessionQueryOptions {
+  fingerprint?: string;
+  sessionType?: SessionType;
+}
+
+/**
+ * Options for deleting sessions (with safety checks)
+ */
+export interface SessionDeleteOptions {
+  fingerprint?: string;
+  sessionType?: SessionType;
+  confirmProtectedDeletion?: boolean; // Required for background session deletion
+}
+
 export class SupabaseSessionService {
+  /**
+   * Helper method to map SessionRow to SessionData
+   * @private
+   */
+  private static mapSessionRow(row: SessionRow): SessionData {
+    return {
+      email: row.user_email,
+      token: row.aimharder_token,
+      cookies: row.aimharder_cookies.map((c) => ({
+        name: c.name,
+        value: c.value,
+      })),
+      fingerprint: row.fingerprint,
+      sessionType: row.session_type,
+      protected: row.protected,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      lastRefreshDate: row.last_refresh_date,
+      refreshCount: row.refresh_count,
+      lastRefreshError: row.last_refresh_error,
+      autoRefreshEnabled: row.auto_refresh_enabled,
+      lastTokenUpdateDate: row.last_token_update_date,
+      tokenUpdateCount: row.token_update_count,
+      lastTokenUpdateError: row.last_token_update_error,
+      isAdmin: row.is_admin || false,
+    };
+  }
+
+  /**
+   * Store a session (device or background)
+   * Uses UPSERT to handle updates on re-login
+   *
+   * CRITICAL: onConflict is now based on (user_email, fingerprint)
+   * This allows multiple sessions per user with different fingerprints
+   */
   static async storeSession(sessionData: SessionData): Promise<void> {
     try {
       const { error } = await supabaseAdmin.from("auth_sessions").upsert(
@@ -49,11 +112,14 @@ export class SupabaseSessionService {
             name: c.name,
             value: c.value,
           })),
+          fingerprint: sessionData.fingerprint,
+          session_type: sessionData.sessionType,
+          protected: sessionData.sessionType === 'background', // Auto-protect background
           created_at: sessionData.createdAt,
           updated_at: new Date().toISOString(),
         },
         {
-          onConflict: "user_email",
+          onConflict: "user_email,fingerprint", // UPDATED: Composite key
         }
       );
 
@@ -67,13 +133,42 @@ export class SupabaseSessionService {
     }
   }
 
-  static async getSession(email: string): Promise<SessionData | null> {
+  /**
+   * Get a session by email with optional filtering
+   *
+   * DEFAULT BEHAVIOR: Returns background session if no options provided
+   * This ensures pre-bookings and background processes get the stable session
+   *
+   * @param email - User email
+   * @param options - Optional filters (fingerprint, sessionType)
+   * @returns Session data or null if not found
+   */
+  static async getSession(
+    email: string,
+    options: SessionQueryOptions = {}
+  ): Promise<SessionData | null> {
     try {
-      const { data, error } = await supabaseAdmin
+      let query = supabaseAdmin
         .from("auth_sessions")
         .select("*")
-        .eq("user_email", email)
-        .single();
+        .eq("user_email", email);
+
+      // Default behavior: return background session if no options provided
+      if (!options.fingerprint && !options.sessionType) {
+        query = query.eq("session_type", "background");
+      }
+
+      // Filter by fingerprint if provided
+      if (options.fingerprint) {
+        query = query.eq("fingerprint", options.fingerprint);
+      }
+
+      // Filter by session type if provided
+      if (options.sessionType) {
+        query = query.eq("session_type", options.sessionType);
+      }
+
+      const { data, error } = await query.single();
 
       if (error) {
         if (error.code === "PGRST116") {
@@ -86,44 +181,134 @@ export class SupabaseSessionService {
 
       if (!data) return null;
 
-      const sessionRow = data as SessionRow;
-
-      return {
-        email: sessionRow.user_email,
-        token: sessionRow.aimharder_token,
-        cookies: sessionRow.aimharder_cookies.map((c) => ({
-          name: c.name,
-          value: c.value,
-        })),
-        createdAt: sessionRow.created_at,
-        updatedAt: sessionRow.updated_at,
-        lastRefreshDate: sessionRow.last_refresh_date,
-        refreshCount: sessionRow.refresh_count,
-        lastRefreshError: sessionRow.last_refresh_error,
-        autoRefreshEnabled: sessionRow.auto_refresh_enabled,
-        lastTokenUpdateDate: sessionRow.last_token_update_date,
-        tokenUpdateCount: sessionRow.token_update_count,
-        lastTokenUpdateError: sessionRow.last_token_update_error,
-        fingerprint: sessionRow.fingerprint,
-        isAdmin: sessionRow.is_admin || false,
-      };
+      return this.mapSessionRow(data as SessionRow);
     } catch (error) {
       console.error("Session retrieval error:", error);
       return null;
     }
   }
 
-  static async deleteSession(email: string): Promise<void> {
+  /**
+   * Get the background session for a user
+   * Convenience wrapper for getSession with background type filter
+   *
+   * @param email - User email
+   * @returns Background session or null
+   */
+  static async getBackgroundSession(email: string): Promise<SessionData | null> {
+    return this.getSession(email, { sessionType: 'background' });
+  }
+
+  /**
+   * Get all device sessions for a user
+   * Returns array of all device sessions (could be multiple devices)
+   *
+   * @param email - User email
+   * @returns Array of device sessions
+   */
+  static async getDeviceSessions(email: string): Promise<SessionData[]> {
     try {
-      const { error } = await supabaseAdmin
+      const { data, error } = await supabaseAdmin
+        .from("auth_sessions")
+        .select("*")
+        .eq("user_email", email)
+        .eq("session_type", "device");
+
+      if (error) {
+        console.error("Device sessions retrieval error:", error);
+        throw new Error(`Failed to retrieve device sessions: ${error.message}`);
+      }
+
+      if (!data || data.length === 0) return [];
+
+      return (data as SessionRow[]).map(row => this.mapSessionRow(row));
+    } catch (error) {
+      console.error("Device sessions retrieval error:", error);
+      return [];
+    }
+  }
+
+  /**
+   * Get ALL sessions for a user (background + all devices)
+   *
+   * @param email - User email
+   * @returns Array of all sessions
+   */
+  static async getAllUserSessions(email: string): Promise<SessionData[]> {
+    try {
+      const { data, error } = await supabaseAdmin
+        .from("auth_sessions")
+        .select("*")
+        .eq("user_email", email);
+
+      if (error) {
+        console.error("All user sessions retrieval error:", error);
+        throw new Error(`Failed to retrieve all user sessions: ${error.message}`);
+      }
+
+      if (!data || data.length === 0) return [];
+
+      return (data as SessionRow[]).map(row => this.mapSessionRow(row));
+    } catch (error) {
+      console.error("All user sessions retrieval error:", error);
+      return [];
+    }
+  }
+
+  /**
+   * Delete session(s) with protection logic
+   *
+   * CRITICAL SAFETY FEATURES:
+   * - Default behavior: Deletes ONLY device sessions (not background)
+   * - Background deletion requires explicit confirmation flag
+   * - Can delete specific session by fingerprint
+   *
+   * @param email - User email
+   * @param options - Deletion options (fingerprint, sessionType, confirmProtectedDeletion)
+   * @throws Error if trying to delete background session without confirmation
+   */
+  static async deleteSession(
+    email: string,
+    options: SessionDeleteOptions = {}
+  ): Promise<void> {
+    try {
+      // CRITICAL: Protect background sessions from accidental deletion
+      if (options.sessionType === 'background' && !options.confirmProtectedDeletion) {
+        throw new Error(
+          'Background session deletion requires explicit confirmation. ' +
+          'Set confirmProtectedDeletion: true to proceed.'
+        );
+      }
+
+      let query = supabaseAdmin
         .from("auth_sessions")
         .delete()
         .eq("user_email", email);
+
+      // Priority 1: Delete specific session by fingerprint (ignores sessionType)
+      if (options.fingerprint) {
+        query = query.eq("fingerprint", options.fingerprint);
+        console.log(`[DELETE SESSION] Deleting session with fingerprint: ${options.fingerprint.substring(0, 10)}... for ${email}`);
+      }
+      // Priority 2: Delete by session type
+      else if (options.sessionType) {
+        query = query.eq("session_type", options.sessionType);
+        console.log(`[DELETE SESSION] Deleting all ${options.sessionType} sessions for ${email}`);
+      }
+      // Priority 3: Default behavior - only delete device sessions
+      else {
+        query = query.eq("session_type", "device");
+        console.log(`[DELETE SESSION] Deleting all device sessions for ${email} (default behavior)`);
+      }
+
+      const { error, count } = await query;
 
       if (error) {
         console.error("Session deletion error:", error);
         throw new Error(`Failed to delete session: ${error.message}`);
       }
+
+      console.log(`[DELETE SESSION] Deleted ${count || 0} session(s) for ${email}`);
     } catch (error) {
       console.error("Session deletion error:", error);
       throw error;
@@ -165,6 +350,14 @@ export class SupabaseSessionService {
     }
   }
 
+  /**
+   * Update refresh token for a specific session
+   *
+   * @param email - User email
+   * @param refreshToken - New refresh token
+   * @param fingerprint - Optional fingerprint to update specific session
+   *                      If not provided, updates background session by default
+   */
   static async updateRefreshToken(
     email: string,
     refreshToken: string,
@@ -176,29 +369,47 @@ export class SupabaseSessionService {
         updated_at: new Date().toISOString(),
       };
 
-      // Store fingerprint if provided by setrefresh
-      if (fingerprint) {
-        updateData.fingerprint = fingerprint;
-      }
-
-      const { error } = await supabaseAdmin
+      let query = supabaseAdmin
         .from("auth_sessions")
         .update(updateData)
         .eq("user_email", email);
+
+      // If fingerprint provided, update that specific session
+      if (fingerprint) {
+        query = query.eq("fingerprint", fingerprint);
+        console.log(`[UPDATE TOKEN] Updating session with fingerprint: ${fingerprint.substring(0, 10)}... for ${email}`);
+      } else {
+        // Default: update background session
+        query = query.eq("session_type", "background");
+        console.log(`[UPDATE TOKEN] Updating background session for ${email}`);
+      }
+
+      const { error, count } = await query;
 
       if (error) {
         console.error("Refresh token update error:", error);
         throw new Error(`Failed to update refresh token: ${error.message}`);
       }
+
+      console.log(`[UPDATE TOKEN] Updated ${count || 0} session(s) for ${email}`);
     } catch (error) {
       console.error("Refresh token update error:", error);
       throw error;
     }
   }
 
+  /**
+   * Update cookies for a specific session
+   *
+   * @param email - User email
+   * @param cookies - Updated cookies
+   * @param fingerprint - Optional fingerprint to update specific session
+   *                      If not provided, updates background session by default
+   */
   static async updateCookies(
     email: string,
-    cookies: Array<{ name: string; value: string }>
+    cookies: Array<{ name: string; value: string }>,
+    fingerprint?: string
   ): Promise<void> {
     try {
       const updateData = {
@@ -209,15 +420,29 @@ export class SupabaseSessionService {
         updated_at: new Date().toISOString(),
       };
 
-      const { error } = await supabaseAdmin
+      let query = supabaseAdmin
         .from("auth_sessions")
         .update(updateData)
         .eq("user_email", email);
+
+      // If fingerprint provided, update that specific session
+      if (fingerprint) {
+        query = query.eq("fingerprint", fingerprint);
+        console.log(`[UPDATE COOKIES] Updating session with fingerprint: ${fingerprint.substring(0, 10)}... for ${email}`);
+      } else {
+        // Default: update background session
+        query = query.eq("session_type", "background");
+        console.log(`[UPDATE COOKIES] Updating background session for ${email}`);
+      }
+
+      const { error, count } = await query;
 
       if (error) {
         console.error("Cookie update error:", error);
         throw new Error(`Failed to update cookies: ${error.message}`);
       }
+
+      console.log(`[UPDATE COOKIES] Updated ${count || 0} session(s) for ${email}`);
     } catch (error) {
       console.error("Cookie update error:", error);
       throw error;
@@ -243,6 +468,13 @@ export class SupabaseSessionService {
     }
   }
 
+  /**
+   * Get all active sessions across all users
+   *
+   * Active = Background sessions (never expire) + Device sessions < 7 days old
+   *
+   * @returns Array of all active sessions
+   */
   static async getAllActiveSessions(): Promise<SessionData[]> {
     try {
       const oneWeekAgo = new Date();
@@ -251,38 +483,33 @@ export class SupabaseSessionService {
       const { data, error } = await supabaseAdmin
         .from("auth_sessions")
         .select("*")
-        .gte("created_at", oneWeekAgo.toISOString());
+        .or(
+          `session_type.eq.background,` +
+          `and(session_type.eq.device,created_at.gte.${oneWeekAgo.toISOString()})`
+        );
 
       if (error) {
         console.error("Active sessions retrieval error:", error);
         throw new Error(`Failed to retrieve active sessions: ${error.message}`);
       }
 
-      return (data as SessionRow[]).map((row) => ({
-        email: row.user_email,
-        token: row.aimharder_token,
-        cookies: row.aimharder_cookies.map((c) => ({
-          name: c.name,
-          value: c.value,
-        })),
-        createdAt: row.created_at,
-        updatedAt: row.updated_at,
-        lastRefreshDate: row.last_refresh_date,
-        refreshCount: row.refresh_count,
-        lastRefreshError: row.last_refresh_error,
-        autoRefreshEnabled: row.auto_refresh_enabled,
-        lastTokenUpdateDate: row.last_token_update_date,
-        tokenUpdateCount: row.token_update_count,
-        lastTokenUpdateError: row.last_token_update_error,
-        fingerprint: row.fingerprint,
-        isAdmin: row.is_admin || false,
-      }));
+      if (!data || data.length === 0) return [];
+
+      return (data as SessionRow[]).map(row => this.mapSessionRow(row));
     } catch (error) {
       console.error("Active sessions retrieval error:", error);
       return [];
     }
   }
 
+  /**
+   * Cleanup expired sessions
+   *
+   * CRITICAL: Only deletes device sessions older than 7 days
+   * Background sessions are NEVER deleted by this method
+   *
+   * @returns Number of sessions cleaned up
+   */
   static async cleanupExpiredSessions(): Promise<number> {
     try {
       const oneWeekAgo = new Date();
@@ -291,6 +518,7 @@ export class SupabaseSessionService {
       const { data, error } = await supabaseAdmin
         .from("auth_sessions")
         .delete()
+        .eq("session_type", "device") // CRITICAL: Only delete device sessions
         .lt("created_at", oneWeekAgo.toISOString())
         .select("id");
 
@@ -300,6 +528,10 @@ export class SupabaseSessionService {
       }
 
       const cleanedCount = data?.length || 0;
+
+      if (cleanedCount > 0) {
+        console.log(`Cleaned up ${cleanedCount} expired device sessions`);
+      }
 
       return cleanedCount;
     } catch (error) {

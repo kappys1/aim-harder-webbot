@@ -124,7 +124,7 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const { email } = await request.json()
+    const { email, fingerprint } = await request.json()
 
     if (!email) {
       return NextResponse.json(
@@ -133,10 +133,14 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
-    // Soft logout - only clear browser cookies, keep Supabase session alive
+    // Multi-Session Logout - Delete ONLY device session, preserve background session
     // This allows background processes (like pre-bookings) to continue working
+    // CRITICAL: Does NOT call AimHarder's logout API to avoid expiring all sessions
 
-    // Create response and clear cookies
+    // Delete device session from database
+    await AimharderAuthService.logout(email, fingerprint)
+
+    // Create response and clear browser cookies
     const response = NextResponse.json({ success: true })
 
     // Clear all aimharder-related cookies
@@ -152,7 +156,11 @@ export async function DELETE(request: NextRequest) {
       })
     })
 
-    console.log(`Soft logout successful for email: ${email} - session kept alive in database`)
+    console.log(
+      `Device logout successful for ${email}`,
+      fingerprint ? `(fingerprint: ${fingerprint.substring(0, 10)}...)` : '(all devices)',
+      '- Background session preserved'
+    )
     return response
 
   } catch (error) {

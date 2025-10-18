@@ -5,6 +5,7 @@ import {
   SessionData,
   SupabaseSessionService,
 } from "./supabase-session.service";
+import { generateBackgroundFingerprint } from "@/common/utils/background-fingerprint.utils";
 
 export interface AimharderLoginRequest {
   email: string;
@@ -37,6 +38,15 @@ export class AimharderAuthService {
   private static readonly RATE_LIMIT_WINDOW = 15 * 60 * 1000; // 15 minutes
   private static attempts: Map<string, AimharderLoginAttempt[]> = new Map();
 
+  /**
+   * Dual Login - Creates both device and background sessions
+   *
+   * CRITICAL: Performs TWO separate logins to AimHarder:
+   * 1. Device login: Uses client-provided fingerprint (for UI interactions)
+   * 2. Background login: Uses deterministic server fingerprint (for pre-bookings)
+   *
+   * This ensures pre-bookings continue working even if user logs out on their device
+   */
   static async login(
     email: string,
     password: string,
@@ -52,23 +62,91 @@ export class AimharderAuthService {
         };
       }
 
-      // Check for existing valid session, but always refresh cookies on login
-      const existingSession = await SupabaseSessionService.getSession(email);
+      // PHASE 1: Device Session Login
+      console.log(`[DUAL LOGIN] Starting device login for: ${email}`);
 
       // Use provided fingerprint or fallback to environment variable
-      const loginFingerprint =
+      const deviceFingerprint =
         fingerprint ||
         process.env.AIMHARDER_FINGERPRINT ||
         "my0pz7di4kr8nuq718uecu4ev23fbosfp20z1q6smntm42ideb";
 
+      const deviceLoginResult = await this.performSingleLogin(
+        email,
+        password,
+        deviceFingerprint,
+        "device"
+      );
+
+      if (!deviceLoginResult.success) {
+        this.recordAttempt(email, false);
+        return deviceLoginResult;
+      }
+
+      console.log(`[DUAL LOGIN] Device login successful for: ${email}`);
+
+      // PHASE 2: Background Session Login
+      console.log(`[DUAL LOGIN] Starting background login for: ${email}`);
+
+      const backgroundFingerprint = generateBackgroundFingerprint(email);
+
+      const backgroundLoginResult = await this.performSingleLogin(
+        email,
+        password,
+        backgroundFingerprint,
+        "background"
+      );
+
+      if (!backgroundLoginResult.success) {
+        // Device login succeeded but background failed
+        console.warn(
+          `[DUAL LOGIN] Background login failed for ${email}, but device login succeeded. ` +
+          `Pre-bookings may not work. Error: ${backgroundLoginResult.error}`
+        );
+        // Continue - device session is still valid
+      } else {
+        console.log(`[DUAL LOGIN] Background login successful for: ${email}`);
+      }
+
+      // Record successful attempt (device login worked)
+      this.recordAttempt(email, true);
+
+      // Return device session data to client
+      return deviceLoginResult;
+    } catch (error) {
+      console.error("Aimharder dual login error:", error);
+      this.recordAttempt(email, false);
+
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Authentication failed",
+      };
+    }
+  }
+
+  /**
+   * Perform a single login to AimHarder and store session
+   * @private
+   */
+  private static async performSingleLogin(
+    email: string,
+    password: string,
+    fingerprint: string,
+    sessionType: "device" | "background"
+  ): Promise<AimharderLoginResponse> {
+    try {
       // Prepare form data for aimharder login
       const formData = new URLSearchParams({
         login: "Iniciar sesión",
-        loginfingerprint: loginFingerprint,
+        loginfingerprint: fingerprint,
         loginiframe: "0",
         mail: email,
         pw: password,
       });
+
+      console.log(
+        `[${sessionType.toUpperCase()} LOGIN] Calling AimHarder for ${email} with fingerprint ${fingerprint.substring(0, 10)}...`
+      );
 
       // Make request to aimharder
       const response = await fetch(process.env.AIMHARDER_LOGIN_URL!, {
@@ -82,7 +160,6 @@ export class AimharderAuthService {
       });
 
       if (!response.ok) {
-        this.recordAttempt(email, false);
         return {
           success: false,
           error: `Aimharder server error: ${response.status} ${response.statusText}`,
@@ -98,7 +175,6 @@ export class AimharderAuthService {
       // Validate the response
       const validation = HtmlParserService.validateHtmlResponse(html);
       if (!validation.isValid) {
-        this.recordAttempt(email, false);
         return {
           success: false,
           error:
@@ -109,7 +185,6 @@ export class AimharderAuthService {
       // Extract token from HTML
       const tokenData = HtmlParserService.extractTokenFromIframe(html);
       if (!tokenData || !tokenData.token) {
-        this.recordAttempt(email, false);
         return {
           success: false,
           error: "Failed to extract authentication token",
@@ -119,51 +194,64 @@ export class AimharderAuthService {
       // Validate required cookies
       const cookieValidation = CookieService.validateRequiredCookies(cookies);
       if (!cookieValidation.isValid) {
-        console.warn("Missing required cookies:", cookieValidation.missing);
-        // Continue but log warning - user can login but may have issues with reservations
+        console.warn(
+          `[${sessionType.toUpperCase()} LOGIN] Missing required cookies:`,
+          cookieValidation.missing
+        );
+        // Continue but log warning
       }
 
-      // Store session in Supabase
+      // Store session in Supabase with session type
       const sessionData: SessionData = {
         email,
         token: tokenData.token,
         cookies,
+        fingerprint,
+        sessionType,
         tokenData,
         createdAt: new Date().toISOString(),
       };
 
       await SupabaseSessionService.storeSession(sessionData);
 
+      console.log(
+        `[${sessionType.toUpperCase()} LOGIN] Session stored in database for ${email}`
+      );
+
       // Call setrefresh to get the refresh token and update the database
       try {
         const refreshResult = await AimharderRefreshService.refreshSession({
           token: tokenData.token,
           cookies,
-          fingerprint: loginFingerprint, // Pass the same fingerprint used for login
+          fingerprint,
         });
 
         if (refreshResult.success && refreshResult.refreshToken) {
           // Update the aimharder_token field with the refresh token
-          // Also store the fingerprint returned by setrefresh if available
           await SupabaseSessionService.updateRefreshToken(
             email,
             refreshResult.refreshToken,
-            refreshResult.fingerprint
+            fingerprint // Use fingerprint to target specific session
+          );
+
+          console.log(
+            `[${sessionType.toUpperCase()} LOGIN] Refresh token updated for ${email}`
           );
         } else {
           console.warn(
-            "Failed to get refresh token for:",
+            `[${sessionType.toUpperCase()} LOGIN] Failed to get refresh token for:`,
             email,
             refreshResult.error
           );
         }
       } catch (error) {
-        console.error("Error calling setrefresh for:", email, error);
+        console.error(
+          `[${sessionType.toUpperCase()} LOGIN] Error calling setrefresh for:`,
+          email,
+          error
+        );
         // Don't fail the login if refresh token call fails
       }
-
-      // Record successful attempt
-      this.recordAttempt(email, true);
 
       return {
         success: true,
@@ -175,21 +263,45 @@ export class AimharderAuthService {
         cookies,
       };
     } catch (error) {
-      console.error("Aimharder auth error:", error);
-      this.recordAttempt(email, false);
-
+      console.error(
+        `[${sessionType.toUpperCase()} LOGIN] Error:`,
+        error
+      );
       return {
         success: false,
-        error: error instanceof Error ? error.message : "Authentication failed",
+        error: error instanceof Error ? error.message : "Login failed",
       };
     }
   }
 
-  static async logout(email: string): Promise<void> {
+  /**
+   * Logout - Deletes ONLY device session(s), preserves background session
+   *
+   * CRITICAL: Does NOT call AimHarder's logout API to avoid expiring all sessions
+   * Background session remains active for pre-bookings to continue working
+   *
+   * @param email - User email
+   * @param fingerprint - Optional device fingerprint to delete specific session
+   */
+  static async logout(email: string, fingerprint?: string): Promise<void> {
     try {
-      await SupabaseSessionService.deleteSession(email);
+      // Delete only device session(s)
+      // If fingerprint provided: delete that specific device session
+      // If no fingerprint: delete ALL device sessions for this user
+      await SupabaseSessionService.deleteSession(email, {
+        fingerprint,
+        sessionType: "device", // CRITICAL: Only delete device sessions
+      });
+
       this.clearAttempts(email);
-      console.log("User logged out successfully:", email);
+
+      console.log(
+        `[LOGOUT] Device session deleted for ${email}`,
+        fingerprint ? `(fingerprint: ${fingerprint.substring(0, 10)}...)` : "(all devices)"
+      );
+      console.log(
+        `[LOGOUT] Background session preserved - pre-bookings will continue`
+      );
     } catch (error) {
       console.error("Logout error:", error);
       throw error;

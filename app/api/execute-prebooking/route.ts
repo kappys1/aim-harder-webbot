@@ -143,8 +143,9 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Fetch session (FRESH: obtained 5s before execution)
-    const session = await SupabaseSessionService.getSession(
+    // Fetch BACKGROUND session (FRESH: obtained 5s before execution)
+    // CRITICAL: Use background session to ensure pre-bookings work even if user logged out
+    const session = await SupabaseSessionService.getBackgroundSession(
       prebooking.userEmail
     );
 

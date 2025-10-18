@@ -81,11 +81,32 @@ async function processTokenRefreshInBackground() {
           cookies: session.cookies,
         });
 
-        // Handle logout
+        // Handle logout response from AimHarder
+        // CRITICAL: When AimHarder returns {logout: 1}, it means THIS specific session is expired
+        // We should delete ONLY the specific session that failed, not all sessions
+        // NEVER delete background sessions - they should persist for pre-bookings
         if (updateResult.logout) {
-          await SupabaseSessionService.deleteSession(session.email);
+          if (session.sessionType === "device") {
+            // Delete only this specific device session
+            await SupabaseSessionService.deleteSession(session.email, {
+              fingerprint: session.fingerprint,
+              sessionType: "device",
+            });
+            console.log(
+              `[CRON REFRESH] Device session expired and deleted for ${session.email} (fingerprint: ${session.fingerprint?.substring(0, 10)}...)`
+            );
+          } else {
+            // CRITICAL: Background session expired - this is unusual and needs investigation
+            // DO NOT delete background session - log warning instead
+            console.warn(
+              `[CRON REFRESH] Background session received logout response for ${session.email}. ` +
+              `This is unusual. Background session preserved.`
+            );
+          }
           results.failed++;
-          results.errors.push(`${session.email}: Session expired`);
+          results.errors.push(
+            `${session.email} (${session.sessionType}): Session expired`
+          );
           continue;
         }
 
@@ -105,21 +126,28 @@ async function processTokenRefreshInBackground() {
           continue;
         }
 
-        // Update DB with new token and cookies
+        // Update DB with new token and cookies for THIS specific session
+        // CRITICAL: Pass fingerprint to target the correct session (device or background)
         await SupabaseSessionService.updateRefreshToken(
           session.email,
-          updateResult.newToken
+          updateResult.newToken,
+          session.fingerprint // Target specific session
         );
 
         if (updateResult.cookies && updateResult.cookies.length > 0) {
           await SupabaseSessionService.updateCookies(
             session.email,
-            updateResult.cookies
+            updateResult.cookies,
+            session.fingerprint // Target specific session
           );
         }
 
         // Track successful token update
         await SupabaseSessionService.updateTokenUpdateData(session.email, true);
+
+        console.log(
+          `[CRON REFRESH] Token updated successfully for ${session.email} (${session.sessionType})`
+        );
 
         results.updated++;
       } catch (error) {

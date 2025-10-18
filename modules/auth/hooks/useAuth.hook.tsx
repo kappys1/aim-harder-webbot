@@ -49,9 +49,10 @@ export function useAuth() {
         // Store user data and navigate to dashboard
         setUser(response.user);
 
-        // Store user email in localStorage for session management
+        // Store user email and fingerprint in localStorage for session management
         if (typeof window !== "undefined") {
           localStorage.setItem("user-email", response.user.email);
+          localStorage.setItem("fingerprint", fingerprint); // Store fingerprint for logout
 
           // Store refreshToken from backend if provided
           if (response.token) {
@@ -76,12 +77,15 @@ export function useAuth() {
     setError(null);
 
     try {
-      // Soft logout - only clear browser session, keep Supabase session alive for active pre-bookings
+      // Multi-session logout - delete ONLY device session, preserve background session
+      // Get email and fingerprint before clearing localStorage
+      const email = typeof window !== "undefined" ? localStorage.getItem("user-email") : null;
+      const fingerprint = typeof window !== "undefined" ? localStorage.getItem("fingerprint") : null;
 
       // Stop token refresh timer
       stopRefresh();
 
-      // Clear user data
+      // Clear user data from state
       setUser(null);
 
       // Clear localStorage
@@ -91,13 +95,24 @@ export function useAuth() {
         localStorage.removeItem("fingerprint");
       }
 
-      // Clear browser cookies
-      const response = await fetch("/api/auth/logout", {
-        method: "POST",
-      });
+      // Delete device session from database (if we have email)
+      if (email) {
+        const response = await fetch("/api/auth/aimharder", {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            email,
+            fingerprint, // May be null if not stored
+          }),
+        });
 
-      if (!response.ok) {
-        console.warn("Failed to clear browser cookies during logout");
+        if (!response.ok) {
+          console.warn("Failed to delete device session during logout");
+        } else {
+          console.log("[LOGOUT] Device session deleted successfully");
+        }
       }
 
       toast.success("Sesión cerrada exitosamente");
