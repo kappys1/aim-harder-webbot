@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef } from "react";
 
-const REFRESH_INTERVAL = 10 * 60 * 1000; // 5 minutes in milliseconds
+const REFRESH_INTERVAL = 10 * 60 * 1000; // 10 minutes in milliseconds
 
 export interface UseTokenRefreshOptions {
   email: string | null;

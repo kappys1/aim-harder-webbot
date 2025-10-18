@@ -19,7 +19,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Get current session from DB to get cookies
-    const session = await SupabaseSessionService.getSession(email);
+    // CRITICAL: Pass fingerprint to get the correct device session
+    const session = await SupabaseSessionService.getSession(email, {
+      fingerprint
+    });
+
     if (!session) {
       return NextResponse.json(
         { success: false, error: "No session found for user" },
@@ -34,10 +38,19 @@ export async function POST(request: NextRequest) {
       cookies: session.cookies,
     });
 
-    // Handle logout response
+    // Handle logout response from AimHarder
+    // CRITICAL: When AimHarder returns {logout: 1}, it means THIS specific session is expired
+    // We should delete ONLY the specific device session that failed, not all sessions
     if (updateResult.logout) {
-      // Delete session from DB
-      await SupabaseSessionService.deleteSession(email);
+      // Delete ONLY this specific device session
+      await SupabaseSessionService.deleteSession(email, {
+        fingerprint,
+        sessionType: "device",
+      });
+
+      console.log(
+        `[TOKEN UPDATE] Device session expired and deleted for ${email} (fingerprint: ${fingerprint.substring(0, 10)}...)`
+      );
 
       return NextResponse.json({
         success: false,
@@ -63,14 +76,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Update DB with new token and cookies
+    // Update DB with new token and cookies for THIS specific device session
+    // CRITICAL: Pass fingerprint to target the correct session
     await SupabaseSessionService.updateRefreshToken(
       email,
-      updateResult.newToken
+      updateResult.newToken,
+      fingerprint // Target specific device session
     );
 
     if (updateResult.cookies && updateResult.cookies.length > 0) {
-      await SupabaseSessionService.updateCookies(email, updateResult.cookies);
+      await SupabaseSessionService.updateCookies(
+        email,
+        updateResult.cookies,
+        fingerprint // Target specific device session
+      );
     }
 
     // Track successful token update
