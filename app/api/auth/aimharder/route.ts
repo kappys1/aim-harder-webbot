@@ -144,9 +144,11 @@ export async function DELETE(request: NextRequest) {
     const response = NextResponse.json({ success: true })
 
     // Clear all aimharder-related cookies
-    const cookiesToClear = ['AWSALB', 'AWSALBCORS', 'PHPSESSID', 'amhrdrauth', 'aimharder-auth']
+    // CRITICAL: Must use same httpOnly value as when cookie was created
+    const httpOnlyCookies = ['AWSALB', 'AWSALBCORS', 'PHPSESSID', 'amhrdrauth']
 
-    cookiesToClear.forEach(cookieName => {
+    // Clear httpOnly cookies
+    httpOnlyCookies.forEach(cookieName => {
       response.cookies.set(cookieName, '', {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
@@ -154,6 +156,15 @@ export async function DELETE(request: NextRequest) {
         maxAge: 0,
         path: '/'
       })
+    })
+
+    // Clear aimharder-auth cookie (httpOnly: false to match creation)
+    response.cookies.set('aimharder-auth', '', {
+      httpOnly: false,  // CRITICAL: Must match the httpOnly value from creation (line 87)
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 0,
+      path: '/'
     })
 
     console.log(

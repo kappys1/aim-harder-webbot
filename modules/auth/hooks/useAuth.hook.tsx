@@ -25,8 +25,8 @@ export function useAuth() {
         localStorage.removeItem("refreshToken");
         localStorage.removeItem("fingerprint");
         // Use window.location for guaranteed redirect
+        window.location.href = "/login";
       }
-      router.push("/login");
     },
   });
 
@@ -143,11 +143,13 @@ export function useAuth() {
       // CRITICAL: Use window.location for guaranteed navigation (bypasses Next.js router)
       // This ensures a full page reload that clears all state and cookies
       if (typeof window !== "undefined") {
-        // Small delay to let the toast show
+        // CRITICAL: Delay to allow:
+        // 1. Toast to be visible (500ms)
+        // 2. Cookies to be cleared by the API response
+        // 3. Browser to process the cookie deletion
         setTimeout(() => {
-          // window.location.href = "/login";
-          router.push("/login");
-        }, 500);
+          window.location.href = "/login";
+        }, 800);
       }
     } catch (err) {
       console.error("[LOGOUT] Unexpected error during logout:", err);
