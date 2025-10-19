@@ -3,7 +3,7 @@ import { AuthCookie, CookieService } from "./cookie.service";
 export interface RefreshRequest {
   token: string;
   cookies: AuthCookie[];
-  fingerprint?: string; // Optional browser fingerprint
+  fingerprint: string; // REQUIRED: Browser fingerprint for session identification
 }
 
 export interface RefreshResponse {
@@ -162,17 +162,18 @@ export class AimharderRefreshService {
     }
   }
 
-  private static buildRefreshUrl(token: string, fingerprint?: string): string {
+  private static buildRefreshUrl(token: string, fingerprint: string): string {
     const baseUrl = "https://aimharder.com/setrefresh";
-    // Use provided fingerprint or fallback to environment variable
-    const usedFingerprint =
-      fingerprint ||
-      process.env.AIMHARDER_FINGERPRINT ||
-      "my0pz7di4kr8nuq718uecu4ev23fbosfp20z1q6smntm42ideb";
+
+    // CRITICAL: Use the exact fingerprint provided - no fallbacks
+    // This ensures the refresh token matches the specific session
+    if (!fingerprint) {
+      throw new Error('Fingerprint is required for refresh token generation');
+    }
 
     return `${baseUrl}?token=${encodeURIComponent(
       token
-    )}&fingerprint=${encodeURIComponent(usedFingerprint)}`;
+    )}&fingerprint=${encodeURIComponent(fingerprint)}`;
   }
 
   private static extractRefreshData(html: string): {

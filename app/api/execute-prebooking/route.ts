@@ -220,12 +220,15 @@ export async function POST(request: NextRequest) {
       console.log(`[HYBRID ${executionId}] 🔄 Refreshing token...`);
 
       try {
+        // CRITICAL: Use EXACT fingerprint from background session
+        // Background sessions ALWAYS have a deterministic fingerprint
+        if (!session.fingerprint) {
+          throw new Error('Background session missing fingerprint - invalid session');
+        }
+
         const refreshResult = await AimharderRefreshService.updateToken({
           token: session.token,
-          fingerprint:
-            session.fingerprint ||
-            process.env.AIMHARDER_FINGERPRINT ||
-            "default-fingerprint",
+          fingerprint: session.fingerprint, // Use EXACT fingerprint from background session
           cookies: session.cookies,
         });
 

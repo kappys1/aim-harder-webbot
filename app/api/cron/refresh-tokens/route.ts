@@ -72,12 +72,22 @@ async function processTokenRefreshInBackground() {
         }
 
         // Call Aimharder tokenUpdate
+        // CRITICAL: session.fingerprint is NOT NULL in DB (required field)
+        // No fallback needed - if fingerprint is missing, session is invalid
+        if (!session.fingerprint) {
+          console.error(
+            `[CRON REFRESH] Session for ${session.email} has no fingerprint - skipping (invalid session)`
+          );
+          results.failed++;
+          results.errors.push(
+            `${session.email} (${session.sessionType}): Missing fingerprint`
+          );
+          continue;
+        }
+
         const updateResult = await AimharderRefreshService.updateToken({
           token: session.token,
-          fingerprint:
-            session.fingerprint ||
-            process.env.AIMHARDER_FINGERPRINT ||
-            "default-fingerprint",
+          fingerprint: session.fingerprint, // Use EXACT fingerprint from session
           cookies: session.cookies,
         });
 

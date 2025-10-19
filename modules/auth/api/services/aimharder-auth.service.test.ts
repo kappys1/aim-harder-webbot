@@ -253,7 +253,7 @@ describe('AimharderAuthService', () => {
 
       expect(result.success).toBe(true);
       expect(consoleWarnSpy).toHaveBeenCalledWith(
-        'Missing required cookies:',
+        '[DEVICE LOGIN] Missing required cookies:',
         ['PHPSESSID']
       );
 
@@ -265,7 +265,10 @@ describe('AimharderAuthService', () => {
     it('should delete session from Supabase', async () => {
       await AimharderAuthService.logout(mockEmail);
 
-      expect(SupabaseSessionService.deleteSession).toHaveBeenCalledWith(mockEmail);
+      expect(SupabaseSessionService.deleteSession).toHaveBeenCalledWith(mockEmail, {
+        fingerprint: undefined,
+        sessionType: 'device',
+      });
     });
 
     it('should throw error if deletion fails', async () => {

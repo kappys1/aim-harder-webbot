@@ -227,15 +227,20 @@ export class AimharderAuthService {
         });
 
         if (refreshResult.success && refreshResult.refreshToken) {
+          // CRITICAL: Use the fingerprint returned by AimHarder (if provided)
+          // or fall back to the original fingerprint
+          // This ensures we always use the correct fingerprint for the session
+          const finalFingerprint = refreshResult.fingerprint || fingerprint;
+
           // Update the aimharder_token field with the refresh token
           await SupabaseSessionService.updateRefreshToken(
             email,
             refreshResult.refreshToken,
-            fingerprint // Use fingerprint to target specific session
+            finalFingerprint // Use the correct fingerprint to target specific session
           );
 
           console.log(
-            `[${sessionType.toUpperCase()} LOGIN] Refresh token updated for ${email}`
+            `[${sessionType.toUpperCase()} LOGIN] Refresh token updated for ${email} with fingerprint ${finalFingerprint.substring(0, 10)}...`
           );
         } else {
           console.warn(

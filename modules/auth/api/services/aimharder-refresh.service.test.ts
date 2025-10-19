@@ -25,9 +25,6 @@ describe('AimharderRefreshService', () => {
       'AWSALB=aws-value; AWSALBCORS=cors-value; PHPSESSID=session-value; amhrdrauth=auth-value'
     );
     vi.mocked(CookieService.extractFromResponse).mockReturnValue(mockCookies);
-
-    // Setup environment
-    process.env.AIMHARDER_FINGERPRINT = 'default-fingerprint';
   });
 
   describe('updateToken', () => {
@@ -276,32 +273,18 @@ describe('AimharderRefreshService', () => {
       expect(url).toContain(`fingerprint=${encodeURIComponent(mockFingerprint)}`);
     });
 
-    it('should use environment fingerprint when not provided', async () => {
-      const mockHtml = `
-        <script>
-          localStorage.setItem("refreshToken", "${mockRefreshToken}");
-        </script>
-      `;
-
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        text: async () => mockHtml,
-      } as Response);
-
-      const request: RefreshRequest = {
+    it('should return error when fingerprint is not provided', async () => {
+      const request = {
         token: mockToken,
         cookies: mockCookies,
-        // No fingerprint provided
+        // @ts-expect-error - Testing missing required field
+        fingerprint: undefined,
       };
 
-      await AimharderRefreshService.refreshSession(request);
+      const result = await AimharderRefreshService.refreshSession(request as RefreshRequest);
 
-      const fetchCall = vi.mocked(global.fetch).mock.calls[0];
-      const url = fetchCall[0] as string;
-
-      expect(url).toContain(
-        `fingerprint=${encodeURIComponent(process.env.AIMHARDER_FINGERPRINT!)}`
-      );
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('Fingerprint is required for refresh token generation');
     });
 
     it('should handle invalid refresh response (no script)', async () => {
