@@ -58,6 +58,11 @@ export function useTokenRefresh({ email, onLogout }: UseTokenRefreshOptions) {
       if (!response.ok || !data.success) {
         console.error("Token refresh failed:", data.error);
         // Don't logout on error, will retry on next interval
+
+        localStorage.removeItem("refreshToken");
+        localStorage.removeItem("fingerprint");
+        stopRefresh();
+        onLogout();
         return;
       }
 
@@ -73,7 +78,7 @@ export function useTokenRefresh({ email, onLogout }: UseTokenRefreshOptions) {
     }
   }, [email, onLogout]);
 
-  const startRefresh = useCallback(() => {
+  const startRefresh = useCallback(async () => {
     // Clear any existing timer
     if (timerRef.current) {
       clearInterval(timerRef.current);
@@ -85,6 +90,22 @@ export function useTokenRefresh({ email, onLogout }: UseTokenRefreshOptions) {
 
     if (!hasToken || !hasFingerprint || !email) {
       console.log("Cannot start refresh: missing token, fingerprint, or email");
+
+      // Clear localStorage
+      localStorage.removeItem("refreshToken");
+      localStorage.removeItem("fingerprint");
+
+      // Clear cookies by calling logout endpoint
+      try {
+        await fetch("/api/auth/logout", {
+          method: "POST",
+        });
+      } catch (error) {
+        console.error("Error clearing cookies:", error);
+      }
+
+      // Redirect to login
+      window.location.href = "/login";
       return;
     }
 
