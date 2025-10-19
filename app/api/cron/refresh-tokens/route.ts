@@ -66,7 +66,7 @@ async function processTokenRefreshInBackground() {
         const minutesSinceUpdate =
           (now.getTime() - updatedAt.getTime()) / (1000 * 60);
 
-        if (minutesSinceUpdate <= 30) {
+        if (minutesSinceUpdate <= 20) {
           results.skipped++;
           continue;
         }
@@ -93,14 +93,16 @@ async function processTokenRefreshInBackground() {
               sessionType: "device",
             });
             console.log(
-              `[CRON REFRESH] Device session expired and deleted for ${session.email} (fingerprint: ${session.fingerprint?.substring(0, 10)}...)`
+              `[CRON REFRESH] Device session expired and deleted for ${
+                session.email
+              } (fingerprint: ${session.fingerprint?.substring(0, 10)}...)`
             );
           } else {
             // CRITICAL: Background session expired - this is unusual and needs investigation
             // DO NOT delete background session - log warning instead
             console.warn(
               `[CRON REFRESH] Background session received logout response for ${session.email}. ` +
-              `This is unusual. Background session preserved.`
+                `This is unusual. Background session preserved.`
             );
           }
           results.failed++;
@@ -113,7 +115,9 @@ async function processTokenRefreshInBackground() {
         // Handle error
         if (!updateResult.success || !updateResult.newToken) {
           console.error(
-            `[Background] Failed to update token for ${session.email} (${session.sessionType}, fingerprint: ${session.fingerprint?.substring(0, 10)}...):`,
+            `[Background] Failed to update token for ${session.email} (${
+              session.sessionType
+            }, fingerprint: ${session.fingerprint?.substring(0, 10)}...):`,
             updateResult.error
           );
           // CRITICAL: Pass fingerprint to update the correct session's error state
@@ -124,7 +128,9 @@ async function processTokenRefreshInBackground() {
             session.fingerprint // Target specific session
           );
           results.failed++;
-          results.errors.push(`${session.email} (${session.sessionType}): ${updateResult.error}`);
+          results.errors.push(
+            `${session.email} (${session.sessionType}): ${updateResult.error}`
+          );
           continue;
         }
 
@@ -154,7 +160,9 @@ async function processTokenRefreshInBackground() {
         );
 
         console.log(
-          `[CRON REFRESH] Token updated successfully for ${session.email} (${session.sessionType}, fingerprint: ${session.fingerprint?.substring(0, 10)}...)`
+          `[CRON REFRESH] Token updated successfully for ${session.email} (${
+            session.sessionType
+          }, fingerprint: ${session.fingerprint?.substring(0, 10)}...)`
         );
 
         results.updated++;

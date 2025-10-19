@@ -1,5 +1,4 @@
 import { verifyPrebookingToken } from "@/core/qstash/security-token";
-import { AimharderRefreshService } from "@/modules/auth/api/services/aimharder-refresh.service";
 import { SupabaseSessionService } from "@/modules/auth/api/services/supabase-session.service";
 import { BookingMapper } from "@/modules/booking/api/mappers/booking.mapper";
 import { bookingService } from "@/modules/booking/api/services/booking.service";
@@ -14,14 +13,13 @@ import { NextRequest, NextResponse } from "next/server";
  * 2. Verify security token (fast: ~1-2ms vs ~50-100ms QStash signature)
  * 3. Fetch session & prebooking in parallel (~250ms)
  * 4. Validate prebooking state (~5ms)
- * 5. Check and refresh token if needed (~500ms if refresh needed)
- * 6. Wait until EXACT executeAt timestamp (~4250ms or ~3750ms if no refresh)
- * 7. Fire to AimHarder API immediately
- * 8. Update prebooking status (background)
+ * 5. Wait until EXACT executeAt timestamp (~4750ms)
+ * 6. Fire to AimHarder API immediately
+ * 7. Update prebooking status (background)
  *
  * Benefits:
  * - Session fetched fresh (5s before, not expired)
- * - Token refreshed if older than 25 minutes (prevents logout)
+ * - Token kept fresh by cron job (runs every 20 minutes)
  * - All queries done during wait time (zero latency at execute time)
  * - Fires at EXACT millisecond specified
  * - Fast token validation instead of QStash signature
@@ -29,9 +27,10 @@ import { NextRequest, NextResponse } from "next/server";
  * Timeline Example:
  * 19:29:55.000 - QStash triggers
  * 19:29:55.250 - Queries completed
- * 19:29:55.750 - Token refreshed (if needed)
  * 19:30:00.000 - Fire to AimHarder (EXACT)
  * 19:30:01.500 - AimHarder responds
+ *
+ * Note: Token refresh is handled by /api/cron/refresh-tokens (every 20 min)
  */
 
 export const maxDuration = 10; // Vercel Hobby limit (enough for 5s wait + execution)
@@ -180,6 +179,11 @@ export async function POST(request: NextRequest) {
     );
 
     // PHASE 2.5: CHECK AND REFRESH TOKEN IF NEEDED
+    // DISABLED: Token refresh is now handled by the cron job every 20 minutes
+    // The cron job at /api/cron/refresh-tokens maintains all tokens fresh
+    // This avoids race conditions and ensures consistent token state
+
+    /*
     // Refresh token if it's older than 25 minutes to prevent { logout: 1 } errors
     const shouldRefreshToken = () => {
       if (!session.lastTokenUpdateDate) {
@@ -319,6 +323,22 @@ export async function POST(request: NextRequest) {
         );
         // Continue with existing token (cron might have refreshed it)
       }
+    }
+    */
+
+    // Log token age for monitoring
+    if (session.lastTokenUpdateDate) {
+      const lastUpdate = new Date(session.lastTokenUpdateDate);
+      const now = new Date();
+      const minutesSinceUpdate =
+        (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
+      console.log(
+        `[HYBRID ${executionId}] Using token updated ${minutesSinceUpdate.toFixed(1)} minutes ago (by cron job)`
+      );
+    } else {
+      console.log(
+        `[HYBRID ${executionId}] Using token (no update history available)`
+      );
     }
 
     // PHASE 3: WAIT UNTIL EXACT EXECUTION TIME
