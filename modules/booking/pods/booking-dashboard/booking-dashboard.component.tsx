@@ -6,7 +6,7 @@ import { useBoxFromUrl } from "@/modules/boxes/hooks/useBoxFromUrl.hook";
 import { usePreBooking } from "@/modules/prebooking/pods/prebooking/hooks/usePreBooking.hook";
 import { AlertCircle } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { AuthCookie } from "../../../auth/api/services/cookie.service";
 import { useBooking } from "../../hooks/useBooking.hook";
@@ -71,6 +71,33 @@ function BookingDashboardContent({
 
   const router = useRouter();
   const searchParams = useSearchParams();
+
+  // Redirect to today if accessing a past date
+  useEffect(() => {
+    const currentDate = state.selectedDate;
+    if (!currentDate) return;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const selectedDateObj = new Date(currentDate);
+    selectedDateObj.setHours(0, 0, 0, 0);
+
+    // If selected date is in the past, redirect to today
+    if (selectedDateObj < today) {
+      const todayString = BookingUtils.formatDateForApi(today);
+      setDate(todayString);
+
+      // Update URL with today's date
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("date", todayString);
+      router.replace(`/booking?${params.toString()}`);
+
+      toast.info("Fecha actualizada", {
+        description: "No se puede acceder a fechas pasadas. Se ha redirigido a hoy.",
+      });
+    }
+  }, [state.selectedDate, setDate, router, searchParams]);
 
   const handleDateChange = useCallback(
     (date: string) => {
@@ -441,6 +468,7 @@ function BookingDashboardContent({
             type="date"
             value={state.selectedDate}
             onChange={(e) => handleDateChange(e.target.value)}
+            min={BookingUtils.formatDateForApi(new Date())}
             className="px-3 py-2 border rounded-md text-sm"
             disabled={isLoading}
           />

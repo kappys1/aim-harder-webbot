@@ -60,12 +60,23 @@ export function useWeekNavigation(
   const navigateToPrevWeek = useCallback(() => {
     if (isNavigating) return;
 
+    // Prevent navigating to past weeks
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const prevWeekStart = subWeeks(currentWeekStart, 1);
+    const prevWeekEnd = endOfWeek(prevWeekStart, { weekStartsOn: 1 });
+
+    // Don't allow navigation if the entire previous week is in the past
+    if (prevWeekEnd < today) {
+      return;
+    }
+
     setIsNavigating(true);
-    setCurrentWeekStart((prev) => subWeeks(prev, 1));
+    setCurrentWeekStart(prevWeekStart);
 
     // Reset navigation state after animation
     setTimeout(() => setIsNavigating(false), 150);
-  }, [isNavigating]);
+  }, [isNavigating, currentWeekStart]);
 
   const navigateToWeek = useCallback(
     (date: Date) => {
@@ -125,6 +136,17 @@ export function useWeekNavigation(
   //   navigateToSelectedDate();
   // }, [navigateToSelectedDate]);
 
+  // Check if previous week navigation should be disabled
+  const isPrevWeekDisabled = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const prevWeekStart = subWeeks(currentWeekStart, 1);
+    const prevWeekEnd = endOfWeek(prevWeekStart, { weekStartsOn: 1 });
+
+    // Disable if the entire previous week is in the past
+    return prevWeekEnd < today;
+  }, [currentWeekStart]);
+
   return {
     currentWeek,
     weekRange,
@@ -133,5 +155,6 @@ export function useWeekNavigation(
     navigateToWeek,
     selectDate,
     isNavigating,
+    isPrevWeekDisabled,
   };
 }

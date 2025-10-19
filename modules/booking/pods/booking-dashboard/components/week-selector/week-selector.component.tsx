@@ -36,7 +36,8 @@ export function WeekSelector({
     navigateToNextWeek,
     navigateToPrevWeek,
     selectDate,
-    isNavigating
+    isNavigating,
+    isPrevWeekDisabled
   } = useWeekNavigation(selectedDate, onDateChange);
 
   // Handle day click
@@ -48,6 +49,14 @@ export function WeekSelector({
   // Check if a date should be disabled
   const isDateDisabled = useCallback((date: Date) => {
     if (disabled) return true;
+
+    // Disable past dates
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const checkDate = new Date(date);
+    checkDate.setHours(0, 0, 0, 0);
+
+    if (checkDate < today) return true;
 
     return !WeekSelectorUtils.isDateInRange(date, minDate, maxDate);
   }, [disabled, minDate, maxDate]);
@@ -67,7 +76,7 @@ export function WeekSelector({
           variant="ghost"
           size="sm"
           onClick={navigateToPrevWeek}
-          disabled={disabled || isNavigating}
+          disabled={disabled || isNavigating || isPrevWeekDisabled}
           aria-label="Semana anterior"
           aria-describedby="week-range-display"
           className="h-8 w-8 p-0"

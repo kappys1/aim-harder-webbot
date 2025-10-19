@@ -30,4 +30,5 @@ export interface UseWeekNavigationReturn {
   navigateToWeek: (date: Date) => void;
   selectDate: (date: Date) => void;
   isNavigating: boolean;
+  isPrevWeekDisabled: boolean;
 }
