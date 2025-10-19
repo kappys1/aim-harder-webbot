@@ -169,20 +169,6 @@ export function DashboardClient() {
               </div>
             )}
           </div>
-
-          {/* Info message */}
-          {boxes.length > 0 && (
-            <div className="mt-8">
-              <Alert>
-                <InfoIcon className="h-4 w-4" />
-                <AlertTitle>Selecciona un box</AlertTitle>
-                <AlertDescription>
-                  Haz clic en cualquier box para ver sus clases y gestionar tus
-                  reservas.
-                </AlertDescription>
-              </Alert>
-            </div>
-          )}
         </div>
       </div>
     </div>
