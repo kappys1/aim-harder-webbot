@@ -61,13 +61,18 @@ export async function POST(request: NextRequest) {
 
     // Handle error
     if (!updateResult.success || !updateResult.newToken) {
-      console.error("Token update failed for:", email, updateResult.error);
+      console.error(
+        `Token update failed for ${email} (fingerprint: ${fingerprint.substring(0, 10)}...):`,
+        updateResult.error
+      );
 
       // Track failed token update
+      // CRITICAL: Pass fingerprint to update the correct device session
       await SupabaseSessionService.updateTokenUpdateData(
         email,
         false,
-        updateResult.error
+        updateResult.error,
+        fingerprint // Target specific device session
       );
 
       return NextResponse.json(
@@ -93,7 +98,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Track successful token update
-    await SupabaseSessionService.updateTokenUpdateData(email, true);
+    // CRITICAL: Pass fingerprint to update the correct device session
+    await SupabaseSessionService.updateTokenUpdateData(
+      email,
+      true,
+      undefined,
+      fingerprint // Target specific device session
+    );
 
     return NextResponse.json({
       success: true,

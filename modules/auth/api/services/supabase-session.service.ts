@@ -614,16 +614,29 @@ export class SupabaseSessionService {
     }
   }
 
-  // Token update tracking methods
+  /**
+   * Token update tracking methods
+   *
+   * @param email - User email
+   * @param success - Whether the token update was successful
+   * @param error - Error message if update failed
+   * @param fingerprint - Optional fingerprint to update specific session
+   *                      If not provided, updates background session by default
+   */
   static async updateTokenUpdateData(
     email: string,
     success: boolean,
-    error?: string
+    error?: string,
+    fingerprint?: string
   ): Promise<void> {
     try {
       // Get current session to increment token update count
-      const session = await this.getSession(email);
-      if (!session) return;
+      // Pass fingerprint to get the specific session
+      const session = await this.getSession(email, fingerprint ? { fingerprint } : undefined);
+      if (!session) {
+        console.warn(`[UPDATE TOKEN DATA] No session found for ${email}${fingerprint ? ` with fingerprint ${fingerprint.substring(0, 10)}...` : ''}`);
+        return;
+      }
 
       const updateData: any = {
         last_token_update_date: new Date().toISOString(),
@@ -637,10 +650,22 @@ export class SupabaseSessionService {
         updateData.last_token_update_error = error;
       }
 
-      const { error: updateError } = await supabaseAdmin
+      let query = supabaseAdmin
         .from("auth_sessions")
         .update(updateData)
         .eq("user_email", email);
+
+      // If fingerprint provided, update that specific session
+      if (fingerprint) {
+        query = query.eq("fingerprint", fingerprint);
+        console.log(`[UPDATE TOKEN DATA] Updating session with fingerprint: ${fingerprint.substring(0, 10)}... for ${email}`);
+      } else {
+        // Default: update background session
+        query = query.eq("session_type", "background");
+        console.log(`[UPDATE TOKEN DATA] Updating background session for ${email}`);
+      }
+
+      const { error: updateError, count } = await query;
 
       if (updateError) {
         console.error("Token update data update error:", updateError);
@@ -648,6 +673,8 @@ export class SupabaseSessionService {
           `Failed to update token update data: ${updateError.message}`
         );
       }
+
+      console.log(`[UPDATE TOKEN DATA] Updated ${count || 0} session(s) for ${email}`);
     } catch (error) {
       console.error("Token update data update error:", error);
       throw error;

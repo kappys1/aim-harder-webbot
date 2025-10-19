@@ -113,16 +113,18 @@ async function processTokenRefreshInBackground() {
         // Handle error
         if (!updateResult.success || !updateResult.newToken) {
           console.error(
-            `[Background] Failed to update token for ${session.email}:`,
+            `[Background] Failed to update token for ${session.email} (${session.sessionType}, fingerprint: ${session.fingerprint?.substring(0, 10)}...):`,
             updateResult.error
           );
+          // CRITICAL: Pass fingerprint to update the correct session's error state
           await SupabaseSessionService.updateTokenUpdateData(
             session.email,
             false,
-            updateResult.error
+            updateResult.error,
+            session.fingerprint // Target specific session
           );
           results.failed++;
-          results.errors.push(`${session.email}: ${updateResult.error}`);
+          results.errors.push(`${session.email} (${session.sessionType}): ${updateResult.error}`);
           continue;
         }
 
@@ -143,10 +145,16 @@ async function processTokenRefreshInBackground() {
         }
 
         // Track successful token update
-        await SupabaseSessionService.updateTokenUpdateData(session.email, true);
+        // CRITICAL: Pass fingerprint to update the correct session's success state
+        await SupabaseSessionService.updateTokenUpdateData(
+          session.email,
+          true,
+          undefined,
+          session.fingerprint // Target specific session
+        );
 
         console.log(
-          `[CRON REFRESH] Token updated successfully for ${session.email} (${session.sessionType})`
+          `[CRON REFRESH] Token updated successfully for ${session.email} (${session.sessionType}, fingerprint: ${session.fingerprint?.substring(0, 10)}...)`
         );
 
         results.updated++;

@@ -279,21 +279,27 @@ export async function POST(request: NextRequest) {
         }
 
         // Update session in database with new token
+        // CRITICAL: Pass session fingerprint to update the correct background session
         await SupabaseSessionService.updateRefreshToken(
           prebooking.userEmail,
-          refreshResult.newToken
+          refreshResult.newToken,
+          session.fingerprint // Target background session
         );
 
         if (refreshResult.cookies && refreshResult.cookies.length > 0) {
           await SupabaseSessionService.updateCookies(
             prebooking.userEmail,
-            refreshResult.cookies
+            refreshResult.cookies,
+            session.fingerprint // Target background session
           );
         }
 
+        // Track successful token update for background session
         await SupabaseSessionService.updateTokenUpdateData(
           prebooking.userEmail,
-          true
+          true,
+          undefined,
+          session.fingerprint // Target background session
         );
 
         console.log(
