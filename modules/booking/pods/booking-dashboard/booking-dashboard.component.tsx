@@ -85,7 +85,7 @@ function BookingDashboardContent({
 
     // If selected date is in the past, redirect to today
     if (selectedDateObj < today) {
-      const todayString = BookingUtils.formatDateForApi(today);
+      const todayString = BookingUtils.formatDateForRoute(today);
       setDate(todayString);
 
       // Update URL with today's date
@@ -94,7 +94,8 @@ function BookingDashboardContent({
       router.replace(`/booking?${params.toString()}`);
 
       toast.info("Fecha actualizada", {
-        description: "No se puede acceder a fechas pasadas. Se ha redirigido a hoy.",
+        description:
+          "No se puede acceder a fechas pasadas. Se ha redirigido a hoy.",
       });
     }
   }, [state.selectedDate, setDate, router, searchParams]);

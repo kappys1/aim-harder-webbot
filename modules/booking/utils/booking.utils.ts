@@ -17,6 +17,16 @@ export class BookingUtils {
     return format(dateObj, formatString, { locale: es });
   }
 
+  static formatDateForRoute(date: Date | string): string {
+    const dateObj = typeof date === "string" ? new Date(date) : date;
+
+    if (!isValid(dateObj)) {
+      throw new Error("Invalid date provided");
+    }
+
+    return format(dateObj, "yyyy-MM-dd");
+  }
+
   static formatDateForApi(date: Date | string): string {
     const dateObj = typeof date === "string" ? new Date(date) : date;
 
