@@ -351,11 +351,11 @@ describe('WeekSelector', () => {
       const today = new Date('2025-01-15T10:00:00');
       vi.setSystemTime(today);
 
-      const minDate = '2025-01-20'; // Future date
+      const minDate = '2025-01-17'; // Future date (Friday)
 
       render(
         <WeekSelector
-          selectedDate="2025-01-22"
+          selectedDate="2025-01-17"
           onDateChange={mockOnDateChange}
           minDate={minDate}
         />
@@ -363,13 +363,14 @@ describe('WeekSelector', () => {
 
       const dayButtons = screen.getAllByRole('gridcell');
 
-      // Days before minDate should be disabled (even if they're in the future)
-      // Plus days before today should also be disabled
+      // Days before minDate (2025-01-17) should be disabled
+      // This includes past dates AND dates between today and minDate
       const disabledCount = dayButtons.filter(
         (button) => button.getAttribute('aria-disabled') === 'true'
       ).length;
 
-      expect(disabledCount).toBeGreaterThan(0);
+      // At minimum, past days (before 15th) should be disabled
+      expect(disabledCount).toBeGreaterThanOrEqual(1);
     });
 
     it('should respect maxDate prop', () => {

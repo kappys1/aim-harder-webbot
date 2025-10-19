@@ -40,8 +40,8 @@ describe('DayTile', () => {
         />
       );
 
-      // Should show abbreviated day name
-      const dayAbbr = screen.getByText(/^[A-Z]{2,3}$/i);
+      // Should show abbreviated day name (mié for miércoles)
+      const dayAbbr = screen.getByText('mié');
       expect(dayAbbr).toBeInTheDocument();
     });
 
