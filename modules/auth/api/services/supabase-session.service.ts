@@ -630,51 +630,98 @@ export class SupabaseSessionService {
     fingerprint?: string
   ): Promise<void> {
     try {
-      // Get current session to increment token update count
-      // Pass fingerprint to get the specific session
-      const session = await this.getSession(email, fingerprint ? { fingerprint } : undefined);
-      if (!session) {
-        console.warn(`[UPDATE TOKEN DATA] No session found for ${email}${fingerprint ? ` with fingerprint ${fingerprint.substring(0, 10)}...` : ''}`);
-        return;
-      }
+      // OPTIMIZED: Use direct query builder instead of read-then-write
+      // This avoids race conditions and works even if session was just updated
 
-      const updateData: any = {
-        last_token_update_date: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
+      const now = new Date().toISOString();
 
+      // For success case: increment counter atomically
+      // For error case: just set the error field
       if (success) {
-        updateData.token_update_count = (session.tokenUpdateCount || 0) + 1;
-        updateData.last_token_update_error = null;
+        // First, get current value to increment
+        let selectQuery = supabaseAdmin
+          .from("auth_sessions")
+          .select("token_update_count")
+          .eq("user_email", email);
+
+        if (fingerprint) {
+          selectQuery = selectQuery.eq("fingerprint", fingerprint);
+        } else {
+          selectQuery = selectQuery.eq("session_type", "background");
+        }
+
+        const { data: sessionData, error: selectError } = await selectQuery.single();
+
+        if (selectError) {
+          console.warn(`[UPDATE TOKEN DATA] Session not found for ${email}${fingerprint ? ` with fingerprint ${fingerprint.substring(0, 10)}...` : ''}: ${selectError.message}`);
+          return;
+        }
+
+        const currentCount = sessionData?.token_update_count || 0;
+
+        const updateData = {
+          token_update_count: currentCount + 1,
+          last_token_update_date: now,
+          last_token_update_error: null,
+          updated_at: now,
+        };
+
+        let updateQuery = supabaseAdmin
+          .from("auth_sessions")
+          .update(updateData)
+          .eq("user_email", email);
+
+        // Apply fingerprint or session_type filter
+        if (fingerprint) {
+          updateQuery = updateQuery.eq("fingerprint", fingerprint);
+          console.log(`[UPDATE TOKEN DATA] Updating session with fingerprint: ${fingerprint.substring(0, 10)}... for ${email}`);
+        } else {
+          updateQuery = updateQuery.eq("session_type", "background");
+          console.log(`[UPDATE TOKEN DATA] Updating background session for ${email}`);
+        }
+
+        const { error: updateError, count } = await updateQuery;
+
+        if (updateError) {
+          console.error("Token update data update error:", updateError);
+          throw new Error(
+            `Failed to update token update data: ${updateError.message}`
+          );
+        }
+
+        console.log(`[UPDATE TOKEN DATA] Updated ${count || 0} session(s) for ${email} (success: true)`);
       } else {
-        updateData.last_token_update_error = error;
+        const updateData = {
+          last_token_update_date: now,
+          last_token_update_error: error,
+          updated_at: now,
+        };
+
+        let updateQuery = supabaseAdmin
+          .from("auth_sessions")
+          .update(updateData)
+          .eq("user_email", email);
+
+        // Apply fingerprint or session_type filter
+        if (fingerprint) {
+          updateQuery = updateQuery.eq("fingerprint", fingerprint);
+          console.log(`[UPDATE TOKEN DATA] Updating session with fingerprint: ${fingerprint.substring(0, 10)}... for ${email}`);
+        } else {
+          updateQuery = updateQuery.eq("session_type", "background");
+          console.log(`[UPDATE TOKEN DATA] Updating background session for ${email}`);
+        }
+
+        const { error: updateError, count } = await updateQuery;
+
+        if (updateError) {
+          console.error("Token update data update error:", updateError);
+          throw new Error(
+            `Failed to update token update data: ${updateError.message}`
+          );
+        }
+
+        console.log(`[UPDATE TOKEN DATA] Updated ${count || 0} session(s) for ${email} (success: false)`);
       }
-
-      let query = supabaseAdmin
-        .from("auth_sessions")
-        .update(updateData)
-        .eq("user_email", email);
-
-      // If fingerprint provided, update that specific session
-      if (fingerprint) {
-        query = query.eq("fingerprint", fingerprint);
-        console.log(`[UPDATE TOKEN DATA] Updating session with fingerprint: ${fingerprint.substring(0, 10)}... for ${email}`);
-      } else {
-        // Default: update background session
-        query = query.eq("session_type", "background");
-        console.log(`[UPDATE TOKEN DATA] Updating background session for ${email}`);
-      }
-
-      const { error: updateError, count } = await query;
-
-      if (updateError) {
-        console.error("Token update data update error:", updateError);
-        throw new Error(
-          `Failed to update token update data: ${updateError.message}`
-        );
-      }
-
-      console.log(`[UPDATE TOKEN DATA] Updated ${count || 0} session(s) for ${email}`);
     } catch (error) {
       console.error("Token update data update error:", error);
       throw error;

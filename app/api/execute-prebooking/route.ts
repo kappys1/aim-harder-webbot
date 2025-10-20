@@ -1,4 +1,5 @@
 import { verifyPrebookingToken } from "@/core/qstash/security-token";
+import { AimharderRefreshService } from "@/modules/auth/api/services/aimharder-refresh.service";
 import { SupabaseSessionService } from "@/modules/auth/api/services/supabase-session.service";
 import { BookingMapper } from "@/modules/booking/api/mappers/booking.mapper";
 import { bookingService } from "@/modules/booking/api/services/booking.service";
@@ -179,16 +180,22 @@ export async function POST(request: NextRequest) {
     );
 
     // PHASE 2.5: CHECK AND REFRESH TOKEN IF NEEDED
-    // DISABLED: Token refresh is now handled by the cron job every 20 minutes
-    // The cron job at /api/cron/refresh-tokens maintains all tokens fresh
-    // This avoids race conditions and ensures consistent token state
+    // ENABLED: Backup token refresh mechanism
+    // Primary refresh is via external cron job, but this acts as safety net
+    // Ensures token is always fresh before booking to prevent { logout: 1 } errors
 
-    /*
     // Refresh token if it's older than 25 minutes to prevent { logout: 1 } errors
     const shouldRefreshToken = () => {
+      console.log(`[HYBRID ${executionId}] Checking if token refresh is needed...`, {
+        hasLastTokenUpdateDate: !!session.lastTokenUpdateDate,
+        lastTokenUpdateDate: session.lastTokenUpdateDate,
+        tokenUpdateCount: session.tokenUpdateCount,
+        fingerprint: session.fingerprint?.substring(0, 10) + '...',
+      });
+
       if (!session.lastTokenUpdateDate) {
         console.log(
-          `[HYBRID ${executionId}] Token never updated, needs refresh`
+          `[HYBRID ${executionId}] ⚠️  Token never updated, needs refresh`
         );
         return true;
       }
@@ -198,34 +205,40 @@ export async function POST(request: NextRequest) {
       const minutesSinceUpdate =
         (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
 
-      if (minutesSinceUpdate > 20) {
+      if (minutesSinceUpdate > 25) {
         console.log(
-          `[HYBRID ${executionId}] Token is ${minutesSinceUpdate.toFixed(
+          `[HYBRID ${executionId}] ⚠️  Token is ${minutesSinceUpdate.toFixed(
             1
-          )} minutes old, needs refresh`
+          )} minutes old (threshold: 25 min), needs refresh`
         );
         return true;
       }
 
       console.log(
-        `[HYBRID ${executionId}] Token is ${minutesSinceUpdate.toFixed(
+        `[HYBRID ${executionId}] ✅ Token is ${minutesSinceUpdate.toFixed(
           1
-        )} minutes old, still fresh`
+        )} minutes old, still fresh (threshold: 25 min)`
       );
       return false;
     };
 
     if (shouldRefreshToken()) {
       const refreshStart = Date.now();
-      console.log(`[HYBRID ${executionId}] 🔄 Refreshing token...`);
+      console.log(`[HYBRID ${executionId}] 🔄 Starting token refresh...`, {
+        currentTokenPrefix: session.token.substring(0, 10) + '...',
+        fingerprint: session.fingerprint?.substring(0, 10) + '...',
+        cookieCount: session.cookies.length,
+      });
 
       try {
         // CRITICAL: Use EXACT fingerprint from background session
         // Background sessions ALWAYS have a deterministic fingerprint
         if (!session.fingerprint) {
+          console.error(`[HYBRID ${executionId}] ❌ Background session missing fingerprint - invalid session`);
           throw new Error('Background session missing fingerprint - invalid session');
         }
 
+        console.log(`[HYBRID ${executionId}] Calling AimharderRefreshService.updateToken...`);
         const refreshResult = await AimharderRefreshService.updateToken({
           token: session.token,
           fingerprint: session.fingerprint, // Use EXACT fingerprint from background session
@@ -233,10 +246,16 @@ export async function POST(request: NextRequest) {
         });
 
         const refreshTime = Date.now() - refreshStart;
+        console.log(`[HYBRID ${executionId}] Token refresh completed in ${refreshTime}ms`, {
+          success: refreshResult.success,
+          logout: refreshResult.logout,
+          error: refreshResult.error,
+          hasNewToken: !!refreshResult.newToken,
+        });
 
         if (refreshResult.logout) {
           console.error(
-            `[HYBRID ${executionId}] Token refresh failed - session expired (${refreshTime}ms)`
+            `[HYBRID ${executionId}] ❌ Token refresh failed - session expired (${refreshTime}ms)`
           );
           preBookingService
             .markFailed(prebookingId, "Session expired - please login again")
@@ -260,7 +279,7 @@ export async function POST(request: NextRequest) {
 
         if (!refreshResult.success || !refreshResult.newToken) {
           console.error(
-            `[HYBRID ${executionId}] Token refresh failed: ${refreshResult.error} (${refreshTime}ms)`
+            `[HYBRID ${executionId}] ❌ Token refresh failed: ${refreshResult.error} (${refreshTime}ms)`
           );
           preBookingService
             .markFailed(
@@ -287,6 +306,7 @@ export async function POST(request: NextRequest) {
 
         // Update session in database with new token
         // CRITICAL: Pass session fingerprint to update the correct background session
+        console.log(`[HYBRID ${executionId}] Updating token in database...`);
         await SupabaseSessionService.updateRefreshToken(
           prebooking.userEmail,
           refreshResult.newToken,
@@ -294,6 +314,7 @@ export async function POST(request: NextRequest) {
         );
 
         if (refreshResult.cookies && refreshResult.cookies.length > 0) {
+          console.log(`[HYBRID ${executionId}] Updating ${refreshResult.cookies.length} cookies in database...`);
           await SupabaseSessionService.updateCookies(
             prebooking.userEmail,
             refreshResult.cookies,
@@ -302,6 +323,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Track successful token update for background session
+        console.log(`[HYBRID ${executionId}] Updating token update metadata...`);
         await SupabaseSessionService.updateTokenUpdateData(
           prebooking.userEmail,
           true,
@@ -310,7 +332,11 @@ export async function POST(request: NextRequest) {
         );
 
         console.log(
-          `[HYBRID ${executionId}] ✅ Token refreshed successfully (${refreshTime}ms)`
+          `[HYBRID ${executionId}] ✅ Token refreshed successfully (${refreshTime}ms)`,
+          {
+            newTokenPrefix: refreshResult.newToken.substring(0, 10) + '...',
+            updatedCookies: refreshResult.cookies?.length || 0,
+          }
         );
 
         // Update session object with fresh token for booking
@@ -321,13 +347,17 @@ export async function POST(request: NextRequest) {
       } catch (error) {
         const refreshTime = Date.now() - refreshStart;
         console.error(
-          `[HYBRID ${executionId}] Token refresh error (${refreshTime}ms):`,
-          error
+          `[HYBRID ${executionId}] ❌ Token refresh error (${refreshTime}ms):`,
+          error instanceof Error ? {
+            message: error.message,
+            stack: error.stack,
+          } : error
         );
         // Continue with existing token (cron might have refreshed it)
       }
+    } else {
+      console.log(`[HYBRID ${executionId}] Token refresh not needed, proceeding with existing token`);
     }
-    */
 
     // Log token age for monitoring
     if (session.lastTokenUpdateDate) {

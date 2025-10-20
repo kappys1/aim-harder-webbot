@@ -35,6 +35,13 @@ export class AimharderRefreshService {
   static async updateToken(
     request: TokenUpdateRequest
   ): Promise<TokenUpdateResponse> {
+    const requestId = crypto.randomUUID().substring(0, 8);
+    console.log(`[TOKEN_UPDATE ${requestId}] Starting token update`, {
+      fingerprint: request.fingerprint.substring(0, 10) + '...',
+      tokenPrefix: request.token.substring(0, 10) + '...',
+      cookieCount: request.cookies.length,
+    });
+
     try {
       const updateUrl = "https://aimharder.com/api/tokenUpdate";
       const cookieHeaders = CookieService.formatForRequest(request.cookies);
@@ -44,6 +51,11 @@ export class AimharderRefreshService {
         token: request.token,
         ciclo: "1",
         fingerprint: request.fingerprint,
+      });
+
+      console.log(`[TOKEN_UPDATE ${requestId}] Sending request to ${updateUrl}`, {
+        fingerprintSent: request.fingerprint.substring(0, 10) + '...',
+        cookieHeaderLength: cookieHeaders.length,
       });
 
       const response = await fetch(updateUrl, {
@@ -57,7 +69,14 @@ export class AimharderRefreshService {
         body: formData.toString(),
       });
 
+      console.log(`[TOKEN_UPDATE ${requestId}] Response received`, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: Object.fromEntries(response.headers.entries()),
+      });
+
       if (!response.ok) {
+        console.error(`[TOKEN_UPDATE ${requestId}] Server error: ${response.status}`);
         return {
           success: false,
           error: `Server error: ${response.status}`,
@@ -66,12 +85,15 @@ export class AimharderRefreshService {
 
       // Extract new cookies from response
       const newCookies = CookieService.extractFromResponse(response);
+      console.log(`[TOKEN_UPDATE ${requestId}] Extracted ${newCookies.length} cookies from response`);
 
       // Parse JSON response
       const data = await response.json();
+      console.log(`[TOKEN_UPDATE ${requestId}] Response data:`, JSON.stringify(data, null, 2));
 
       // Check if logout is required
       if (data.logout !== undefined && data.logout !== null) {
+        console.error(`[TOKEN_UPDATE ${requestId}] Session expired - logout required`, { logout: data.logout });
         return {
           success: false,
           logout: true,
@@ -81,11 +103,17 @@ export class AimharderRefreshService {
 
       // Extract new token
       if (!data.newToken) {
+        console.error(`[TOKEN_UPDATE ${requestId}] No newToken in response`, { data });
         return {
           success: false,
           error: "No newToken in response",
         };
       }
+
+      console.log(`[TOKEN_UPDATE ${requestId}] ✅ Token updated successfully`, {
+        newTokenPrefix: data.newToken.substring(0, 10) + '...',
+        newCookieCount: newCookies.length,
+      });
 
       return {
         success: true,
@@ -93,7 +121,10 @@ export class AimharderRefreshService {
         cookies: newCookies.length > 0 ? newCookies : request.cookies, // Use new cookies or keep old ones
       };
     } catch (error) {
-      console.error("Token update error:", error);
+      console.error(`[TOKEN_UPDATE ${requestId}] ❌ Token update error:`, {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+      });
       return {
         success: false,
         error: error instanceof Error ? error.message : "Token update failed",

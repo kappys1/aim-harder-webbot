@@ -44,10 +44,15 @@ export async function POST(request: NextRequest) {
 
 async function processTokenRefreshInBackground() {
   const startTime = Date.now();
+  const cronId = crypto.randomUUID().substring(0, 8);
+
+  console.log(`[CRON_REFRESH ${cronId}] ====== Starting token refresh job ======`);
 
   try {
     // Get all active sessions
+    console.log(`[CRON_REFRESH ${cronId}] Fetching all active sessions...`);
     const sessions = await SupabaseSessionService.getAllActiveSessions();
+    console.log(`[CRON_REFRESH ${cronId}] Found ${sessions.length} active sessions`);
 
     const results = {
       total: sessions.length,
@@ -59,6 +64,8 @@ async function processTokenRefreshInBackground() {
 
     // Process each session
     for (const session of sessions) {
+      const sessionId = `${session.email}_${session.sessionType}_${session.fingerprint.substring(0, 8)}`;
+
       try {
         // Check if session needs update (updated_at > 30 minutes ago)
         const updatedAt = new Date(session.updatedAt || session.createdAt);
@@ -66,17 +73,29 @@ async function processTokenRefreshInBackground() {
         const minutesSinceUpdate =
           (now.getTime() - updatedAt.getTime()) / (1000 * 60);
 
+        console.log(`[CRON_REFRESH ${cronId}] Processing session: ${sessionId}`, {
+          email: session.email,
+          sessionType: session.sessionType,
+          fingerprint: session.fingerprint.substring(0, 10) + '...',
+          minutesSinceUpdate: minutesSinceUpdate.toFixed(1),
+          lastTokenUpdateDate: session.lastTokenUpdateDate,
+          tokenUpdateCount: session.tokenUpdateCount,
+        });
+
         if (minutesSinceUpdate <= 20) {
+          console.log(`[CRON_REFRESH ${cronId}] ⏭️  Skipping ${sessionId} - token is fresh (${minutesSinceUpdate.toFixed(1)} minutes old)`);
           results.skipped++;
           continue;
         }
+
+        console.log(`[CRON_REFRESH ${cronId}] 🔄 Refreshing ${sessionId} - token is ${minutesSinceUpdate.toFixed(1)} minutes old`);
 
         // Call Aimharder tokenUpdate
         // CRITICAL: session.fingerprint is NOT NULL in DB (required field)
         // No fallback needed - if fingerprint is missing, session is invalid
         if (!session.fingerprint) {
           console.error(
-            `[CRON REFRESH] Session for ${session.email} has no fingerprint - skipping (invalid session)`
+            `[CRON_REFRESH ${cronId}] ❌ Session for ${sessionId} has no fingerprint - skipping (invalid session)`
           );
           results.failed++;
           results.errors.push(
@@ -85,10 +104,18 @@ async function processTokenRefreshInBackground() {
           continue;
         }
 
+        console.log(`[CRON_REFRESH ${cronId}] Calling AimharderRefreshService.updateToken for ${sessionId}`);
         const updateResult = await AimharderRefreshService.updateToken({
           token: session.token,
           fingerprint: session.fingerprint, // Use EXACT fingerprint from session
           cookies: session.cookies,
+        });
+        console.log(`[CRON_REFRESH ${cronId}] AimharderRefreshService.updateToken response for ${sessionId}:`, {
+          success: updateResult.success,
+          logout: updateResult.logout,
+          error: updateResult.error,
+          hasNewToken: !!updateResult.newToken,
+          newCookieCount: updateResult.cookies?.length,
         });
 
         // Handle logout response from AimHarder
@@ -96,14 +123,17 @@ async function processTokenRefreshInBackground() {
         // We should delete ONLY the specific session that failed, not all sessions
         // NEVER delete background sessions - they should persist for pre-bookings
         if (updateResult.logout) {
+          console.error(`[CRON_REFRESH ${cronId}] ❌ Session expired (logout: 1) for ${sessionId}`);
+
           if (session.sessionType === "device") {
             // Delete only this specific device session
+            console.log(`[CRON_REFRESH ${cronId}] Deleting expired device session for ${sessionId}`);
             await SupabaseSessionService.deleteSession(session.email, {
               fingerprint: session.fingerprint,
               sessionType: "device",
             });
             console.log(
-              `[CRON REFRESH] Device session expired and deleted for ${
+              `[CRON_REFRESH ${cronId}] ✅ Device session deleted for ${
                 session.email
               } (fingerprint: ${session.fingerprint?.substring(0, 10)}...)`
             );
@@ -111,7 +141,7 @@ async function processTokenRefreshInBackground() {
             // CRITICAL: Background session expired - this is unusual and needs investigation
             // DO NOT delete background session - log warning instead
             console.warn(
-              `[CRON REFRESH] Background session received logout response for ${session.email}. ` +
+              `[CRON_REFRESH ${cronId}] ⚠️  Background session received logout response for ${session.email}. ` +
                 `This is unusual. Background session preserved.`
             );
           }
@@ -125,12 +155,11 @@ async function processTokenRefreshInBackground() {
         // Handle error
         if (!updateResult.success || !updateResult.newToken) {
           console.error(
-            `[Background] Failed to update token for ${session.email} (${
-              session.sessionType
-            }, fingerprint: ${session.fingerprint?.substring(0, 10)}...):`,
+            `[CRON_REFRESH ${cronId}] ❌ Failed to update token for ${sessionId}:`,
             updateResult.error
           );
           // CRITICAL: Pass fingerprint to update the correct session's error state
+          console.log(`[CRON_REFRESH ${cronId}] Updating error state in database for ${sessionId}`);
           await SupabaseSessionService.updateTokenUpdateData(
             session.email,
             false,
@@ -144,8 +173,11 @@ async function processTokenRefreshInBackground() {
           continue;
         }
 
+        console.log(`[CRON_REFRESH ${cronId}] ✅ Token refresh successful for ${sessionId}, updating database...`);
+
         // Update DB with new token and cookies for THIS specific session
         // CRITICAL: Pass fingerprint to target the correct session (device or background)
+        console.log(`[CRON_REFRESH ${cronId}] Updating token in database for ${sessionId}`);
         await SupabaseSessionService.updateRefreshToken(
           session.email,
           updateResult.newToken,
@@ -153,6 +185,7 @@ async function processTokenRefreshInBackground() {
         );
 
         if (updateResult.cookies && updateResult.cookies.length > 0) {
+          console.log(`[CRON_REFRESH ${cronId}] Updating ${updateResult.cookies.length} cookies in database for ${sessionId}`);
           await SupabaseSessionService.updateCookies(
             session.email,
             updateResult.cookies,
@@ -162,6 +195,7 @@ async function processTokenRefreshInBackground() {
 
         // Track successful token update
         // CRITICAL: Pass fingerprint to update the correct session's success state
+        console.log(`[CRON_REFRESH ${cronId}] Updating token update metadata for ${sessionId}`);
         await SupabaseSessionService.updateTokenUpdateData(
           session.email,
           true,
@@ -170,7 +204,7 @@ async function processTokenRefreshInBackground() {
         );
 
         console.log(
-          `[CRON REFRESH] Token updated successfully for ${session.email} (${
+          `[CRON_REFRESH ${cronId}] ✅ Token updated successfully for ${session.email} (${
             session.sessionType
           }, fingerprint: ${session.fingerprint?.substring(0, 10)}...)`
         );
@@ -178,8 +212,11 @@ async function processTokenRefreshInBackground() {
         results.updated++;
       } catch (error) {
         console.error(
-          `[Background] Error processing session ${session.email}:`,
-          error
+          `[CRON_REFRESH ${cronId}] ❌ Error processing session ${sessionId}:`,
+          error instanceof Error ? {
+            message: error.message,
+            stack: error.stack,
+          } : error
         );
         results.failed++;
         results.errors.push(
@@ -192,14 +229,23 @@ async function processTokenRefreshInBackground() {
 
     const totalTime = Date.now() - startTime;
     console.log(
-      `[Background] Token refresh completed in ${totalTime}ms:`,
-      results
+      `[CRON_REFRESH ${cronId}] ====== Token refresh completed in ${totalTime}ms ======`,
+      {
+        total: results.total,
+        updated: results.updated,
+        skipped: results.skipped,
+        failed: results.failed,
+        errors: results.errors,
+      }
     );
   } catch (error) {
     const totalTime = Date.now() - startTime;
     console.error(
-      `[Background] Token refresh failed after ${totalTime}ms:`,
-      error
+      `[CRON_REFRESH ${cronId}] ====== Token refresh FAILED after ${totalTime}ms ======`,
+      error instanceof Error ? {
+        message: error.message,
+        stack: error.stack,
+      } : error
     );
   }
 }
