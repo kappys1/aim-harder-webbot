@@ -32,23 +32,26 @@ Este proyecto usa **QStash** de Upstash para ejecutar prebookings en el momento 
 En el dashboard de QStash, encontrarás 3 valores:
 
 ### 1. **QSTASH_TOKEN**
+
 - Para publicar mensajes programados
 - Formato: `eyJxxx...`
 - Lo usas en el servidor para schedule/cancel
 
 ### 2. **QSTASH_CURRENT_SIGNING_KEY**
+
 - Para verificar que requests vienen de QStash
 - Formato: `sig_xxx...`
 - Lo usas en el webhook endpoint
 
 ### 3. **QSTASH_NEXT_SIGNING_KEY**
+
 - Para rotación de llaves
 - Formato: `sig_xxx...`
 - Lo usas en el webhook endpoint
 
 ---
 
-## Paso 4: Configurar variables de entorno
+## Paso 4: Configurar variables de entornoo
 
 ### En desarrollo local (`.env.local`):
 
@@ -191,6 +194,7 @@ vercel env ls
 ### Error: "Invalid QStash signature"
 
 **Posibles causas**:
+
 1. `QSTASH_CURRENT_SIGNING_KEY` o `QSTASH_NEXT_SIGNING_KEY` incorrectos
 2. Las llaves rotaron en QStash (actualiza en Vercel)
 
@@ -199,11 +203,13 @@ vercel env ls
 ### Prebooking no se ejecuta
 
 **Verificar**:
+
 1. En QStash Dashboard → Messages: ¿El mensaje tiene status SCHEDULED?
 2. ¿El timestamp es correcto? (UTC, no local time)
 3. En logs de Vercel: ¿Hay errores en el webhook?
 
 **Solución común**: Asegúrate que la URL del webhook es accesible:
+
 ```bash
 curl -X POST https://tu-app.vercel.app/api/execute-prebooking \
   -H "Content-Type: application/json" \
@@ -217,37 +223,37 @@ Deberías recibir error 401 (Unauthorized) porque no tiene firma QStash, pero es
 **Causa**: El `qstashScheduleId` no se guardó en la DB.
 
 **Solución**: Verifica que el método `updateQStashScheduleId()` se ejecuta correctamente:
+
 ```typescript
 // En app/api/booking/route.ts debería haber:
-await preBookingService.updateQStashScheduleId(
-  prebooking.id,
-  qstashScheduleId
-);
+await preBookingService.updateQStashScheduleId(prebooking.id, qstashScheduleId);
 ```
 
 ---
 
 ## Comparación: Antes vs Después
 
-| Métrica | Cron-job.org (Antes) | QStash (Después) |
-|---------|---------------------|------------------|
-| **Jitter** | 1-10 segundos | <100ms |
-| **Precisión** | Polling cada 60s | Timestamp exacto |
-| **Costo** | Gratis | $1.80/mes |
-| **Complejidad código** | 450 líneas | 170 líneas |
-| **Arquitectura** | Polling + batch | Event-driven + individual |
-| **Mantenimiento** | Alto (timeout guards, FIFO logic) | Bajo (QStash maneja todo) |
+| Métrica                | Cron-job.org (Antes)              | QStash (Después)          |
+| ---------------------- | --------------------------------- | ------------------------- |
+| **Jitter**             | 1-10 segundos                     | <100ms                    |
+| **Precisión**          | Polling cada 60s                  | Timestamp exacto          |
+| **Costo**              | Gratis                            | $1.80/mes                 |
+| **Complejidad código** | 450 líneas                        | 170 líneas                |
+| **Arquitectura**       | Polling + batch                   | Event-driven + individual |
+| **Mantenimiento**      | Alto (timeout guards, FIFO logic) | Bajo (QStash maneja todo) |
 
 ---
 
 ## Monitoreo
 
 ### QStash Dashboard
+
 - **Messages**: Ve todos los mensajes programados y ejecutados
 - **Logs**: Ve el historial de requests
 - **Metrics**: Ve estadísticas de uso y errores
 
 ### Vercel Logs
+
 ```bash
 # Ver logs en tiempo real
 vercel logs --follow
