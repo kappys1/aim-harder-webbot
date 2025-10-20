@@ -8,8 +8,8 @@ import { BOOKING_CONSTANTS } from "@/modules/booking/constants/booking.constants
 import { preBookingService } from "@/modules/prebooking/api/services/prebooking.service";
 import { parseEarlyBookingError } from "@/modules/prebooking/utils/error-parser.utils";
 import { NextRequest, NextResponse } from "next/server";
-
-const BOOKING_API_BASE_URL = "https://crossfitcerdanyola300.aimharder.com";
+import { BoxService } from "@/modules/boxes/api/services/box.service";
+import { BoxAccessService } from "@/modules/boxes/api/services/box-access.service";
 
 export async function GET(request: NextRequest) {
   try {
@@ -17,27 +17,48 @@ export async function GET(request: NextRequest) {
 
     // Extract query parameters
     const day = searchParams.get("day");
-    const box = searchParams.get("box");
+    const boxId = searchParams.get("boxId"); // UUID from URL
     const cacheParam = searchParams.get("_");
 
-    if (!day || !box) {
+    if (!day || !boxId) {
       return NextResponse.json(
-        { error: "Missing required parameters: day, box" },
+        { error: "Missing required parameters: day, boxId" },
         { status: 400 }
       );
-    }
-
-    // Build the target URL
-    const targetUrl = new URL("/api/bookings", BOOKING_API_BASE_URL);
-    targetUrl.searchParams.set("day", day);
-    targetUrl.searchParams.set("box", box);
-    if (cacheParam) {
-      targetUrl.searchParams.set("_", cacheParam);
     }
 
     // Get user email from the request headers or URL params
     const userEmail =
       request.headers.get("x-user-email") || "alexsbd1@gmail.com"; // Default for now
+
+    // Fetch box data directly from Supabase (server-side)
+    const box = await BoxService.getBoxById(boxId);
+
+    if (!box) {
+      return NextResponse.json(
+        { error: "Box not found" },
+        { status: 404 }
+      );
+    }
+
+    // Validate user has access to this box
+    const hasAccess = await BoxAccessService.validateAccess(userEmail, boxId);
+
+    if (!hasAccess) {
+      return NextResponse.json(
+        { error: "Access denied to this box" },
+        { status: 403 }
+      );
+    }
+
+    // Build dynamic URL using box subdomain
+    const baseUrl = box.base_url; // e.g., https://crossfitcerdanyola300.aimharder.com
+    const targetUrl = new URL("/api/bookings", baseUrl);
+    targetUrl.searchParams.set("day", day);
+    targetUrl.searchParams.set("box", box.box_id); // Use Aimharder box_id
+    if (cacheParam) {
+      targetUrl.searchParams.set("_", cacheParam);
+    }
 
     // Get real cookies from Supabase
     const session = await SupabaseSessionService.getSession(userEmail);
@@ -54,7 +75,7 @@ export async function GET(request: NextRequest) {
       .map((cookie) => `${cookie.name}=${cookie.value}`)
       .join("; ");
 
-    // Make the request to the external API
+    // Make the request to the external API with dynamic headers
     const response = await fetch(targetUrl.toString(), {
       method: "GET",
       headers: {
@@ -64,9 +85,9 @@ export async function GET(request: NextRequest) {
         "User-Agent":
           "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
         Cookie: cookieString,
-        Referer: "https://crossfitcerdanyola300.aimharder.com/",
-        Origin: "https://crossfitcerdanyola300.aimharder.com",
-        host: "crossfitcerdanyola300.aimharder.com",
+        Referer: `${baseUrl}/`,
+        Origin: baseUrl,
+        host: box.subdomain + ".aimharder.com",
       },
     });
 
@@ -378,6 +399,8 @@ export async function DELETE(request: NextRequest) {
   try {
     // Parse and validate request body
     const body = await request.json();
+    const boxSubdomain = body.boxSubdomain; // Extract box subdomain for dynamic URL
+
     const validatedRequest = BookingCancelRequestSchema.safeParse(body);
 
     if (!validatedRequest.success) {
@@ -385,6 +408,16 @@ export async function DELETE(request: NextRequest) {
         {
           error: "Invalid request parameters",
           details: validatedRequest.error.issues,
+        },
+        { status: 400 }
+      );
+    }
+
+    // Validate box subdomain
+    if (!boxSubdomain) {
+      return NextResponse.json(
+        {
+          error: "Missing required box data (boxSubdomain)",
         },
         { status: 400 }
       );
@@ -404,10 +437,11 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // Make cancellation request using the service
+    // Make cancellation request using the service with box subdomain
     const cancelResponse = await bookingService.cancelBooking(
       validatedRequest.data,
-      session.cookies
+      session.cookies,
+      boxSubdomain
     );
 
     // Check cancellation state and handle accordingly

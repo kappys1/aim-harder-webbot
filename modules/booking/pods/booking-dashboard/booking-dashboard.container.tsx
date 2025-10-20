@@ -30,7 +30,7 @@ function BookingDashboardLoading() {
 
 export async function BookingDashboardContainer({
   initialDate,
-  boxId = "10122", // CrossFit Cerdanyola
+  boxId, // Required - must be passed from parent (obtained from URL)
 }: BookingDashboardContainerProps) {
   // Extract authentication cookies from the request
   const cookieStore = await cookies();
@@ -47,6 +47,17 @@ export async function BookingDashboardContainer({
 
   // Set initial date to today if not provided
   const currentDate = initialDate || new Date().toISOString().split("T")[0];
+
+  // If boxId is not provided, we cannot render the dashboard
+  if (!boxId) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="text-center text-red-500">
+          No box selected. Please select a box from your dashboard.
+        </div>
+      </div>
+    );
+  }
 
   return (
     <Suspense fallback={<BookingDashboardLoading />}>

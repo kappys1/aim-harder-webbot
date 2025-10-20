@@ -61,7 +61,7 @@ export function DashboardClient() {
     }
 
     fetchSessionDataAndDetectBoxes();
-  }, [userEmail, boxes.length, isLoading]);
+  }, [userEmail, boxes.length, isLoading, detectBoxes]);
 
   if (isLoading || isDetectingBoxes) {
     return (

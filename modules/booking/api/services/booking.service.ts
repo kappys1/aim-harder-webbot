@@ -130,10 +130,15 @@ export class BookingService {
     cookies?: AuthCookie[],
     boxSubdomain?: string
   ): Promise<BookingCreateResponse> {
-    const baseUrl = boxSubdomain
-      ? `https://${boxSubdomain}.aimharder.com`
-      : BOOKING_CONSTANTS.API.EXTERNAL_BASE_URL;
+    if (!boxSubdomain) {
+      throw new BookingApiError(
+        "Box subdomain is required for booking creation",
+        400,
+        "VALIDATION_ERROR"
+      );
+    }
 
+    const baseUrl = `https://${boxSubdomain}.aimharder.com`;
     const url = `${baseUrl}${BOOKING_CONSTANTS.API.ENDPOINTS.CREATE_BOOKING}`;
 
     const headers: Record<string, string> = {
@@ -283,10 +288,15 @@ export class BookingService {
     cookies?: AuthCookie[],
     boxSubdomain?: string
   ): Promise<BookingCancelResponse> {
-    const baseUrl = boxSubdomain
-      ? `https://${boxSubdomain}.aimharder.com`
-      : BOOKING_CONSTANTS.API.EXTERNAL_BASE_URL;
+    if (!boxSubdomain) {
+      throw new BookingApiError(
+        "Box subdomain is required for booking cancellation",
+        400,
+        "VALIDATION_ERROR"
+      );
+    }
 
+    const baseUrl = `https://${boxSubdomain}.aimharder.com`;
     const url = `${baseUrl}${BOOKING_CONSTANTS.API.ENDPOINTS.CANCEL_BOOKING}`;
 
     const headers: Record<string, string> = {

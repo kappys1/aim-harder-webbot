@@ -40,9 +40,13 @@ export class BookingBusiness {
 
   async getBookingsForDay(
     date: string,
-    boxId: string = BOOKING_CONSTANTS.API.BOX_IDS.CROSSFIT_CERDANYOLA,
+    boxId: string, // UUID of the box (required - no default)
     cookies?: AuthCookie[]
   ): Promise<BookingDay> {
+    if (!boxId) {
+      throw new Error('boxId is required to fetch bookings');
+    }
+
     const cacheKey = BookingUtils.getCacheKey(date, boxId);
 
     if (this.config.cacheEnabled) {
@@ -55,7 +59,7 @@ export class BookingBusiness {
     const apiDate = BookingUtils.formatDateForApi(date);
     const params: BookingRequestParams = {
       day: apiDate,
-      box: boxId,
+      boxId: boxId, // Pass UUID instead of Aimharder ID
       _: BookingUtils.generateCacheTimestamp(),
     };
 

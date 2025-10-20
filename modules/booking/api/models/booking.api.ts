@@ -49,7 +49,7 @@ export const BookingResponseApiSchema = z.object({
 export const BookingRequestParamsSchema = z.object({
   day: z.string(),
   familyId: z.string().optional(),
-  box: z.string(),
+  boxId: z.string(), // UUID of the box (internal ID)
   _: z.number(),
 });
 

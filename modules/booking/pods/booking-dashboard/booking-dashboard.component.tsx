@@ -3,6 +3,7 @@
 import { Button } from "@/common/ui/button";
 import { Card, CardContent } from "@/common/ui/card";
 import { useBoxFromUrl } from "@/modules/boxes/hooks/useBoxFromUrl.hook";
+import { useBoxes } from "@/modules/boxes/hooks/useBoxes.hook";
 import { usePreBooking } from "@/modules/prebooking/pods/prebooking/hooks/usePreBooking.hook";
 import { AlertCircle } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -60,6 +61,9 @@ function BookingDashboardContent({
 
   // Get current box from URL
   const { boxId } = useBoxFromUrl();
+
+  // Get boxes for box data lookup
+  const { boxes } = useBoxes(userEmail || "");
 
   // Prebooking hook
   const {
@@ -286,10 +290,17 @@ function BookingDashboardContent({
       setCancelLoading(bookingId);
 
       try {
+        // Get box data for subdomain
+        const boxData = boxes?.find((b) => b.id === boxId);
+        if (!boxData) {
+          throw new Error("Box data not found");
+        }
+
         const cancelRequest = {
           id: booking.userBookingId.toString(),
           late: 0,
           familyId: "",
+          boxSubdomain: boxData.subdomain, // Add box subdomain for dynamic URL
         };
 
         // Use our internal API endpoint for cancellation
@@ -363,7 +374,7 @@ function BookingDashboardContent({
         setCancelLoading(null);
       }
     },
-    [bookingDay, actions, state.selectedBoxId]
+    [bookingDay, actions, state.selectedBoxId, boxes, boxId]
   );
 
   const handleCancelPrebooking = useCallback(

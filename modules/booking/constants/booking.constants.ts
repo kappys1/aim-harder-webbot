@@ -6,10 +6,8 @@ export const BOOKING_CONSTANTS = {
       CREATE_BOOKING: '/api/book',
       CANCEL_BOOKING: '/api/cancelBook',
     },
-    EXTERNAL_BASE_URL: 'https://crossfitcerdanyola300.aimharder.com',
-    BOX_IDS: {
-      CROSSFIT_CERDANYOLA: '10122',
-    },
+    // EXTERNAL_BASE_URL removed - now dynamically constructed from box data
+    // BOX_IDS removed - now use box UUID from URL/context
   },
 
   UI: {

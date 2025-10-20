@@ -54,7 +54,7 @@ const initialState: BookingState = {
   currentDay: null,
   aimHarderCurrentDate: null,
   selectedDate: new Date().toISOString().split("T")[0],
-  selectedBoxId: "10122", // CrossFit Cerdanyola
+  selectedBoxId: "", // Will be set from URL parameter via useBoxFromUrl
   isLoading: false,
   error: null,
   cache: new Map(),
