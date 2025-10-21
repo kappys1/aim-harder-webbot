@@ -7,14 +7,14 @@ export interface TimeSlot {
 
 export interface Coach {
   name: string | null;
-  avatar: string;
+  avatar: string | null;
 }
 
 export interface Box {
   id: string;
   name: string;
   address: string;
-  image: string;
+  image: string | null;
 }
 
 export interface BookingCapacity {

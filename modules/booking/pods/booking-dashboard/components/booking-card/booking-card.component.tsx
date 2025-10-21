@@ -220,7 +220,7 @@ export function BookingCard({
             <div className="flex items-center gap-2">
               <Avatar className="w-6 h-6">
                 <AvatarImage
-                  src={booking.coach.avatar}
+                  src={booking.coach.avatar || undefined}
                   alt={booking.coach.name}
                 />
                 <AvatarFallback className="text-xs">
