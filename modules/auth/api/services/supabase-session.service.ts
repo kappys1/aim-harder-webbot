@@ -8,7 +8,7 @@ import { TokenData } from "./html-parser.service";
 /**
  * Session Types for Multi-Session Architecture
  * - background: Used for cron jobs and pre-bookings (never expires)
- * - device: Used for user devices (expires after 7 days)
+ * - device: Used for user devices (expires after 90 days, aligned with AimHarder token expiration)
  */
 export type SessionType = "background" | "device";
 
@@ -673,19 +673,74 @@ export class SupabaseSessionService {
     }
   }
 
+  /**
+   * Extract expiration timestamp from AimHarder token
+   * Token format: USER_ID|EXPIRATION_TIMESTAMP|HASH
+   * Example: 69232|1768841634|bde89432503921995ab87647215105c4
+   */
+  private static extractTokenExpiration(token: string): number | null {
+    try {
+      const parts = token.split("|");
+      if (parts.length !== 3) {
+        console.error(
+          "[TOKEN PARSE] Invalid token format:",
+          token.substring(0, 20) + "..."
+        );
+        return null;
+      }
+
+      const expirationTimestamp = parseInt(parts[1], 10);
+      if (isNaN(expirationTimestamp)) {
+        console.error("[TOKEN PARSE] Invalid expiration timestamp:", parts[1]);
+        return null;
+      }
+
+      return expirationTimestamp;
+    } catch (error) {
+      console.error("[TOKEN PARSE] Error parsing token:", error);
+      return null;
+    }
+  }
+
   static async isSessionValid(email: string): Promise<boolean> {
     try {
       const session = await this.getSession(email);
 
       if (!session) return false;
 
-      // Check if session is expired (older than 7 days)
-      const createdAt = new Date(session.createdAt);
-      const now = new Date();
-      const daysDiff =
-        (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60 * 24);
+      // Background sessions never expire (kept alive by cron)
+      if (session.sessionType === "background") {
+        return true;
+      }
 
-      return daysDiff <= 7;
+      // CRITICAL: Validate based on ACTUAL token expiration from AimHarder
+      // Token format: USER_ID|EXPIRATION_TIMESTAMP|HASH
+      const tokenExpiration = this.extractTokenExpiration(session.token);
+
+      if (!tokenExpiration) {
+        console.warn(
+          `[SESSION VALID] Could not parse token expiration for ${email}, falling back to created_at check`
+        );
+        // Fallback: check if session is older than 90 days
+        const createdAt = new Date(session.createdAt);
+        const now = new Date();
+        const daysDiff =
+          (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60 * 24);
+        return daysDiff <= 90;
+      }
+
+      // Check if token is expired (timestamp is in seconds)
+      const now = Date.now() / 1000; // Convert to seconds
+      const isValid = tokenExpiration > now;
+
+      if (!isValid) {
+        const expirationDate = new Date(tokenExpiration * 1000);
+        console.log(
+          `[SESSION VALID] Token expired for ${email} at ${expirationDate.toISOString()}`
+        );
+      }
+
+      return isValid;
     } catch (error) {
       console.error("Session validation error:", error);
       return false;
@@ -695,14 +750,14 @@ export class SupabaseSessionService {
   /**
    * Get all active sessions across all users
    *
-   * Active = Background sessions (never expire) + Device sessions < 7 days old
+   * Active = Background sessions (never expire) + Device sessions < 90 days old
    *
    * @returns Array of all active sessions
    */
   static async getAllActiveSessions(): Promise<SessionData[]> {
     try {
-      const oneWeekAgo = new Date();
-      oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+      const threeMonthsAgo = new Date();
+      threeMonthsAgo.setDate(threeMonthsAgo.getDate() - 90);
 
       console.log(
         "[GET ACTIVE SESSIONS] Starting fetch of background sessions..."
@@ -830,7 +885,45 @@ export class SupabaseSessionService {
       console.log(
         `[GET ACTIVE SESSIONS] Successfully mapped ${mappedSessions.length} sessions`
       );
-      return mappedSessions;
+
+      // CRITICAL: Filter out sessions with expired tokens based on actual token expiration
+      const now = Date.now() / 1000; // Convert to seconds
+      const validSessions = mappedSessions.filter((session) => {
+        // Background sessions are always valid (kept alive by cron)
+        if (session.sessionType === "background") {
+          return true;
+        }
+
+        // Check token expiration
+        const tokenExpiration = this.extractTokenExpiration(session.token);
+        if (!tokenExpiration) {
+          console.warn(
+            `[GET ACTIVE SESSIONS] Could not parse token for ${session.email}, keeping session`
+          );
+          return true; // Keep session if we can't parse (fallback to other validation)
+        }
+
+        const isValid = tokenExpiration > now;
+        if (!isValid) {
+          const expirationDate = new Date(tokenExpiration * 1000);
+          console.log(
+            `[GET ACTIVE SESSIONS] Filtering out expired token for ${
+              session.email
+            } (expired: ${expirationDate.toISOString()})`
+          );
+        }
+        return isValid;
+      });
+
+      console.log(
+        `[GET ACTIVE SESSIONS] Filtered to ${
+          validSessions.length
+        } valid sessions (${
+          mappedSessions.length - validSessions.length
+        } expired tokens filtered out)`
+      );
+
+      return validSessions;
     } catch (error) {
       console.error("[GET ACTIVE SESSIONS] Exception caught:", {
         message: error instanceof Error ? error.message : String(error),
@@ -843,35 +936,97 @@ export class SupabaseSessionService {
   /**
    * Cleanup expired sessions
    *
-   * CRITICAL: Only deletes device sessions older than 7 days
+   * CRITICAL: Validates based on actual token expiration, not arbitrary dates
    * Background sessions are NEVER deleted by this method
    *
    * @returns Number of sessions cleaned up
    */
   static async cleanupExpiredSessions(): Promise<number> {
     try {
-      const oneWeekAgo = new Date();
-      oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+      console.log("[CLEANUP] Starting session cleanup...");
 
-      const { data, error } = await supabaseAdmin
+      // Get ALL device sessions (we'll check token expiration individually)
+      const { data: deviceSessions, error: fetchError } = await supabaseAdmin
+        .from("auth_sessions")
+        .select("*")
+        .eq("session_type", "device");
+
+      if (fetchError) {
+        console.error("Session cleanup fetch error:", fetchError);
+        throw new Error(
+          `Failed to fetch device sessions: ${fetchError.message}`
+        );
+      }
+
+      if (!deviceSessions || deviceSessions.length === 0) {
+        console.log("[CLEANUP] No device sessions to clean up");
+        return 0;
+      }
+
+      console.log(
+        `[CLEANUP] Checking ${deviceSessions.length} device session(s) for expiration...`
+      );
+
+      const now = Date.now() / 1000; // Convert to seconds
+      const expiredSessionIds: string[] = [];
+
+      for (const session of deviceSessions) {
+        const tokenExpiration = this.extractTokenExpiration(
+          session.aimharder_token
+        );
+
+        if (!tokenExpiration) {
+          // If we can't parse token, check if session is very old (fallback: 90 days)
+          const createdAt = new Date(session.created_at);
+          const daysDiff =
+            (Date.now() - createdAt.getTime()) / (1000 * 60 * 60 * 24);
+          if (daysDiff > 90) {
+            console.log(
+              `[CLEANUP] Session ${session.user_email} is ${daysDiff.toFixed(
+                0
+              )} days old (unparseable token) - marking for deletion`
+            );
+            expiredSessionIds.push(session.id);
+          }
+          continue;
+        }
+
+        if (tokenExpiration <= now) {
+          const expirationDate = new Date(tokenExpiration * 1000);
+          console.log(
+            `[CLEANUP] Session ${
+              session.user_email
+            } has expired token (expired: ${expirationDate.toISOString()}) - marking for deletion`
+          );
+          expiredSessionIds.push(session.id);
+        }
+      }
+
+      if (expiredSessionIds.length === 0) {
+        console.log("[CLEANUP] No expired sessions found");
+        return 0;
+      }
+
+      console.log(
+        `[CLEANUP] Deleting ${expiredSessionIds.length} expired session(s)...`
+      );
+
+      const { error: deleteError } = await supabaseAdmin
         .from("auth_sessions")
         .delete()
-        .eq("session_type", "device") // CRITICAL: Only delete device sessions
-        .lt("created_at", oneWeekAgo.toISOString())
-        .select("id");
+        .in("id", expiredSessionIds);
 
-      if (error) {
-        console.error("Session cleanup error:", error);
-        throw new Error(`Failed to cleanup expired sessions: ${error.message}`);
+      if (deleteError) {
+        console.error("Session cleanup delete error:", deleteError);
+        throw new Error(
+          `Failed to delete expired sessions: ${deleteError.message}`
+        );
       }
 
-      const cleanedCount = data?.length || 0;
-
-      if (cleanedCount > 0) {
-        console.log(`Cleaned up ${cleanedCount} expired device sessions`);
-      }
-
-      return cleanedCount;
+      console.log(
+        `[CLEANUP] Successfully cleaned up ${expiredSessionIds.length} expired device sessions`
+      );
+      return expiredSessionIds.length;
     } catch (error) {
       console.error("Session cleanup error:", error);
       return 0;
@@ -884,8 +1039,8 @@ export class SupabaseSessionService {
     expired: number;
   }> {
     try {
-      const oneWeekAgo = new Date();
-      oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+      const threeMonthsAgo = new Date();
+      threeMonthsAgo.setDate(threeMonthsAgo.getDate() - 90);
 
       const { count: totalCount, error: totalError } = await supabaseAdmin
         .from("auth_sessions")
@@ -894,7 +1049,7 @@ export class SupabaseSessionService {
       const { count: activeCount, error: activeError } = await supabaseAdmin
         .from("auth_sessions")
         .select("*", { count: "exact", head: true })
-        .gte("created_at", oneWeekAgo.toISOString());
+        .gte("created_at", threeMonthsAgo.toISOString());
 
       if (totalError || activeError) {
         console.error("Session stats error:", totalError || activeError);
