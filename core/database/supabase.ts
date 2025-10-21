@@ -132,10 +132,18 @@ function createFetchWithRetry(options: {
           controller.abort();
         }, options.timeout);
 
+        console.log(
+          `[Supabase Fetch] Sending fetch request for attempt ${attempt + 1}...`
+        );
+
         const response = await fetch(input, {
           ...init,
           signal: controller.signal,
         });
+
+        console.log(
+          `[Supabase Fetch] Fetch returned for attempt ${attempt + 1}, clearing timeout`
+        );
 
         clearTimeout(timeoutId);
         const elapsedTime = Date.now() - attemptStartTime;
