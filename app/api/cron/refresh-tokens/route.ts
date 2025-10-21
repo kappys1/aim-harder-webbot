@@ -1,5 +1,6 @@
 import { AimharderRefreshService } from "@/modules/auth/api/services/aimharder-refresh.service";
 import { SupabaseSessionService } from "@/modules/auth/api/services/supabase-session.service";
+import { createIsolatedSupabaseAdmin } from "@/core/database/supabase";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(request: NextRequest) {
@@ -47,11 +48,20 @@ async function processTokenRefreshInBackground() {
   const cronId = crypto.randomUUID().substring(0, 8);
 
   console.log(`[CRON_REFRESH ${cronId}] ====== Starting token refresh job ======`);
+  console.log(`[CRON_REFRESH ${cronId}] Creating isolated Supabase client for cron...`);
+
+  // Create isolated client for this cron execution
+  const supabaseClientForCron = createIsolatedSupabaseAdmin({
+    instanceId: `cron-${cronId}`,
+    connectionTimeout: 15000, // 15 second timeout for cron
+  });
+
+  console.log(`[CRON_REFRESH ${cronId}] Isolated client created`);
 
   try {
-    // Get all active sessions
+    // Get all active sessions using isolated client
     console.log(`[CRON_REFRESH ${cronId}] Fetching all active sessions...`);
-    const sessions = await SupabaseSessionService.getAllActiveSessions();
+    const sessions = await SupabaseSessionService.getAllActiveSessions(supabaseClientForCron);
     console.log(`[CRON_REFRESH ${cronId}] Found ${sessions.length} active sessions`);
 
     // CRITICAL DEBUG: Log all sessions with full details

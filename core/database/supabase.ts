@@ -1,5 +1,8 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
+// Export SupabaseClient type for use in other modules
+export type { SupabaseClient } from "@supabase/supabase-js";
+
 // Lazy initialization to ensure env vars are available at runtime
 let _supabase: SupabaseClient | null = null;
 let _supabaseAdmin: SupabaseClient | null = null;
