@@ -650,22 +650,29 @@ export class SupabaseSessionService {
       oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
 
       console.log("[GET ACTIVE SESSIONS] Starting fetch of background sessions...");
+      console.log("[GET ACTIVE SESSIONS] Creating query builder...");
 
-      // CRITICAL FIX: Only fetch background sessions for cron updates
-      // Device sessions should ONLY be updated by the frontend when user is active
-      // This prevents token desync between localStorage and DB
-      const { data, error, count } = await supabaseAdmin
+      const queryBuilder = supabaseAdmin
         .from("auth_sessions")
         .select("*", { count: "exact" })
         .eq("session_type", "background");
 
-      console.log("[GET ACTIVE SESSIONS] Query executed", {
-        hasError: !!error,
-        errorMessage: error?.message,
-        errorCode: error?.code,
-        dataLength: data?.length,
-        dbCount: count,
+      console.log("[GET ACTIVE SESSIONS] Query builder created, executing query...");
+      const startTime = Date.now();
+
+      const result = await queryBuilder;
+
+      const elapsedTime = Date.now() - startTime;
+      console.log(`[GET ACTIVE SESSIONS] Query executed in ${elapsedTime}ms`, {
+        hasData: !!result.data,
+        hasError: !!result.error,
+        errorMessage: result.error?.message,
+        errorCode: result.error?.code,
+        dataLength: result.data?.length,
+        dbCount: result.count,
       });
+
+      const { data, error } = result;
 
       if (error) {
         console.error("[GET ACTIVE SESSIONS] Error from Supabase:", {
