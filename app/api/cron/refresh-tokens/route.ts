@@ -54,6 +54,24 @@ async function processTokenRefreshInBackground() {
     const sessions = await SupabaseSessionService.getAllActiveSessions();
     console.log(`[CRON_REFRESH ${cronId}] Found ${sessions.length} active sessions`);
 
+    // CRITICAL DEBUG: Log all sessions with full details
+    console.log(`[CRON_REFRESH ${cronId}] ===== SESSIONS DETAIL =====`);
+    sessions.forEach((session, index) => {
+      console.log(`[CRON_REFRESH ${cronId}] Session ${index + 1}/${sessions.length}:`, {
+        email: session.email,
+        sessionType: session.sessionType,
+        fingerprint: session.fingerprint,
+        fingerprintLength: session.fingerprint?.length,
+        token: session.token?.substring(0, 20) + '...',
+        cookieCount: session.cookies?.length,
+        createdAt: session.createdAt,
+        updatedAt: session.updatedAt,
+        lastTokenUpdateDate: session.lastTokenUpdateDate,
+        tokenUpdateCount: session.tokenUpdateCount,
+      });
+    });
+    console.log(`[CRON_REFRESH ${cronId}] ===== END SESSIONS DETAIL =====`);
+
     const results = {
       total: sessions.length,
       updated: 0,
@@ -178,33 +196,62 @@ async function processTokenRefreshInBackground() {
 
         console.log(`[CRON_REFRESH ${cronId}] ✅ Token refresh successful for ${sessionId}, updating database...`);
 
+        // CRITICAL DEBUG: Log what we're about to update
+        console.log(`[CRON_REFRESH ${cronId}] ===== PREPARING DB UPDATE =====`);
+        console.log(`[CRON_REFRESH ${cronId}] Update parameters:`, {
+          email: session.email,
+          newToken: updateResult.newToken?.substring(0, 20) + '...',
+          targetFingerprint: session.fingerprint,
+          targetFingerprintLength: session.fingerprint?.length,
+          newCookieCount: updateResult.cookies?.length,
+        });
+        console.log(`[CRON_REFRESH ${cronId}] ===== END PREPARING DB UPDATE =====`);
+
         // Update DB with new token and cookies for THIS specific session
         // CRITICAL: Pass fingerprint to target the correct session (device or background)
         console.log(`[CRON_REFRESH ${cronId}] Updating token in database for ${sessionId}`);
-        await SupabaseSessionService.updateRefreshToken(
-          session.email,
-          updateResult.newToken,
-          session.fingerprint // Target specific session
-        );
+        try {
+          await SupabaseSessionService.updateRefreshToken(
+            session.email,
+            updateResult.newToken,
+            session.fingerprint // Target specific session
+          );
+          console.log(`[CRON_REFRESH ${cronId}] ✅ Token update in DB completed for ${sessionId}`);
+        } catch (tokenUpdateError) {
+          console.error(`[CRON_REFRESH ${cronId}] ❌ FAILED to update token in DB for ${sessionId}:`, tokenUpdateError);
+          throw tokenUpdateError; // Re-throw to be caught by outer catch
+        }
 
         if (updateResult.cookies && updateResult.cookies.length > 0) {
           console.log(`[CRON_REFRESH ${cronId}] Updating ${updateResult.cookies.length} cookies in database for ${sessionId}`);
-          await SupabaseSessionService.updateCookies(
-            session.email,
-            updateResult.cookies,
-            session.fingerprint // Target specific session
-          );
+          try {
+            await SupabaseSessionService.updateCookies(
+              session.email,
+              updateResult.cookies,
+              session.fingerprint // Target specific session
+            );
+            console.log(`[CRON_REFRESH ${cronId}] ✅ Cookies update in DB completed for ${sessionId}`);
+          } catch (cookieUpdateError) {
+            console.error(`[CRON_REFRESH ${cronId}] ❌ FAILED to update cookies in DB for ${sessionId}:`, cookieUpdateError);
+            throw cookieUpdateError; // Re-throw to be caught by outer catch
+          }
         }
 
         // Track successful token update
         // CRITICAL: Pass fingerprint to update the correct session's success state
         console.log(`[CRON_REFRESH ${cronId}] Updating token update metadata for ${sessionId}`);
-        await SupabaseSessionService.updateTokenUpdateData(
-          session.email,
-          true,
-          undefined,
-          session.fingerprint // Target specific session
-        );
+        try {
+          await SupabaseSessionService.updateTokenUpdateData(
+            session.email,
+            true,
+            undefined,
+            session.fingerprint // Target specific session
+          );
+          console.log(`[CRON_REFRESH ${cronId}] ✅ Token update metadata completed for ${sessionId}`);
+        } catch (metadataUpdateError) {
+          console.error(`[CRON_REFRESH ${cronId}] ❌ FAILED to update token metadata in DB for ${sessionId}:`, metadataUpdateError);
+          throw metadataUpdateError; // Re-throw to be caught by outer catch
+        }
 
         console.log(
           `[CRON_REFRESH ${cronId}] ✅ Token updated successfully for ${session.email} (${

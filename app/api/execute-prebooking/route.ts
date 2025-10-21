@@ -153,17 +153,20 @@ export async function POST(request: NextRequest) {
       console.error(
         `[HYBRID ${executionId}] Session not found for ${prebooking.userEmail}`
       );
-      // Background update
-      preBookingService
-        .markFailed(prebookingId, "Session not found")
-        .catch((err) =>
-          setImmediate(() =>
-            console.error(
-              `[HYBRID ${executionId}] Background update failed:`,
-              err
-            )
-          )
+      // CRITICAL FIX: AWAIT the database update
+      try {
+        console.log(`[HYBRID ${executionId}] Updating prebooking status to 'failed' (session not found)...`);
+        await preBookingService.markFailed(prebookingId, "Session not found");
+        console.log(`[HYBRID ${executionId}] ✅ Prebooking status updated successfully`);
+      } catch (updateError) {
+        console.error(
+          `[HYBRID ${executionId}] ❌ FAILED to update prebooking status:`,
+          updateError instanceof Error ? {
+            message: updateError.message,
+            stack: updateError.stack,
+          } : updateError
         );
+      }
       return NextResponse.json(
         {
           success: false,
@@ -257,16 +260,20 @@ export async function POST(request: NextRequest) {
           console.error(
             `[HYBRID ${executionId}] ❌ Token refresh failed - session expired (${refreshTime}ms)`
           );
-          preBookingService
-            .markFailed(prebookingId, "Session expired - please login again")
-            .catch((err) =>
-              setImmediate(() =>
-                console.error(
-                  `[HYBRID ${executionId}] Background update failed:`,
-                  err
-                )
-              )
+          // CRITICAL FIX: AWAIT the database update
+          try {
+            console.log(`[HYBRID ${executionId}] Updating prebooking status to 'failed' (session expired)...`);
+            await preBookingService.markFailed(prebookingId, "Session expired - please login again");
+            console.log(`[HYBRID ${executionId}] ✅ Prebooking status updated successfully`);
+          } catch (updateError) {
+            console.error(
+              `[HYBRID ${executionId}] ❌ FAILED to update prebooking status:`,
+              updateError instanceof Error ? {
+                message: updateError.message,
+                stack: updateError.stack,
+              } : updateError
             );
+          }
           return NextResponse.json(
             {
               success: false,
@@ -281,19 +288,23 @@ export async function POST(request: NextRequest) {
           console.error(
             `[HYBRID ${executionId}] ❌ Token refresh failed: ${refreshResult.error} (${refreshTime}ms)`
           );
-          preBookingService
-            .markFailed(
+          // CRITICAL FIX: AWAIT the database update
+          try {
+            console.log(`[HYBRID ${executionId}] Updating prebooking status to 'failed' (token refresh failed)...`);
+            await preBookingService.markFailed(
               prebookingId,
               `Token refresh failed: ${refreshResult.error}`
-            )
-            .catch((err) =>
-              setImmediate(() =>
-                console.error(
-                  `[HYBRID ${executionId}] Background update failed:`,
-                  err
-                )
-              )
             );
+            console.log(`[HYBRID ${executionId}] ✅ Prebooking status updated successfully`);
+          } catch (updateError) {
+            console.error(
+              `[HYBRID ${executionId}] ❌ FAILED to update prebooking status:`,
+              updateError instanceof Error ? {
+                message: updateError.message,
+                stack: updateError.stack,
+              } : updateError
+            );
+          }
           return NextResponse.json(
             {
               success: false,
@@ -415,7 +426,7 @@ export async function POST(request: NextRequest) {
       }, bookingId: ${bookingResponse.id || "N/A"}`
     );
 
-    // PHASE 5: UPDATE STATUS (BACKGROUND)
+    // PHASE 5: UPDATE STATUS (SYNCHRONOUS - WAIT FOR DB UPDATE)
     // Use mapper to determine success (handles "already booked manually" case)
     const mappedResult = BookingMapper.mapBookingCreateResult(bookingResponse);
     const success = mappedResult.success;
@@ -427,27 +438,32 @@ export async function POST(request: NextRequest) {
         ? "Booking already created manually by user"
         : bookingResponse.errorMssg || "Booking created successfully";
 
-      preBookingService
-        .markCompleted(prebookingId, {
+      // CRITICAL FIX: AWAIT the database update to ensure it completes
+      try {
+        console.log(`[HYBRID ${executionId}] Updating prebooking status to 'completed' in database...`);
+        await preBookingService.markCompleted(prebookingId, {
           bookingId: bookingResponse.id,
           bookState: bookingResponse.bookState,
           message,
           alreadyBookedManually: mappedResult.alreadyBookedManually,
-        })
-        .catch((err) =>
-          setImmediate(() =>
-            console.error(
-              `[HYBRID ${executionId}] Background update failed:`,
-              err
-            )
-          )
+        });
+        console.log(`[HYBRID ${executionId}] ✅ Prebooking status updated successfully in database`);
+      } catch (updateError) {
+        console.error(
+          `[HYBRID ${executionId}] ❌ FAILED to update prebooking status in database:`,
+          updateError instanceof Error ? {
+            message: updateError.message,
+            stack: updateError.stack,
+          } : updateError
         );
+        // Continue with response even if DB update fails (booking was successful)
+      }
 
       const logMessage = mappedResult.alreadyBookedManually
         ? `✅ SUCCESS (user booked manually) in ${totalTime}ms (fire latency: ${latency}ms)`
         : `✅ SUCCESS in ${totalTime}ms (fire latency: ${latency}ms)`;
 
-      setImmediate(() => console.log(`[HYBRID ${executionId}] ${logMessage}`));
+      console.log(`[HYBRID ${executionId}] ${logMessage}`);
 
       return NextResponse.json({
         success: true,
@@ -461,27 +477,30 @@ export async function POST(request: NextRequest) {
         fireLatency: latency,
       });
     } else {
-      preBookingService
-        .markFailed(
+      // CRITICAL FIX: AWAIT the database update to ensure it completes
+      try {
+        console.log(`[HYBRID ${executionId}] Updating prebooking status to 'failed' in database...`);
+        await preBookingService.markFailed(
           prebookingId,
           bookingResponse.errorMssg || "Booking failed",
           { bookState: bookingResponse.bookState }
-        )
-        .catch((err) =>
-          setImmediate(() =>
-            console.error(
-              `[HYBRID ${executionId}] Background update failed:`,
-              err
-            )
-          )
         );
+        console.log(`[HYBRID ${executionId}] ✅ Prebooking status updated successfully in database`);
+      } catch (updateError) {
+        console.error(
+          `[HYBRID ${executionId}] ❌ FAILED to update prebooking status in database:`,
+          updateError instanceof Error ? {
+            message: updateError.message,
+            stack: updateError.stack,
+          } : updateError
+        );
+        // Continue with response even if DB update fails
+      }
 
-      setImmediate(() =>
-        console.log(
-          `[HYBRID ${executionId}] ❌ FAILED in ${totalTime}ms (fire latency: ${latency}ms): ${
-            bookingResponse.errorMssg || "Booking failed"
-          }`
-        )
+      console.log(
+        `[HYBRID ${executionId}] ❌ FAILED in ${totalTime}ms (fire latency: ${latency}ms): ${
+          bookingResponse.errorMssg || "Booking failed"
+        }`
       );
 
       return NextResponse.json(

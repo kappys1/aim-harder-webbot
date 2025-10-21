@@ -168,6 +168,23 @@ export class SupabaseSessionService {
         query = query.eq("session_type", options.sessionType);
       }
 
+      // If filtering by sessionType without fingerprint, get the most recent one
+      // (user might have multiple device sessions from different devices/tabs)
+      if (options.sessionType && !options.fingerprint) {
+        query = query.order("updated_at", { ascending: false }).limit(1);
+        const { data, error } = await query;
+
+        if (error) {
+          console.error("Session retrieval error:", error);
+          throw new Error(`Failed to retrieve session: ${error.message}`);
+        }
+
+        if (!data || data.length === 0) return null;
+
+        return this.mapSessionRow(data[0] as SessionRow);
+      }
+
+      // For specific fingerprint or background session, expect single result
       const { data, error } = await query.single();
 
       if (error) {
@@ -417,6 +434,7 @@ export class SupabaseSessionService {
         updated_at: new Date().toISOString(),
       };
 
+      // CRITICAL FIX: Build query with proper chaining to ensure all filters apply
       let query = supabaseAdmin
         .from("auth_sessions")
         .update(updateData)
@@ -424,16 +442,19 @@ export class SupabaseSessionService {
 
       // If fingerprint provided, update that specific session
       if (fingerprint) {
-        query = query.eq("fingerprint", fingerprint);
-        console.log(`[UPDATE TOKEN] Updating session with fingerprint: ${fingerprint.substring(0, 10)}... for ${email}`);
+        // CRITICAL: Ensure fingerprint is trimmed and exact match
+        const cleanFingerprint = fingerprint.trim();
+        query = query.eq("fingerprint", cleanFingerprint);
+        console.log(`[UPDATE TOKEN] Updating session with fingerprint: ${cleanFingerprint.substring(0, 10)}... (length: ${cleanFingerprint.length}) for ${email}`);
       } else {
         // Default: update background session
         query = query.eq("session_type", "background");
         console.log(`[UPDATE TOKEN] Updating background session for ${email}`);
       }
 
-      // CRITICAL: Use select() to get count of updated rows
-      const { error, count } = await query.select();
+      // CRITICAL: Get the data back to verify update worked
+      const { error, data } = await query.select();
+      const count = data?.length || 0;
 
       if (error) {
         console.error("Refresh token update error:", error);
@@ -442,29 +463,55 @@ export class SupabaseSessionService {
 
       // CRITICAL FIX: Detect when no sessions were updated (addresses "updated=0" issue)
       if (count === 0) {
+        const cleanFingerprint = fingerprint?.trim();
         console.error(`[UPDATE TOKEN] ⚠️  NO SESSIONS UPDATED for ${email}!`, {
-          fingerprint: fingerprint?.substring(0, 20) + '...',
-          fingerprintFull: fingerprint,
-          sessionType: fingerprint ? 'specific fingerprint' : 'background',
+          fingerprint: cleanFingerprint?.substring(0, 20) + '...',
+          fingerprintFull: cleanFingerprint,
+          fingerprintLength: cleanFingerprint?.length,
+          sessionType: cleanFingerprint ? 'specific fingerprint' : 'background',
         });
 
         // Try to find the session to debug why it wasn't updated
         let debugQuery = supabaseAdmin
           .from("auth_sessions")
-          .select("id, fingerprint, session_type, user_email")
+          .select("id, fingerprint, session_type, user_email, created_at, updated_at")
           .eq("user_email", email);
 
-        if (fingerprint) {
-          debugQuery = debugQuery.eq("fingerprint", fingerprint);
+        if (cleanFingerprint) {
+          debugQuery = debugQuery.eq("fingerprint", cleanFingerprint);
         } else {
           debugQuery = debugQuery.eq("session_type", "background");
         }
 
         const { data: debugData } = await debugQuery;
-        console.error(`[UPDATE TOKEN] Debug: Found sessions:`, debugData);
+        console.error(`[UPDATE TOKEN] Debug: Found sessions with SAME query:`,
+          debugData?.map(s => ({
+            id: s.id,
+            fingerprint: s.fingerprint,
+            fingerprintLength: s.fingerprint?.length,
+            sessionType: s.session_type,
+            fingerprintMatches: s.fingerprint === cleanFingerprint
+          }))
+        );
+
+        // Also check ALL sessions to see what's there
+        const { data: allSessionsData } = await supabaseAdmin
+          .from("auth_sessions")
+          .select("id, fingerprint, session_type, user_email")
+          .eq("user_email", email);
+
+        console.error(`[UPDATE TOKEN] Debug: ALL sessions for user:`,
+          allSessionsData?.map(s => ({
+            id: s.id,
+            fingerprint: s.fingerprint,
+            fingerprintLength: s.fingerprint?.length,
+            sessionType: s.session_type,
+            fingerprintMatches: s.fingerprint === cleanFingerprint
+          }))
+        );
 
         throw new Error(
-          `Session not found for update: ${email} ${fingerprint ? `with fingerprint ${fingerprint}` : 'background session'}`
+          `Session not found for update: ${email} ${cleanFingerprint ? `with fingerprint ${cleanFingerprint}` : 'background session'}`
         );
       }
 
@@ -526,8 +573,9 @@ export class SupabaseSessionService {
         console.log(`[UPDATE COOKIES] Updating background session for ${email}`);
       }
 
-      // CRITICAL: Use select() to get count of updated rows
-      const { error, count } = await query.select();
+      // CRITICAL: Get the data back to verify update worked
+      const { error, data } = await query.select();
+      const count = data?.length || 0;
 
       if (error) {
         console.error("Cookie update error:", error);
@@ -815,8 +863,9 @@ export class SupabaseSessionService {
           console.log(`[UPDATE TOKEN DATA] Updating background session for ${email}`);
         }
 
-        // CRITICAL: Use select() to get count of updated rows
-        const { error: updateError, count } = await updateQuery.select();
+        // CRITICAL: Get the data back to verify update worked
+        const { error: updateError, data } = await updateQuery.select();
+        const count = data?.length || 0;
 
         if (updateError) {
           console.error("Token update data update error:", updateError);
@@ -825,7 +874,7 @@ export class SupabaseSessionService {
           );
         }
 
-        console.log(`[UPDATE TOKEN DATA] Updated ${count || 0} session(s) for ${email} (success: true)`);
+        console.log(`[UPDATE TOKEN DATA] Updated ${count} session(s) for ${email} (success: true)`);
       } else {
         // CRITICAL FIX: Increment counter even on error for tracking purposes
         // This helps us see that cron IS running, even if token refresh fails
@@ -870,8 +919,9 @@ export class SupabaseSessionService {
           console.log(`[UPDATE TOKEN DATA] Updating background session for ${email} (success: false, error tracking)`);
         }
 
-        // CRITICAL: Use select() to get count of updated rows
-        const { error: updateError, count } = await updateQuery.select();
+        // CRITICAL: Get the data back to verify update worked
+        const { error: updateError, data } = await updateQuery.select();
+        const count = data?.length || 0;
 
         if (updateError) {
           console.error("Token update data update error:", updateError);
@@ -880,7 +930,7 @@ export class SupabaseSessionService {
           );
         }
 
-        console.log(`[UPDATE TOKEN DATA] Updated ${count || 0} session(s) for ${email} (success: false)`);
+        console.log(`[UPDATE TOKEN DATA] Updated ${count} session(s) for ${email} (success: false)`);
       }
     } catch (error) {
       console.error("Token update data update error:", error);
