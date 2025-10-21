@@ -7,7 +7,7 @@ import { TokenData } from "./html-parser.service";
  * - background: Used for cron jobs and pre-bookings (never expires)
  * - device: Used for user devices (expires after 7 days)
  */
-export type SessionType = 'background' | 'device';
+export type SessionType = "background" | "device";
 
 export interface SessionData {
   email: string;
@@ -114,7 +114,7 @@ export class SupabaseSessionService {
           })),
           fingerprint: sessionData.fingerprint,
           session_type: sessionData.sessionType,
-          protected: sessionData.sessionType === 'background', // Auto-protect background
+          protected: sessionData.sessionType === "background", // Auto-protect background
           created_at: sessionData.createdAt,
           updated_at: new Date().toISOString(),
         },
@@ -212,8 +212,10 @@ export class SupabaseSessionService {
    * @param email - User email
    * @returns Background session or null
    */
-  static async getBackgroundSession(email: string): Promise<SessionData | null> {
-    return this.getSession(email, { sessionType: 'background' });
+  static async getBackgroundSession(
+    email: string
+  ): Promise<SessionData | null> {
+    return this.getSession(email, { sessionType: "background" });
   }
 
   /**
@@ -233,7 +235,7 @@ export class SupabaseSessionService {
     email: string,
     fingerprint?: string
   ): Promise<SessionData | null> {
-    const options: SessionQueryOptions = { sessionType: 'device' };
+    const options: SessionQueryOptions = { sessionType: "device" };
     if (fingerprint) {
       options.fingerprint = fingerprint;
     }
@@ -262,7 +264,7 @@ export class SupabaseSessionService {
 
       if (!data || data.length === 0) return [];
 
-      return (data as SessionRow[]).map(row => this.mapSessionRow(row));
+      return (data as SessionRow[]).map((row) => this.mapSessionRow(row));
     } catch (error) {
       console.error("Device sessions retrieval error:", error);
       return [];
@@ -284,12 +286,14 @@ export class SupabaseSessionService {
 
       if (error) {
         console.error("All user sessions retrieval error:", error);
-        throw new Error(`Failed to retrieve all user sessions: ${error.message}`);
+        throw new Error(
+          `Failed to retrieve all user sessions: ${error.message}`
+        );
       }
 
       if (!data || data.length === 0) return [];
 
-      return (data as SessionRow[]).map(row => this.mapSessionRow(row));
+      return (data as SessionRow[]).map((row) => this.mapSessionRow(row));
     } catch (error) {
       console.error("All user sessions retrieval error:", error);
       return [];
@@ -314,10 +318,13 @@ export class SupabaseSessionService {
   ): Promise<void> {
     try {
       // CRITICAL: Protect background sessions from accidental deletion
-      if (options.sessionType === 'background' && !options.confirmProtectedDeletion) {
+      if (
+        options.sessionType === "background" &&
+        !options.confirmProtectedDeletion
+      ) {
         throw new Error(
-          'Background session deletion requires explicit confirmation. ' +
-          'Set confirmProtectedDeletion: true to proceed.'
+          "Background session deletion requires explicit confirmation. " +
+            "Set confirmProtectedDeletion: true to proceed."
         );
       }
 
@@ -329,17 +336,26 @@ export class SupabaseSessionService {
       // Priority 1: Delete specific session by fingerprint (ignores sessionType)
       if (options.fingerprint) {
         query = query.eq("fingerprint", options.fingerprint);
-        console.log(`[DELETE SESSION] Deleting session with fingerprint: ${options.fingerprint.substring(0, 10)}... for ${email}`);
+        console.log(
+          `[DELETE SESSION] Deleting session with fingerprint: ${options.fingerprint.substring(
+            0,
+            10
+          )}... for ${email}`
+        );
       }
       // Priority 2: Delete by session type
       else if (options.sessionType) {
         query = query.eq("session_type", options.sessionType);
-        console.log(`[DELETE SESSION] Deleting all ${options.sessionType} sessions for ${email}`);
+        console.log(
+          `[DELETE SESSION] Deleting all ${options.sessionType} sessions for ${email}`
+        );
       }
       // Priority 3: Default behavior - only delete device sessions
       else {
         query = query.eq("session_type", "device");
-        console.log(`[DELETE SESSION] Deleting all device sessions for ${email} (default behavior)`);
+        console.log(
+          `[DELETE SESSION] Deleting all device sessions for ${email} (default behavior)`
+        );
       }
 
       const { error, count } = await query;
@@ -349,7 +365,9 @@ export class SupabaseSessionService {
         throw new Error(`Failed to delete session: ${error.message}`);
       }
 
-      console.log(`[DELETE SESSION] Deleted ${count || 0} session(s) for ${email}`);
+      console.log(
+        `[DELETE SESSION] Deleted ${count || 0} session(s) for ${email}`
+      );
     } catch (error) {
       console.error("Session deletion error:", error);
       throw error;
@@ -411,13 +429,14 @@ export class SupabaseSessionService {
         .select("id, fingerprint, session_type, user_email, created_at")
         .eq("user_email", email);
 
-      console.log(`[UPDATE TOKEN DEBUG] ALL sessions for ${email} BEFORE update:`,
-        allSessions?.map(s => ({
+      console.log(
+        `[UPDATE TOKEN DEBUG] ALL sessions for ${email} BEFORE update:`,
+        allSessions?.map((s) => ({
           id: s.id,
           fingerprint: s.fingerprint,
           fingerprintLength: s.fingerprint?.length,
           sessionType: s.session_type,
-          createdAt: s.created_at
+          createdAt: s.created_at,
         }))
       );
 
@@ -425,7 +444,8 @@ export class SupabaseSessionService {
         console.log(`[UPDATE TOKEN DEBUG] Looking for fingerprint:`, {
           provided: fingerprint,
           providedLength: fingerprint.length,
-          matches: allSessions?.filter(s => s.fingerprint === fingerprint).length
+          matches: allSessions?.filter((s) => s.fingerprint === fingerprint)
+            .length,
         });
       }
 
@@ -445,7 +465,12 @@ export class SupabaseSessionService {
         // CRITICAL: Ensure fingerprint is trimmed and exact match
         const cleanFingerprint = fingerprint.trim();
         query = query.eq("fingerprint", cleanFingerprint);
-        console.log(`[UPDATE TOKEN] Updating session with fingerprint: ${cleanFingerprint.substring(0, 10)}... (length: ${cleanFingerprint.length}) for ${email}`);
+        console.log(
+          `[UPDATE TOKEN] Updating session with fingerprint: ${cleanFingerprint.substring(
+            0,
+            10
+          )}... (length: ${cleanFingerprint.length}) for ${email}`
+        );
       } else {
         // Default: update background session
         query = query.eq("session_type", "background");
@@ -465,16 +490,18 @@ export class SupabaseSessionService {
       if (count === 0) {
         const cleanFingerprint = fingerprint?.trim();
         console.error(`[UPDATE TOKEN] ⚠️  NO SESSIONS UPDATED for ${email}!`, {
-          fingerprint: cleanFingerprint?.substring(0, 20) + '...',
+          fingerprint: cleanFingerprint?.substring(0, 20) + "...",
           fingerprintFull: cleanFingerprint,
           fingerprintLength: cleanFingerprint?.length,
-          sessionType: cleanFingerprint ? 'specific fingerprint' : 'background',
+          sessionType: cleanFingerprint ? "specific fingerprint" : "background",
         });
 
         // Try to find the session to debug why it wasn't updated
         let debugQuery = supabaseAdmin
           .from("auth_sessions")
-          .select("id, fingerprint, session_type, user_email, created_at, updated_at")
+          .select(
+            "id, fingerprint, session_type, user_email, created_at, updated_at"
+          )
           .eq("user_email", email);
 
         if (cleanFingerprint) {
@@ -484,13 +511,14 @@ export class SupabaseSessionService {
         }
 
         const { data: debugData } = await debugQuery;
-        console.error(`[UPDATE TOKEN] Debug: Found sessions with SAME query:`,
-          debugData?.map(s => ({
+        console.error(
+          `[UPDATE TOKEN] Debug: Found sessions with SAME query:`,
+          debugData?.map((s) => ({
             id: s.id,
             fingerprint: s.fingerprint,
             fingerprintLength: s.fingerprint?.length,
             sessionType: s.session_type,
-            fingerprintMatches: s.fingerprint === cleanFingerprint
+            fingerprintMatches: s.fingerprint === cleanFingerprint,
           }))
         );
 
@@ -500,22 +528,29 @@ export class SupabaseSessionService {
           .select("id, fingerprint, session_type, user_email")
           .eq("user_email", email);
 
-        console.error(`[UPDATE TOKEN] Debug: ALL sessions for user:`,
-          allSessionsData?.map(s => ({
+        console.error(
+          `[UPDATE TOKEN] Debug: ALL sessions for user:`,
+          allSessionsData?.map((s) => ({
             id: s.id,
             fingerprint: s.fingerprint,
             fingerprintLength: s.fingerprint?.length,
             sessionType: s.session_type,
-            fingerprintMatches: s.fingerprint === cleanFingerprint
+            fingerprintMatches: s.fingerprint === cleanFingerprint,
           }))
         );
 
         throw new Error(
-          `Session not found for update: ${email} ${cleanFingerprint ? `with fingerprint ${cleanFingerprint}` : 'background session'}`
+          `Session not found for update: ${email} ${
+            cleanFingerprint
+              ? `with fingerprint ${cleanFingerprint}`
+              : "background session"
+          }`
         );
       }
 
-      console.log(`[UPDATE TOKEN] Updated ${count || 0} session(s) for ${email}`);
+      console.log(
+        `[UPDATE TOKEN] Updated ${count || 0} session(s) for ${email}`
+      );
     } catch (error) {
       console.error("Refresh token update error:", error);
       throw error;
@@ -542,8 +577,9 @@ export class SupabaseSessionService {
         .select("id, fingerprint, session_type, user_email")
         .eq("user_email", email);
 
-      console.log(`[UPDATE COOKIES DEBUG] ALL sessions for ${email}:`,
-        allSessions?.map(s => ({
+      console.log(
+        `[UPDATE COOKIES DEBUG] ALL sessions for ${email}:`,
+        allSessions?.map((s) => ({
           id: s.id,
           fingerprint: s.fingerprint,
           sessionType: s.session_type,
@@ -566,11 +602,18 @@ export class SupabaseSessionService {
       // If fingerprint provided, update that specific session
       if (fingerprint) {
         query = query.eq("fingerprint", fingerprint);
-        console.log(`[UPDATE COOKIES] Updating session with fingerprint: ${fingerprint.substring(0, 10)}... for ${email}`);
+        console.log(
+          `[UPDATE COOKIES] Updating session with fingerprint: ${fingerprint.substring(
+            0,
+            10
+          )}... for ${email}`
+        );
       } else {
         // Default: update background session
         query = query.eq("session_type", "background");
-        console.log(`[UPDATE COOKIES] Updating background session for ${email}`);
+        console.log(
+          `[UPDATE COOKIES] Updating background session for ${email}`
+        );
       }
 
       // CRITICAL: Get the data back to verify update worked
@@ -584,12 +627,15 @@ export class SupabaseSessionService {
 
       // CRITICAL FIX: Detect when no sessions were updated
       if (count === 0) {
-        console.error(`[UPDATE COOKIES] ⚠️  NO SESSIONS UPDATED for ${email}!`, {
-          fingerprint: fingerprint?.substring(0, 20) + '...',
-          fingerprintFull: fingerprint,
-          sessionType: fingerprint ? 'specific fingerprint' : 'background',
-          cookieCount: cookies.length,
-        });
+        console.error(
+          `[UPDATE COOKIES] ⚠️  NO SESSIONS UPDATED for ${email}!`,
+          {
+            fingerprint: fingerprint?.substring(0, 20) + "...",
+            fingerprintFull: fingerprint,
+            sessionType: fingerprint ? "specific fingerprint" : "background",
+            cookieCount: cookies.length,
+          }
+        );
 
         // Try to find the session to debug
         let debugQuery = supabaseAdmin
@@ -607,11 +653,17 @@ export class SupabaseSessionService {
         console.error(`[UPDATE COOKIES] Debug: Found sessions:`, debugData);
 
         throw new Error(
-          `Session not found for cookie update: ${email} ${fingerprint ? `with fingerprint ${fingerprint}` : 'background session'}`
+          `Session not found for cookie update: ${email} ${
+            fingerprint
+              ? `with fingerprint ${fingerprint}`
+              : "background session"
+          }`
         );
       }
 
-      console.log(`[UPDATE COOKIES] Updated ${count || 0} session(s) for ${email}`);
+      console.log(
+        `[UPDATE COOKIES] Updated ${count || 0} session(s) for ${email}`
+      );
     } catch (error) {
       console.error("Cookie update error:", error);
       throw error;
@@ -649,7 +701,9 @@ export class SupabaseSessionService {
       const oneWeekAgo = new Date();
       oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
 
-      console.log("[GET ACTIVE SESSIONS] Starting fetch of background sessions...");
+      console.log(
+        "[GET ACTIVE SESSIONS] Starting fetch of background sessions..."
+      );
       console.log("[GET ACTIVE SESSIONS] Creating query builder...");
 
       // Use default supabaseAdmin client (same as /api/auth/token-update endpoint)
@@ -660,10 +714,28 @@ export class SupabaseSessionService {
         .select("*", { count: "exact" })
         .eq("session_type", "background");
 
-      console.log("[GET ACTIVE SESSIONS] Query builder created, executing query...");
+      console.log(
+        "[GET ACTIVE SESSIONS] Query builder created, executing query..."
+      );
       const startTime = Date.now();
 
-      const result = await queryBuilder;
+      // CRITICAL FIX: Add timeout to prevent hanging
+      const queryPromise = queryBuilder;
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => {
+          console.error(
+            "[GET ACTIVE SESSIONS] Query timeout reached - aborting after 15 seconds"
+          );
+          reject(new Error("Query timeout after 15 seconds"));
+        }, 15000)
+      );
+
+      console.log("[GET ACTIVE SESSIONS] Racing query vs timeout...");
+      const result = (await Promise.race([
+        queryPromise,
+        timeoutPromise,
+      ])) as Awaited<typeof queryBuilder>;
+      console.log("[GET ACTIVE SESSIONS] Query/timeout race completed");
 
       const elapsedTime = Date.now() - startTime;
       console.log(`[GET ACTIVE SESSIONS] Query executed in ${elapsedTime}ms`, {
@@ -686,30 +758,40 @@ export class SupabaseSessionService {
       }
 
       if (!data) {
-        console.warn("[GET ACTIVE SESSIONS] Data is null, returning empty array");
+        console.warn(
+          "[GET ACTIVE SESSIONS] Data is null, returning empty array"
+        );
         return [];
       }
 
-      console.log(`[GET ACTIVE SESSIONS] Found ${data.length} background session(s)`);
+      console.log(
+        `[GET ACTIVE SESSIONS] Found ${data.length} background session(s)`
+      );
 
       if (data.length === 0) {
-        console.warn("[GET ACTIVE SESSIONS] No background sessions found in database");
+        console.warn(
+          "[GET ACTIVE SESSIONS] No background sessions found in database"
+        );
         return [];
       }
 
       console.log("[GET ACTIVE SESSIONS] Session details:", {
         sessionCount: data.length,
-        sessions: (data as SessionRow[]).map(row => ({
+        sessions: (data as SessionRow[]).map((row) => ({
           email: row.user_email,
           sessionType: row.session_type,
-          fingerprint: row.fingerprint?.substring(0, 20) + '...',
+          fingerprint: row.fingerprint?.substring(0, 20) + "...",
           createdAt: row.created_at,
           updatedAt: row.updated_at,
         })),
       });
 
-      const mappedSessions = (data as SessionRow[]).map(row => this.mapSessionRow(row));
-      console.log(`[GET ACTIVE SESSIONS] Successfully mapped ${mappedSessions.length} sessions`);
+      const mappedSessions = (data as SessionRow[]).map((row) =>
+        this.mapSessionRow(row)
+      );
+      console.log(
+        `[GET ACTIVE SESSIONS] Successfully mapped ${mappedSessions.length} sessions`
+      );
       return mappedSessions;
     } catch (error) {
       console.error("[GET ACTIVE SESSIONS] Exception caught:", {
@@ -859,8 +941,9 @@ export class SupabaseSessionService {
         .select("id, fingerprint, session_type, user_email")
         .eq("user_email", email);
 
-      console.log(`[UPDATE TOKEN DATA DEBUG] ALL sessions for ${email}:`,
-        allSessions?.map(s => ({
+      console.log(
+        `[UPDATE TOKEN DATA DEBUG] ALL sessions for ${email}:`,
+        allSessions?.map((s) => ({
           id: s.id,
           fingerprint: s.fingerprint,
           sessionType: s.session_type,
@@ -878,51 +961,81 @@ export class SupabaseSessionService {
 
         console.log(`[UPDATE TOKEN DATA DEBUG] Query filters:`, {
           email,
-          fingerprint: fingerprint ? fingerprint.substring(0, 20) + '...' : 'NOT PROVIDED',
+          fingerprint: fingerprint
+            ? fingerprint.substring(0, 20) + "..."
+            : "NOT PROVIDED",
           fingerprintLength: fingerprint?.length,
         });
 
         if (fingerprint) {
           selectQuery = selectQuery.eq("fingerprint", fingerprint);
-          console.log(`[UPDATE TOKEN DATA DEBUG] Added fingerprint filter for: ${fingerprint.substring(0, 20)}...`);
+          console.log(
+            `[UPDATE TOKEN DATA DEBUG] Added fingerprint filter for: ${fingerprint.substring(
+              0,
+              20
+            )}...`
+          );
         } else {
           selectQuery = selectQuery.eq("session_type", "background");
-          console.log(`[UPDATE TOKEN DATA DEBUG] Added session_type=background filter`);
+          console.log(
+            `[UPDATE TOKEN DATA DEBUG] Added session_type=background filter`
+          );
         }
 
         // CRITICAL: Use maybeSingle instead of single to handle 0 results gracefully
-        const { data: sessionData, error: selectError, count: dbCount } = await selectQuery.maybeSingle();
+        const {
+          data: sessionData,
+          error: selectError,
+          count: dbCount,
+        } = await selectQuery.maybeSingle();
 
         console.log(`[UPDATE TOKEN DATA DEBUG] Select query result:`, {
           found: !!sessionData,
           error: selectError?.message,
           errorCode: selectError?.code,
           dbCount,
-          sessionData: sessionData ? {
-            token_update_count: sessionData.token_update_count,
-            fingerprint: sessionData.fingerprint?.substring(0, 20) + '...',
-            session_type: sessionData.session_type,
-            user_email: sessionData.user_email,
-          } : null,
+          sessionData: sessionData
+            ? {
+                token_update_count: sessionData.token_update_count,
+                fingerprint: sessionData.fingerprint?.substring(0, 20) + "...",
+                session_type: sessionData.session_type,
+                user_email: sessionData.user_email,
+              }
+            : null,
         });
 
         if (selectError) {
-          console.error(`[UPDATE TOKEN DATA] ERROR finding session for ${email}${fingerprint ? ` with fingerprint ${fingerprint.substring(0, 20)}...` : ''}: ${selectError.message} (Code: ${selectError.code})`);
+          console.error(
+            `[UPDATE TOKEN DATA] ERROR finding session for ${email}${
+              fingerprint
+                ? ` with fingerprint ${fingerprint.substring(0, 20)}...`
+                : ""
+            }: ${selectError.message} (Code: ${selectError.code})`
+          );
           throw new Error(
             `Failed to find session for token update: ${selectError.message}`
           );
         }
 
         if (!sessionData) {
-          console.error(`[UPDATE TOKEN DATA] NO SESSION FOUND for ${email}${fingerprint ? ` with fingerprint ${fingerprint.substring(0, 20)}...` : ''}`);
+          console.error(
+            `[UPDATE TOKEN DATA] NO SESSION FOUND for ${email}${
+              fingerprint
+                ? ` with fingerprint ${fingerprint.substring(0, 20)}...`
+                : ""
+            }`
+          );
           console.error(`[UPDATE TOKEN DATA] This means either:`, {
             reason1: "The fingerprint doesn't match",
             reason2: "The session was deleted",
             reason3: "session_type is not 'background'",
-            fingerprintUsed: fingerprint?.substring(0, 20) + '...',
+            fingerprintUsed: fingerprint?.substring(0, 20) + "...",
           });
           throw new Error(
-            `Session not found for token update. Fingerprint: ${fingerprint?.substring(0, 30)}...`
+            `Session not found for token update. Fingerprint: ${fingerprint?.substring(
+              0,
+              30
+            )}...`
           );
         }
 
@@ -943,10 +1056,17 @@ export class SupabaseSessionService {
         // Apply fingerprint or session_type filter
         if (fingerprint) {
           updateQuery = updateQuery.eq("fingerprint", fingerprint);
-          console.log(`[UPDATE TOKEN DATA] Updating session with fingerprint: ${fingerprint.substring(0, 10)}... for ${email}`);
+          console.log(
+            `[UPDATE TOKEN DATA] Updating session with fingerprint: ${fingerprint.substring(
+              0,
+              10
+            )}... for ${email}`
+          );
         } else {
           updateQuery = updateQuery.eq("session_type", "background");
-          console.log(`[UPDATE TOKEN DATA] Updating background session for ${email}`);
+          console.log(
+            `[UPDATE TOKEN DATA] Updating background session for ${email}`
+          );
         }
 
         // CRITICAL: Get the data back to verify update worked
@@ -960,7 +1080,9 @@ export class SupabaseSessionService {
           );
         }
 
-        console.log(`[UPDATE TOKEN DATA] Updated ${count} session(s) for ${email} (success: true)`);
+        console.log(
+          `[UPDATE TOKEN DATA] Updated ${count} session(s) for ${email} (success: true)`
+        );
       } else {
         // CRITICAL FIX: Increment counter even on error for tracking purposes
         // This helps us see that cron IS running, even if token refresh fails
@@ -971,52 +1093,86 @@ export class SupabaseSessionService {
 
         console.log(`[UPDATE TOKEN DATA DEBUG - ERROR CASE] Query filters:`, {
           email,
-          fingerprint: fingerprint ? fingerprint.substring(0, 20) + '...' : 'NOT PROVIDED',
+          fingerprint: fingerprint
+            ? fingerprint.substring(0, 20) + "..."
+            : "NOT PROVIDED",
           fingerprintLength: fingerprint?.length,
           errorMessage: error,
         });
 
         if (fingerprint) {
           selectQuery = selectQuery.eq("fingerprint", fingerprint);
-          console.log(`[UPDATE TOKEN DATA DEBUG - ERROR CASE] Added fingerprint filter for: ${fingerprint.substring(0, 20)}...`);
+          console.log(
+            `[UPDATE TOKEN DATA DEBUG - ERROR CASE] Added fingerprint filter for: ${fingerprint.substring(
+              0,
+              20
+            )}...`
+          );
         } else {
           selectQuery = selectQuery.eq("session_type", "background");
-          console.log(`[UPDATE TOKEN DATA DEBUG - ERROR CASE] Added session_type=background filter`);
+          console.log(
+            `[UPDATE TOKEN DATA DEBUG - ERROR CASE] Added session_type=background filter`
+          );
         }
 
         // CRITICAL: Use maybeSingle instead of single to handle 0 results gracefully
-        const { data: sessionData, error: selectError, count: dbCount } = await selectQuery.maybeSingle();
+        const {
+          data: sessionData,
+          error: selectError,
+          count: dbCount,
+        } = await selectQuery.maybeSingle();
 
-        console.log(`[UPDATE TOKEN DATA DEBUG - ERROR CASE] Select query result:`, {
-          found: !!sessionData,
-          error: selectError?.message,
-          errorCode: selectError?.code,
-          dbCount,
-          sessionData: sessionData ? {
-            token_update_count: sessionData.token_update_count,
-            fingerprint: sessionData.fingerprint?.substring(0, 20) + '...',
-            session_type: sessionData.session_type,
-            user_email: sessionData.user_email,
-          } : null,
-        });
+        console.log(
+          `[UPDATE TOKEN DATA DEBUG - ERROR CASE] Select query result:`,
+          {
+            found: !!sessionData,
+            error: selectError?.message,
+            errorCode: selectError?.code,
+            dbCount,
+            sessionData: sessionData
+              ? {
+                  token_update_count: sessionData.token_update_count,
+                  fingerprint:
+                    sessionData.fingerprint?.substring(0, 20) + "...",
+                  session_type: sessionData.session_type,
+                  user_email: sessionData.user_email,
+                }
+              : null,
+          }
+        );
 
         if (selectError) {
-          console.error(`[UPDATE TOKEN DATA - ERROR CASE] ERROR finding session for ${email}${fingerprint ? ` with fingerprint ${fingerprint.substring(0, 20)}...` : ''}: ${selectError.message} (Code: ${selectError.code})`);
+          console.error(
+            `[UPDATE TOKEN DATA - ERROR CASE] ERROR finding session for ${email}${
+              fingerprint
+                ? ` with fingerprint ${fingerprint.substring(0, 20)}...`
+                : ""
+            }: ${selectError.message} (Code: ${selectError.code})`
+          );
           throw new Error(
             `Failed to find session for error token update: ${selectError.message}`
           );
         }
 
         if (!sessionData) {
-          console.error(`[UPDATE TOKEN DATA - ERROR CASE] NO SESSION FOUND for ${email}${fingerprint ? ` with fingerprint ${fingerprint.substring(0, 20)}...` : ''}`);
+          console.error(
+            `[UPDATE TOKEN DATA - ERROR CASE] NO SESSION FOUND for ${email}${
+              fingerprint
+                ? ` with fingerprint ${fingerprint.substring(0, 20)}...`
+                : ""
+            }`
+          );
           console.error(`[UPDATE TOKEN DATA - ERROR CASE] This means either:`, {
             reason1: "The fingerprint doesn't match",
             reason2: "The session was deleted",
             reason3: "session_type is not 'background'",
-            fingerprintUsed: fingerprint?.substring(0, 20) + '...',
+            fingerprintUsed: fingerprint?.substring(0, 20) + "...",
           });
           throw new Error(
-            `Session not found for error token update. Fingerprint: ${fingerprint?.substring(0, 30)}...`
+            `Session not found for error token update. Fingerprint: ${fingerprint?.substring(
+              0,
+              30
+            )}...`
           );
         }
 
@@ -1037,10 +1193,17 @@ export class SupabaseSessionService {
         // Apply fingerprint or session_type filter
         if (fingerprint) {
           updateQuery = updateQuery.eq("fingerprint", fingerprint);
-          console.log(`[UPDATE TOKEN DATA] Updating session with fingerprint: ${fingerprint.substring(0, 10)}... for ${email} (success: false, error tracking)`);
+          console.log(
+            `[UPDATE TOKEN DATA] Updating session with fingerprint: ${fingerprint.substring(
+              0,
+              10
+            )}... for ${email} (success: false, error tracking)`
+          );
         } else {
           updateQuery = updateQuery.eq("session_type", "background");
-          console.log(`[UPDATE TOKEN DATA] Updating background session for ${email} (success: false, error tracking)`);
+          console.log(
+            `[UPDATE TOKEN DATA] Updating background session for ${email} (success: false, error tracking)`
+          );
         }
 
         // CRITICAL: Get the data back to verify update worked
@@ -1054,7 +1217,9 @@ export class SupabaseSessionService {
           );
         }
 
-        console.log(`[UPDATE TOKEN DATA] Updated ${count} session(s) for ${email} (success: false)`);
+        console.log(
+          `[UPDATE TOKEN DATA] Updated ${count} session(s) for ${email} (success: false)`
+        );
       }
     } catch (error) {
       console.error("Token update data update error:", error);
