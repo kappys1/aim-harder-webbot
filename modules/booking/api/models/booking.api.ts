@@ -20,9 +20,9 @@ export const BookingApiSchema = z.object({
   classDesc: z.string(),
   boxName: z.string(),
   boxDir: z.string(),
-  boxPic: z.string(),
+  boxPic: z.string().nullable(),
   coachName: z.string().nullable(),
-  coachPic: z.string(),
+  coachPic: z.string().nullable(), // Allow null values from API
   enabled: z.number(),
   bookState: z.number().nullable(),
   limit: z.union([z.number().transform(String), z.string()]),
