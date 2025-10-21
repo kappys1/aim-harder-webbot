@@ -1,4 +1,7 @@
-import { supabaseAdmin } from "@/core/database/supabase";
+import {
+  createIsolatedSupabaseAdmin,
+  supabaseAdmin,
+} from "@/core/database/supabase";
 import { AuthCookie } from "./cookie.service";
 import { TokenData } from "./html-parser.service";
 
@@ -704,38 +707,73 @@ export class SupabaseSessionService {
       console.log(
         "[GET ACTIVE SESSIONS] Starting fetch of background sessions..."
       );
-      console.log("[GET ACTIVE SESSIONS] Creating query builder...");
 
-      // Use default supabaseAdmin client (same as /api/auth/token-update endpoint)
-      const client = supabaseAdmin;
+      // CRITICAL FIX: Use isolated client with fetch timeout instead of default proxy client
+      // The default proxy client hangs in serverless/cron context due to Proxy lazy initialization
+      // Supabase docs recommend 15-30s timeouts for serverless/edge functions
+      console.log(
+        "[GET ACTIVE SESSIONS] Creating isolated Supabase client with 20s timeout..."
+      );
+      const client = createIsolatedSupabaseAdmin({
+        connectionTimeout: 20000, // 20 second timeout (increased from 10s per Supabase docs)
+        instanceId: `cron-sessions-${Date.now()}`,
+      });
+      console.log("[GET ACTIVE SESSIONS] Isolated client created successfully");
 
+      // DIAGNOSTIC: Test connectivity with a simple query first
+      console.log("[GET ACTIVE SESSIONS] Testing database connectivity...");
+      const pingStart = Date.now();
+      try {
+        const pingResult = await client
+          .from("auth_sessions")
+          .select("id", { count: "exact", head: true });
+        const pingTime = Date.now() - pingStart;
+        console.log(
+          `[GET ACTIVE SESSIONS] Connectivity test completed in ${pingTime}ms`,
+          {
+            hasError: !!pingResult.error,
+            errorMessage: pingResult.error?.message,
+            count: pingResult.count,
+          }
+        );
+
+        if (pingResult.error) {
+          console.error(
+            "[GET ACTIVE SESSIONS] Connectivity test failed:",
+            pingResult.error
+          );
+          throw new Error(
+            `Database connectivity failed: ${pingResult.error.message}`
+          );
+        }
+      } catch (pingError) {
+        console.error(
+          "[GET ACTIVE SESSIONS] Connectivity test threw exception:",
+          pingError
+        );
+        throw new Error(
+          `Database connectivity exception: ${
+            pingError instanceof Error ? pingError.message : String(pingError)
+          }`
+        );
+      }
+
+      console.log(
+        "[GET ACTIVE SESSIONS] Building main query (without count for performance)..."
+      );
       const queryBuilder = client
         .from("auth_sessions")
-        .select("*", { count: "exact" })
+        .select("*") // Removed count: "exact" to improve performance
         .eq("session_type", "background");
 
       console.log(
-        "[GET ACTIVE SESSIONS] Query builder created, executing query..."
+        "[GET ACTIVE SESSIONS] Query builder created, executing main query..."
       );
       const startTime = Date.now();
 
-      // CRITICAL FIX: Add timeout to prevent hanging
-      const queryPromise = queryBuilder;
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => {
-          console.error(
-            "[GET ACTIVE SESSIONS] Query timeout reached - aborting after 15 seconds"
-          );
-          reject(new Error("Query timeout after 15 seconds"));
-        }, 15000)
-      );
-
-      console.log("[GET ACTIVE SESSIONS] Racing query vs timeout...");
-      const result = (await Promise.race([
-        queryPromise,
-        timeoutPromise,
-      ])) as Awaited<typeof queryBuilder>;
-      console.log("[GET ACTIVE SESSIONS] Query/timeout race completed");
+      console.log("[GET ACTIVE SESSIONS] Awaiting main query result...");
+      const result = await queryBuilder;
+      console.log("[GET ACTIVE SESSIONS] Main query result received");
 
       const elapsedTime = Date.now() - startTime;
       console.log(`[GET ACTIVE SESSIONS] Query executed in ${elapsedTime}ms`, {

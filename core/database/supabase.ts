@@ -84,6 +84,16 @@ export function createIsolatedSupabaseAdmin(
     throw new Error("Missing Supabase environment variables");
   }
 
+  // CRITICAL: Increased default timeout from 10s to 20s based on Supabase docs
+  // Recommendation: serverless/edge functions need higher timeouts for reliability
+  const effectiveTimeout = config?.connectionTimeout || 20000;
+
+  console.log(
+    `[Isolated Client] Creating client with ${effectiveTimeout}ms timeout, ID: ${
+      config?.instanceId || "auto"
+    }`
+  );
+
   return createClient(supabaseUrl, supabaseServiceKey, {
     db: {
       schema: "public",
@@ -91,10 +101,12 @@ export function createIsolatedSupabaseAdmin(
     global: {
       headers: {
         "x-instance-id": config?.instanceId || crypto.randomUUID(),
+        // Add connection management hints
+        "x-client-info": "supabase-isolated-cron",
       },
       fetch: createFetchWithRetry({
         maxRetries: 2,
-        timeout: config?.connectionTimeout || 10000,
+        timeout: effectiveTimeout,
       }),
     },
     auth: {
@@ -118,16 +130,23 @@ function createFetchWithRetry(options: {
     let lastError: Error | undefined;
 
     for (let attempt = 0; attempt <= options.maxRetries; attempt++) {
-      let attemptStartTime = Date.now();
+      const attemptStartTime = Date.now();
       try {
         const controller = new AbortController();
         console.log(
-          `[Supabase Fetch] Attempt ${attempt + 1}/${options.maxRetries + 1}, timeout: ${options.timeout}ms, URL: ${String(input).substring(0, 100)}...`
+          `[Supabase Fetch] Attempt ${attempt + 1}/${
+            options.maxRetries + 1
+          }, timeout: ${options.timeout}ms, URL: ${String(input).substring(
+            0,
+            100
+          )}...`
         );
 
         const timeoutId = setTimeout(() => {
           console.error(
-            `[Supabase Fetch] Timeout after ${options.timeout}ms, aborting attempt ${attempt + 1}`
+            `[Supabase Fetch] Timeout after ${
+              options.timeout
+            }ms, aborting attempt ${attempt + 1}`
           );
           controller.abort();
         }, options.timeout);
@@ -142,13 +161,17 @@ function createFetchWithRetry(options: {
         });
 
         console.log(
-          `[Supabase Fetch] Fetch returned for attempt ${attempt + 1}, clearing timeout`
+          `[Supabase Fetch] Fetch returned for attempt ${
+            attempt + 1
+          }, clearing timeout`
         );
 
         clearTimeout(timeoutId);
         const elapsedTime = Date.now() - attemptStartTime;
         console.log(
-          `[Supabase Fetch] Attempt ${attempt + 1} succeeded in ${elapsedTime}ms, status: ${response.status}`
+          `[Supabase Fetch] Attempt ${
+            attempt + 1
+          } succeeded in ${elapsedTime}ms, status: ${response.status}`
         );
 
         // Return even if not ok (let caller handle HTTP errors)
@@ -158,14 +181,18 @@ function createFetchWithRetry(options: {
         const elapsedTime = Date.now() - attemptStartTime;
 
         console.warn(
-          `[Supabase Fetch] Attempt ${attempt + 1} failed after ${elapsedTime}ms: ${(error as Error).message}`
+          `[Supabase Fetch] Attempt ${
+            attempt + 1
+          } failed after ${elapsedTime}ms: ${(error as Error).message}`
         );
 
         // Don't retry on last attempt
         if (attempt < options.maxRetries) {
           const delay = 100 * (attempt + 1); // Exponential backoff: 100ms, 200ms
           console.warn(
-            `[Supabase Fetch] Retrying in ${delay}ms... (attempt ${attempt + 1}/${options.maxRetries})`
+            `[Supabase Fetch] Retrying in ${delay}ms... (attempt ${
+              attempt + 1
+            }/${options.maxRetries})`
           );
           await new Promise((resolve) => setTimeout(resolve, delay));
         }
