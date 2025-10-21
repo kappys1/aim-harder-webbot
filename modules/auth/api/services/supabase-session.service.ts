@@ -1,4 +1,4 @@
-import { supabaseAdmin, type SupabaseClient } from "@/core/database/supabase";
+import { supabaseAdmin } from "@/core/database/supabase";
 import { AuthCookie } from "./cookie.service";
 import { TokenData } from "./html-parser.service";
 
@@ -644,7 +644,7 @@ export class SupabaseSessionService {
    *
    * @returns Array of all active sessions
    */
-  static async getAllActiveSessions(supabaseClient?: SupabaseClient): Promise<SessionData[]> {
+  static async getAllActiveSessions(): Promise<SessionData[]> {
     try {
       const oneWeekAgo = new Date();
       oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
@@ -652,8 +652,8 @@ export class SupabaseSessionService {
       console.log("[GET ACTIVE SESSIONS] Starting fetch of background sessions...");
       console.log("[GET ACTIVE SESSIONS] Creating query builder...");
 
-      // Use provided client (for cron with isolated connection) or fall back to default
-      const client = supabaseClient || supabaseAdmin;
+      // Use default supabaseAdmin client (same as /api/auth/token-update endpoint)
+      const client = supabaseAdmin;
 
       const queryBuilder = client
         .from("auth_sessions")
