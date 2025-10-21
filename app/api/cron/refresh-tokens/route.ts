@@ -53,7 +53,7 @@ async function processTokenRefreshInBackground() {
   // Create isolated client for this cron execution
   const supabaseClientForCron = createIsolatedSupabaseAdmin({
     instanceId: `cron-${cronId}`,
-    connectionTimeout: 15000, // 15 second timeout for cron
+    connectionTimeout: 30000, // 30 second timeout for cron (increased from 15s)
   });
 
   console.log(`[CRON_REFRESH ${cronId}] Isolated client created`);

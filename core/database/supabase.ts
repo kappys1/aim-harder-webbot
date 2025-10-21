@@ -118,9 +118,19 @@ function createFetchWithRetry(options: {
     let lastError: Error | undefined;
 
     for (let attempt = 0; attempt <= options.maxRetries; attempt++) {
+      let attemptStartTime = Date.now();
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), options.timeout);
+        console.log(
+          `[Supabase Fetch] Attempt ${attempt + 1}/${options.maxRetries + 1}, timeout: ${options.timeout}ms, URL: ${String(input).substring(0, 100)}...`
+        );
+
+        const timeoutId = setTimeout(() => {
+          console.error(
+            `[Supabase Fetch] Timeout after ${options.timeout}ms, aborting attempt ${attempt + 1}`
+          );
+          controller.abort();
+        }, options.timeout);
 
         const response = await fetch(input, {
           ...init,
@@ -128,20 +138,26 @@ function createFetchWithRetry(options: {
         });
 
         clearTimeout(timeoutId);
+        const elapsedTime = Date.now() - attemptStartTime;
+        console.log(
+          `[Supabase Fetch] Attempt ${attempt + 1} succeeded in ${elapsedTime}ms, status: ${response.status}`
+        );
 
         // Return even if not ok (let caller handle HTTP errors)
         return response;
       } catch (error) {
         lastError = error as Error;
+        const elapsedTime = Date.now() - attemptStartTime;
+
+        console.warn(
+          `[Supabase Fetch] Attempt ${attempt + 1} failed after ${elapsedTime}ms: ${(error as Error).message}`
+        );
 
         // Don't retry on last attempt
         if (attempt < options.maxRetries) {
           const delay = 100 * (attempt + 1); // Exponential backoff: 100ms, 200ms
           console.warn(
-            `[Supabase] Fetch attempt ${
-              attempt + 1
-            } failed, retrying in ${delay}ms...`,
-            error
+            `[Supabase Fetch] Retrying in ${delay}ms... (attempt ${attempt + 1}/${options.maxRetries})`
           );
           await new Promise((resolve) => setTimeout(resolve, delay));
         }
@@ -149,7 +165,10 @@ function createFetchWithRetry(options: {
     }
 
     // All attempts failed
-    console.error("[Supabase] All fetch attempts failed:", lastError);
+    console.error(
+      "[Supabase Fetch] All fetch attempts failed after 3 retries:",
+      lastError?.message
+    );
     throw lastError;
   };
 }
