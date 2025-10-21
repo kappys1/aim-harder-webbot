@@ -13,5 +13,13 @@
         }
       ]
     }
-  ]
+  ],
+  "functions": {
+    "app/api/cron/refresh-tokens/route.ts": {
+      "maxDuration": 300
+    },
+    "app/api/cron/execute-prebooking/route.ts": {
+      "maxDuration": 300
+    }
+  }
 }
