@@ -649,24 +649,63 @@ export class SupabaseSessionService {
       const oneWeekAgo = new Date();
       oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
 
+      console.log("[GET ACTIVE SESSIONS] Starting fetch of background sessions...");
+
       // CRITICAL FIX: Only fetch background sessions for cron updates
       // Device sessions should ONLY be updated by the frontend when user is active
       // This prevents token desync between localStorage and DB
-      const { data, error } = await supabaseAdmin
+      const { data, error, count } = await supabaseAdmin
         .from("auth_sessions")
-        .select("*")
+        .select("*", { count: "exact" })
         .eq("session_type", "background");
 
+      console.log("[GET ACTIVE SESSIONS] Query executed", {
+        hasError: !!error,
+        errorMessage: error?.message,
+        errorCode: error?.code,
+        dataLength: data?.length,
+        dbCount: count,
+      });
+
       if (error) {
-        console.error("Active sessions retrieval error:", error);
+        console.error("[GET ACTIVE SESSIONS] Error from Supabase:", {
+          message: error.message,
+          code: error.code,
+        });
         throw new Error(`Failed to retrieve active sessions: ${error.message}`);
       }
 
-      if (!data || data.length === 0) return [];
+      if (!data) {
+        console.warn("[GET ACTIVE SESSIONS] Data is null, returning empty array");
+        return [];
+      }
 
-      return (data as SessionRow[]).map(row => this.mapSessionRow(row));
+      console.log(`[GET ACTIVE SESSIONS] Found ${data.length} background session(s)`);
+
+      if (data.length === 0) {
+        console.warn("[GET ACTIVE SESSIONS] No background sessions found in database");
+        return [];
+      }
+
+      console.log("[GET ACTIVE SESSIONS] Session details:", {
+        sessionCount: data.length,
+        sessions: (data as SessionRow[]).map(row => ({
+          email: row.user_email,
+          sessionType: row.session_type,
+          fingerprint: row.fingerprint?.substring(0, 20) + '...',
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+        })),
+      });
+
+      const mappedSessions = (data as SessionRow[]).map(row => this.mapSessionRow(row));
+      console.log(`[GET ACTIVE SESSIONS] Successfully mapped ${mappedSessions.length} sessions`);
+      return mappedSessions;
     } catch (error) {
-      console.error("Active sessions retrieval error:", error);
+      console.error("[GET ACTIVE SESSIONS] Exception caught:", {
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      });
       return [];
     }
   }
