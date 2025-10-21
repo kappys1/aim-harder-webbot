@@ -32,17 +32,20 @@ export class BookingService {
 
   async getBookings(
     params: BookingRequestParams,
-    cookies?: AuthCookie[]
+    cookies?: AuthCookie[] // DEPRECATED: No longer used, kept for backward compatibility
   ): Promise<BookingResponseApi> {
-    const url = this.buildUrl(BOOKING_CONSTANTS.API.ENDPOINTS.BOOKINGS, params);
+    // CRITICAL FIX: Call our API route instead of direct AimHarder call
+    // This ensures we always use fresh tokens from DB (device session)
+    // and fixes the "can't see attendees" issue caused by stale browser cookies
+
+    // Build URL to our API route
+    const apiUrl = `/api/booking?day=${params.day}&boxId=${params.boxId}&_=${params._}`;
 
     const headers: Record<string, string> = {
-      Accept: "*/*",
-      "X-Requested-With": "XMLHttpRequest",
       "Content-Type": "application/json",
     };
 
-    // Add user email from localStorage if available
+    // Add user email from localStorage
     if (typeof window !== "undefined") {
       const userEmail = localStorage.getItem("user-email");
       if (userEmail) {
@@ -50,20 +53,14 @@ export class BookingService {
       }
     }
 
-    if (cookies && cookies.length > 0) {
-      headers["Cookie"] = CookieService.formatForRequest(cookies);
-    }
-
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), this.timeout);
 
-      const response = await fetch(url, {
+      const response = await fetch(apiUrl, {
         method: "GET",
         headers,
         signal: controller.signal,
-        credentials: "include",
-        mode: "cors",
       });
 
       clearTimeout(timeoutId);
@@ -85,7 +82,7 @@ export class BookingService {
           zodError: validatedData.error.issues,
           rawResponse: data,
           requestParams: params,
-          url,
+          url: apiUrl,
         }, null, 2));
         throw new BookingApiError(
           "Invalid API response format",

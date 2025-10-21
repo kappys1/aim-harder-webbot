@@ -1,6 +1,7 @@
 import { generateFingerprint } from "@/common/utils/fingerprint.utils";
 import { authService } from "@/modules/auth/api/services/auth.service";
 import { useTokenRefresh } from "@/modules/auth/hooks/useTokenRefresh.hook";
+import { useDeviceSessionSync } from "@/modules/auth/hooks/useDeviceSessionSync.hook";
 import { LoginRequest } from "@/modules/auth/pods/login/models/login.model";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -29,6 +30,10 @@ export function useAuth() {
       }
     },
   });
+
+  // CRITICAL: Initialize device session sync
+  // This ensures localStorage token matches DB token on mount and focus
+  const { syncSession } = useDeviceSessionSync(user?.email || null);
 
   const login = async (data: LoginRequest) => {
     setIsLoading(true);
@@ -225,5 +230,6 @@ export function useAuth() {
     getAimharderCookies,
     startRefresh,
     stopRefresh,
+    syncSession, // Expose for manual sync if needed
   };
 }

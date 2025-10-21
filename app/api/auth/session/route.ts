@@ -5,6 +5,7 @@ export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
     const email = searchParams.get('email');
+    const sessionType = searchParams.get('sessionType') as 'device' | 'background' | null;
 
     if (!email) {
       return NextResponse.json(
@@ -13,7 +14,10 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const session = await SupabaseSessionService.getSession(email);
+    // CRITICAL: Use explicit session type or default to device for user-facing requests
+    const session = sessionType
+      ? await SupabaseSessionService.getSession(email, { sessionType })
+      : await SupabaseSessionService.getDeviceSession(email);
 
     if (!session) {
       return NextResponse.json(

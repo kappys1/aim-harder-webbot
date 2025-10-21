@@ -1,3 +1,4 @@
+import { AimharderRefreshService } from "@/modules/auth/api/services/aimharder-refresh.service";
 import { SupabaseSessionService } from "@/modules/auth/api/services/supabase-session.service";
 import {
   BookingCancelRequestSchema,
@@ -5,11 +6,85 @@ import {
 } from "@/modules/booking/api/models/booking.api";
 import { bookingService } from "@/modules/booking/api/services/booking.service";
 import { BOOKING_CONSTANTS } from "@/modules/booking/constants/booking.constants";
+import { BoxAccessService } from "@/modules/boxes/api/services/box-access.service";
+import { BoxService } from "@/modules/boxes/api/services/box.service";
 import { preBookingService } from "@/modules/prebooking/api/services/prebooking.service";
 import { parseEarlyBookingError } from "@/modules/prebooking/utils/error-parser.utils";
 import { NextRequest, NextResponse } from "next/server";
-import { BoxService } from "@/modules/boxes/api/services/box.service";
-import { BoxAccessService } from "@/modules/boxes/api/services/box-access.service";
+
+/**
+ * Helper function to refresh token if needed before booking
+ * Same logic as execute-prebooking to ensure token is fresh
+ */
+async function ensureFreshToken(
+  session: Awaited<ReturnType<typeof SupabaseSessionService.getDeviceSession>>,
+  userEmail: string
+): Promise<typeof session> {
+  if (!session) return session;
+
+  // Check if token needs refresh (>25 minutes old)
+  const tokenAge = session.lastTokenUpdateDate
+    ? Date.now() - new Date(session.lastTokenUpdateDate).getTime()
+    : Infinity;
+
+  const TOKEN_REFRESH_THRESHOLD = 25 * 60 * 1000; // 25 minutes
+
+  if (tokenAge > TOKEN_REFRESH_THRESHOLD) {
+    console.log(
+      `[BOOKING] Token is ${(tokenAge / 60000).toFixed(
+        1
+      )} minutes old, refreshing...`
+    );
+
+    try {
+      const refreshResult = await AimharderRefreshService.updateToken({
+        token: session.token,
+        fingerprint: session.fingerprint,
+        cookies: session.cookies,
+      });
+
+      if (refreshResult.success && refreshResult.newToken) {
+        // Update DB with new token
+        await SupabaseSessionService.updateRefreshToken(
+          userEmail,
+          refreshResult.newToken,
+          session.fingerprint
+        );
+
+        if (refreshResult.cookies && refreshResult.cookies.length > 0) {
+          await SupabaseSessionService.updateCookies(
+            userEmail,
+            refreshResult.cookies,
+            session.fingerprint
+          );
+        }
+
+        await SupabaseSessionService.updateTokenUpdateData(
+          userEmail,
+          true,
+          undefined,
+          session.fingerprint
+        );
+
+        console.log(`[BOOKING] Token refreshed successfully`);
+
+        // Return updated session
+        return {
+          ...session,
+          token: refreshResult.newToken,
+          cookies: refreshResult.cookies || session.cookies,
+        };
+      } else {
+        console.warn(`[BOOKING] Token refresh failed, using existing token`);
+      }
+    } catch (error) {
+      console.error(`[BOOKING] Error refreshing token:`, error);
+      // Continue with existing token
+    }
+  }
+
+  return session;
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -35,10 +110,7 @@ export async function GET(request: NextRequest) {
     const box = await BoxService.getBoxById(boxId);
 
     if (!box) {
-      return NextResponse.json(
-        { error: "Box not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Box not found" }, { status: 404 });
     }
 
     // Validate user has access to this box
@@ -60,12 +132,13 @@ export async function GET(request: NextRequest) {
       targetUrl.searchParams.set("_", cacheParam);
     }
 
-    // Get real cookies from Supabase
-    const session = await SupabaseSessionService.getSession(userEmail);
+    // CRITICAL FIX: Use device session for manual user actions (not background session)
+    // Device sessions are updated by frontend and represent the user's actual login
+    const session = await SupabaseSessionService.getDeviceSession(userEmail);
 
     if (!session) {
       return NextResponse.json(
-        { error: "User session not found. Please login first." },
+        { error: "Device session not found. Please login first." },
         { status: 401 }
       );
     }
@@ -155,13 +228,24 @@ export async function POST(request: NextRequest) {
     const userEmail =
       request.headers.get("x-user-email") || "alexsbd1@gmail.com"; // Default for now
 
-    // Get user session with cookies
-    const session = await SupabaseSessionService.getSession(userEmail);
+    // CRITICAL FIX: Use device session for manual user bookings (not background session)
+    let session = await SupabaseSessionService.getDeviceSession(userEmail);
 
     if (!session) {
       return NextResponse.json(
-        { error: "User session not found. Please login first." },
+        { error: "Device session not found. Please login first." },
         { status: 401 }
+      );
+    }
+
+    // CRITICAL FIX: Refresh token if needed before booking (prevents stale token errors)
+    session = await ensureFreshToken(session, userEmail);
+
+    // TypeScript guard: ensureFreshToken should never return null if input was non-null
+    if (!session) {
+      return NextResponse.json(
+        { error: "Session lost during token refresh" },
+        { status: 500 }
       );
     }
 
@@ -427,12 +511,12 @@ export async function DELETE(request: NextRequest) {
     const userEmail =
       request.headers.get("x-user-email") || "alexsbd1@gmail.com"; // Default for now
 
-    // Get user session with cookies
-    const session = await SupabaseSessionService.getSession(userEmail);
+    // CRITICAL FIX: Use device session for manual user actions (not background session)
+    const session = await SupabaseSessionService.getDeviceSession(userEmail);
 
     if (!session) {
       return NextResponse.json(
-        { error: "User session not found. Please login first." },
+        { error: "Device session not found. Please login first." },
         { status: 401 }
       );
     }

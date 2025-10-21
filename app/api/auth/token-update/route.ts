@@ -20,6 +20,7 @@ export async function POST(request: NextRequest) {
 
     // Get current session from DB to get cookies
     // CRITICAL: Pass fingerprint to get the correct device session
+    // This will automatically select the device session (not background) when fingerprint is provided
     const session = await SupabaseSessionService.getSession(email, {
       fingerprint
     });

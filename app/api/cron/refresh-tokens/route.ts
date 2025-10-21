@@ -82,7 +82,10 @@ async function processTokenRefreshInBackground() {
           tokenUpdateCount: session.tokenUpdateCount,
         });
 
-        if (minutesSinceUpdate <= 20) {
+        // CRITICAL FIX: Reduced threshold from 20 to 18 minutes
+        // This ensures tokens are refreshed every cron run (20 min intervals)
+        // Prevents edge cases where 19.5 min tokens get skipped
+        if (minutesSinceUpdate < 18) {
           console.log(`[CRON_REFRESH ${cronId}] ⏭️  Skipping ${sessionId} - token is fresh (${minutesSinceUpdate.toFixed(1)} minutes old)`);
           results.skipped++;
           continue;
