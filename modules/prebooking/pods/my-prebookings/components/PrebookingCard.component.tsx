@@ -41,6 +41,8 @@ export function PrebookingCard({
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   // Format date and time
+  // CRITICAL: Always use UTC for availableAt since it's stored as UTC
+  // Using toLocaleTimeString() was causing timezone-dependent display issues
 
   const classDate = parseDateFromYYYYMMDD(
     prebooking.bookingData.day
@@ -55,9 +57,21 @@ export function PrebookingCard({
     month: "short",
   });
 
-  const formattedTime = prebooking.availableAt.toLocaleTimeString("es-ES", {
+  // Format time using UTC explicitly to avoid timezone-dependent display
+  // availableAt is stored in UTC in the database
+  const formattedTime = new Intl.DateTimeFormat("es-ES", {
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: "UTC",
+  }).format(prebooking.availableAt);
+
+  // Log for debugging timezone issues
+  console.log('[PrebookingCard] Time formatting debug:', {
+    availableAtISO: prebooking.availableAt.toISOString(),
+    utcHours: prebooking.availableAt.getUTCHours(),
+    utcMinutes: prebooking.availableAt.getUTCMinutes(),
+    formattedTime,
+    browserTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
   });
 
   // Get status color

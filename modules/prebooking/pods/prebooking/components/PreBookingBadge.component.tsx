@@ -77,13 +77,14 @@ export function PreBookingBadge({ prebooking, compact = false }: PreBookingBadge
               <>
                 <div>Se reservará en: <span className="font-mono font-semibold">{countdown.formatted}</span></div>
                 <div className="text-xs opacity-75">
-                  {prebooking.availableAt.toLocaleString('es-ES', {
+                  {new Intl.DateTimeFormat('es-ES', {
                     weekday: 'short',
                     day: 'numeric',
                     month: 'short',
                     hour: '2-digit',
-                    minute: '2-digit'
-                  })}
+                    minute: '2-digit',
+                    timeZone: 'UTC'  // CRITICAL: Force UTC to avoid timezone-dependent display
+                  }).format(prebooking.availableAt)}
                 </div>
               </>
             )}
