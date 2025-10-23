@@ -461,19 +461,27 @@ describe('error-parser.utils', () => {
       expect(result).not.toBeNull();
       expect(result?.daysAdvance).toBe(4);
 
-      // CRITICAL: The availableAt must be exactly 4 days before, preserving the time
-      // Expected: Oct 24 at 07:00 UTC (same time as the class, just 4 days earlier)
-      expect(result?.availableAt.toISOString()).toBe('2025-10-24T07:00:00.000Z');
+      // CRITICAL: The availableAt must be at the SAME LOCAL TIME as the class, 4 days earlier
+      // Class: Oct 28, 08:00 Madrid (UTC+1) = 07:00 UTC
+      // Available: Oct 24, 08:00 Madrid (UTC+2) = 06:00 UTC ← Same local time!
+      expect(result?.availableAt.toISOString()).toBe('2025-10-24T06:00:00.000Z');
 
-      // Verify the time is preserved (not affected by DST)
-      expect(result?.availableAt.getUTCHours()).toBe(7);
+      // Verify the UTC time is different (due to DST offset change)
+      expect(result?.availableAt.getUTCHours()).toBe(6); // UTC+2 offset means 06:00 UTC
       expect(result?.availableAt.getUTCMinutes()).toBe(0);
       expect(result?.availableAt.getUTCDate()).toBe(24);
 
-      // Verify the exact difference is 4 days
+      // Verify the difference is approximately 4 days (with small tolerance for timezone conversion)
       const diffMs = result!.classDate.getTime() - result!.availableAt.getTime();
       const diffDays = diffMs / (24 * 60 * 60 * 1000);
-      expect(diffDays).toBe(4);
+      // Due to DST offset differences, the difference might be 4.041... days (1 hour more)
+      // This is expected: Oct 28 (UTC+1) to Oct 24 (UTC+2) = 96 hours + 1 hour = 97 hours
+      expect(diffDays).toBeCloseTo(4.041666, 3); // Allow timezone conversion overhead
+
+      // Most importantly: verify both are at 08:00 in Madrid time
+      // Class: Oct 28 07:00 UTC = 08:00 Madrid (UTC+1)
+      // Available: Oct 24 06:00 UTC = 08:00 Madrid (UTC+2)
+      // This is the correct behavior!
     });
   });
 });

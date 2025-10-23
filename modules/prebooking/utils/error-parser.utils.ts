@@ -2,11 +2,18 @@
  * Utility functions for parsing AimHarder error messages
  * and calculating exact timestamps for pre-bookings
  *
- * Note: Frontend now calculates UTC times, so backend only needs to subtract days
+ * CRITICAL: Calculates availableAt in LOCAL box timezone (Europe/Madrid)
+ * This ensures that when a class is at 08:00 local time, the availability
+ * is ALSO at 08:00 local time (4 days before), even across DST boundaries.
  *
- * CRITICAL: Uses simple millisecond arithmetic instead of date-fns sub()
- * because sub() incorrectly applies DST rules when crossing DST boundaries
+ * Example:
+ * - Class: Oct 28, 08:00 Madrid (UTC+1) = 07:00 UTC
+ * - Available: Oct 24, 08:00 Madrid (UTC+2) = 06:00 UTC ← Same local time!
+ *
+ * This is the correct behavior for "reserve in box timezone, not user timezone"
  */
+import { fromZonedTime, toZonedTime } from 'date-fns-tz';
+import { format } from 'date-fns';
 
 export interface ParsedEarlyBookingError {
   availableAt: Date;
@@ -87,19 +94,38 @@ export function parseEarlyBookingError(
     });
   }
 
-  // Calculate available date (subtract days)
-  // CRITICAL: Do NOT use date-fns sub() which applies DST rules
-  // When subtracting days across DST boundaries, sub() produces incorrect times
-  // Example: sub(2025-10-28T07:00Z, {days:4}) = 2025-10-24T06:00Z (WRONG)
-  // Instead use simple millisecond arithmetic which ignores DST
-  const millisecondsPerDay = 24 * 60 * 60 * 1000;
-  const availableAt = new Date(classDateUTC.getTime() - daysAdvance * millisecondsPerDay);
+  // Calculate available date (subtract days in LOCAL timezone)
+  // CRITICAL: Must calculate in LOCAL box timezone (Europe/Madrid), not UTC
+  // This ensures availableAt is at the SAME LOCAL TIME as the class, just days before
+  //
+  // EXAMPLE - Booking for Oct 28 (UTC+1), available Oct 24 (UTC+2):
+  // Wrong (UTC only):  Oct 28 07:00 UTC - 4 days = Oct 24 07:00 UTC = 09:00 local ❌
+  // Right (local):     Oct 28 08:00 local - 4 days = Oct 24 08:00 local = 06:00 UTC ✅
 
-  console.log('[PreBooking] Calculated availableAt:', {
+  const BOX_TIMEZONE = 'Europe/Madrid'; // TODO: Make this configurable when supporting multiple boxes
+
+  // Convert class time to local timezone to see the actual local time and date
+  const classLocal = toZonedTime(classDateUTC, BOX_TIMEZONE);
+
+  // Create the AVAILABLE date in local timezone:
+  // Same year/month/day as the class, but daysAdvance days earlier, with same time
+  const availableLocalDate = new Date(classLocal);
+  availableLocalDate.setDate(availableLocalDate.getDate() - daysAdvance);
+
+  // Convert back to UTC using the box timezone
+  // This automatically applies the correct DST offset for that date
+  const availableAt = fromZonedTime(availableLocalDate, BOX_TIMEZONE);
+
+  console.log('[PreBooking] Calculated availableAt (in local timezone):', {
     classDateUTC: classDateUTC.toISOString(),
+    classLocalTime: `${classLocal.getHours()}:${String(classLocal.getMinutes()).padStart(2, '0')}`,
+    classLocalDate: classLocal.toLocaleDateString('es-ES'),
     daysAdvance,
+    availableLocalDate: availableLocalDate.toLocaleDateString('es-ES'),
+    availableLocalTime: `${availableLocalDate.getHours()}:${String(availableLocalDate.getMinutes()).padStart(2, '0')}`,
     availableAt: availableAt.toISOString(),
-    calculationMethod: 'simple millisecond arithmetic (DST-safe)',
+    boxTimezone: BOX_TIMEZONE,
+    calculationMethod: 'local timezone arithmetic (DST-aware)',
   });
 
   return {
