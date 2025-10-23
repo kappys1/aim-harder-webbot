@@ -3,8 +3,10 @@
  * and calculating exact timestamps for pre-bookings
  *
  * Note: Frontend now calculates UTC times, so backend only needs to subtract days
+ *
+ * CRITICAL: Uses simple millisecond arithmetic instead of date-fns sub()
+ * because sub() incorrectly applies DST rules when crossing DST boundaries
  */
-import { sub } from 'date-fns';
 
 export interface ParsedEarlyBookingError {
   availableAt: Date;
@@ -86,7 +88,19 @@ export function parseEarlyBookingError(
   }
 
   // Calculate available date (subtract days)
-  const availableAt = sub(classDateUTC, { days: daysAdvance });
+  // CRITICAL: Do NOT use date-fns sub() which applies DST rules
+  // When subtracting days across DST boundaries, sub() produces incorrect times
+  // Example: sub(2025-10-28T07:00Z, {days:4}) = 2025-10-24T06:00Z (WRONG)
+  // Instead use simple millisecond arithmetic which ignores DST
+  const millisecondsPerDay = 24 * 60 * 60 * 1000;
+  const availableAt = new Date(classDateUTC.getTime() - daysAdvance * millisecondsPerDay);
+
+  console.log('[PreBooking] Calculated availableAt:', {
+    classDateUTC: classDateUTC.toISOString(),
+    daysAdvance,
+    availableAt: availableAt.toISOString(),
+    calculationMethod: 'simple millisecond arithmetic (DST-safe)',
+  });
 
   return {
     availableAt,

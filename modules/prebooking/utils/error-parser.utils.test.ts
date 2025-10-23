@@ -332,7 +332,8 @@ describe('error-parser.utils', () => {
 
       expect(result).not.toBeNull();
       expect(consoleWarnSpy).toHaveBeenCalledWith(
-        '[PreBooking] No valid classTimeUTC provided, using 00:00 UTC for classDay'
+        '[PreBooking] No valid classTimeUTC provided, using 00:00 UTC for classDay',
+        expect.any(Object)
       );
       // Should use 00:00 UTC for Feb 14
       expect(result?.classDate.getUTCHours()).toBe(0);
@@ -349,7 +350,8 @@ describe('error-parser.utils', () => {
 
       expect(result).not.toBeNull();
       expect(consoleWarnSpy).toHaveBeenCalledWith(
-        '[PreBooking] No valid classTimeUTC provided, using 00:00 UTC for classDay'
+        '[PreBooking] No valid classTimeUTC provided, using 00:00 UTC for classDay',
+        expect.any(Object)
       );
     });
 
@@ -442,6 +444,36 @@ describe('error-parser.utils', () => {
       // The availableAt should have the same UTC time as the class
       expect(result?.availableAt.getUTCHours()).toBe(result?.classDate.getUTCHours());
       expect(result?.availableAt.getUTCMinutes()).toBe(result?.classDate.getUTCMinutes());
+    });
+
+    it('should handle DST transition correctly (CRITICAL BUG FIX)', () => {
+      // SCENARIO: Booking on Oct 23 (UTC+2) for Oct 28 (UTC+1)
+      // This crosses the DST boundary (Oct 26/27)
+      // The class is at 08:00 Madrid time on Oct 28 = 07:00 UTC
+      const classTimeUTC = new Date('2025-10-28T07:00:00.000Z');
+
+      const result = parseEarlyBookingError(
+        'No puedes reservar clases con más de 4 días de antelación',
+        '20251028',
+        classTimeUTC
+      );
+
+      expect(result).not.toBeNull();
+      expect(result?.daysAdvance).toBe(4);
+
+      // CRITICAL: The availableAt must be exactly 4 days before, preserving the time
+      // Expected: Oct 24 at 07:00 UTC (same time as the class, just 4 days earlier)
+      expect(result?.availableAt.toISOString()).toBe('2025-10-24T07:00:00.000Z');
+
+      // Verify the time is preserved (not affected by DST)
+      expect(result?.availableAt.getUTCHours()).toBe(7);
+      expect(result?.availableAt.getUTCMinutes()).toBe(0);
+      expect(result?.availableAt.getUTCDate()).toBe(24);
+
+      // Verify the exact difference is 4 days
+      const diffMs = result!.classDate.getTime() - result!.availableAt.getTime();
+      const diffDays = diffMs / (24 * 60 * 60 * 1000);
+      expect(diffDays).toBe(4);
     });
   });
 });
