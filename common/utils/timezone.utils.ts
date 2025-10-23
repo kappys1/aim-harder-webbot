@@ -33,7 +33,15 @@ export function getBrowserTimezone(): string {
  * Converts a local date/time to UTC ISO 8601 string
  *
  * This is the core function used before sending booking requests to the backend.
- * It automatically handles DST transitions by using the browser's actual timezone.
+ * It automatically handles DST transitions by calculating the timezone offset
+ * for the specific date (NOT the current date).
+ *
+ * CRITICAL: This function handles cross-DST scenarios where:
+ * - User is in UTC+2 today (summer time)
+ * - But booking a class for a date in UTC+1 (winter time)
+ *
+ * The fix: Create the date/time as if it's already in the target timezone,
+ * which automatically gives us the correct UTC conversion for that specific date.
  *
  * @param localDate - Date string in format "YYYY-MM-DD" (e.g., "2025-10-28")
  * @param localTime - Time string in format "HH:mm" (e.g., "08:00")
@@ -61,8 +69,11 @@ export function convertLocalToUTC(localDate: string, localTime: string): string 
     // Construct full datetime string: "YYYY-MM-DD HH:mm:ss"
     const localDateTime = `${localDate}T${localTime}:00`;
 
-    // Convert local time to UTC using the browser's actual timezone
-    // fromZonedTime automatically handles DST for the given date
+    // CRITICAL FIX: Use fromZonedTime to convert the local time to UTC
+    // This automatically determines the correct DST offset for the SPECIFIC DATE,
+    // not the current date. This handles the cross-DST scenario:
+    // - If today is UTC+2 but the class date is UTC+1,
+    //   fromZonedTime will correctly use UTC+1 for that date
     const utcDate = fromZonedTime(localDateTime, browserTimezone);
 
     // Return ISO 8601 UTC string

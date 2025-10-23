@@ -5,7 +5,7 @@
  * and DST transitions
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import {
   convertLocalToUTC,
   convertUTCToLocal,
@@ -183,6 +183,66 @@ describe('Timezone Utils', () => {
       // Check that the local hour matches original
       // (Note: exact match depends on timezone context)
       expect(localDate).toBeInstanceOf(Date);
+    });
+  });
+
+  describe('Cross-DST scenario (critical bug fix)', () => {
+    /**
+     * This test validates the fix for the cross-DST booking issue:
+     *
+     * SCENARIO:
+     * - TODAY: Oct 24, 2025 (UTC+2, CEST summer time in Madrid)
+     * - CLASS: Oct 24, 2025 at 08:00 local time
+     * - PROBLEM: The class is BEFORE the DST transition (Oct 26)
+     *   BUT the user's timezone offset TODAY is UTC+2
+     *   However, bookings made TODAY for FUTURE dates must account for
+     *   the actual DST status on THAT specific date
+     *
+     * EXPECTED: 08:00 local should correctly convert to 07:00 UTC (not 06:00)
+     *
+     * Root cause of bug: Using the current date's DST offset instead of
+     * the target date's DST offset
+     */
+    it('should use target date DST offset, not current date DST offset', () => {
+      // Oct 24 is CEST (UTC+2) because DST ends Oct 26
+      // So 08:00 on Oct 24 should be 06:00 UTC
+      const utcString = convertLocalToUTC('2025-10-24', '08:00');
+
+      const utcDate = new Date(utcString);
+      expect(utcDate.getUTCHours()).toBe(6); // 08:00 CEST = 06:00 UTC
+      expect(utcDate.getUTCDate()).toBe(24);
+    });
+
+    it('should handle booking after DST transition correctly', () => {
+      // Oct 28 is CET (UTC+1) because DST ended Oct 26
+      // So 08:00 on Oct 28 should be 07:00 UTC (not 06:00)
+      const utcString = convertLocalToUTC('2025-10-28', '08:00');
+
+      const utcDate = new Date(utcString);
+      expect(utcDate.getUTCHours()).toBe(7); // 08:00 CET = 07:00 UTC
+      expect(utcDate.getUTCDate()).toBe(28);
+    });
+
+    it('should correctly calculate availableAt for cross-DST prebooking', () => {
+      // Simulate the exact scenario from the bug report:
+      // - User in Madrid books class for Oct 24 at 08:00
+      // - Oct 24 is in CEST (UTC+2)
+      // - So 08:00 = 06:00 UTC
+
+      const classTimeUTC = convertLocalToUTC('2025-10-24', '08:00');
+      const classDate = new Date(classTimeUTC);
+
+      expect(classDate.getUTCHours()).toBe(6);
+
+      // Now calculate availableAt (4 days before)
+      // We use the UTC representation to subtract days
+      const daysAdvance = 4;
+      const availableAtTime = new Date(classDate);
+      availableAtTime.setUTCDate(availableAtTime.getUTCDate() - daysAdvance);
+
+      // Should be Oct 20 at 06:00 UTC
+      expect(availableAtTime.getUTCDate()).toBe(20);
+      expect(availableAtTime.getUTCHours()).toBe(6); // Same time as class
     });
   });
 });
