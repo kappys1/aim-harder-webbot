@@ -70,32 +70,58 @@ export function parseEarlyBookingError(
   // This causes 2-hour difference in production vs development
   //
   // Solution: Always interpret the time as Europe/Madrid timezone
-  // We subtract the Madrid UTC offset to get the correct UTC timestamp
+  // We use Intl.DateTimeFormat to correctly determine the UTC offset for that specific date
 
-  // Get Spain timezone offset for this date (handles DST automatically)
-  // Note: We create a temporary date to check the offset for that specific date
+  // Create a temporary UTC date to extract Madrid timezone offset
   const tempDate = new Date(classDate.getFullYear(), classDate.getMonth(), classDate.getDate());
 
-  // Create a date with Madrid timezone using toLocaleString
-  const madridDateStr = tempDate.toLocaleString('en-US', { timeZone: 'Europe/Madrid' });
-  const madridDate = new Date(madridDateStr);
+  // Use Intl to get the Madrid time components for this specific UTC moment
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Europe/Madrid',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  });
 
-  // Get the offset difference in milliseconds
-  const offset = madridDate.getTime() - tempDate.getTime();
+  const parts = formatter.formatToParts(tempDate);
+  const partsMap: Record<string, string> = {};
+  parts.forEach(part => {
+    if (part.type !== 'literal') {
+      partsMap[part.type] = part.value;
+    }
+  });
 
-  // Set the time on the class date in local time
+  // Create a UTC date from the Madrid time components
+  // This tells us: "if it's this UTC timestamp, what would the time be in Madrid?"
+  const madridYear = parseInt(partsMap.year);
+  const madridMonth = parseInt(partsMap.month) - 1;
+  const madridDay = parseInt(partsMap.day);
+  const madridHour = parseInt(partsMap.hour);
+  const madridMinute = parseInt(partsMap.minute);
+
+  const madridAsUTC = new Date(Date.UTC(madridYear, madridMonth, madridDay, madridHour, madridMinute, 0));
+
+  // The offset is the difference between the original UTC and what we created
+  // This gives us the true Madrid timezone offset for this date (handles DST)
+  const offset = tempDate.getTime() - madridAsUTC.getTime();
+
+  // Set the time on the class date (still in UTC interpretation)
   classDate.setHours(hours, minutes, 0, 0);
 
-  // Adjust for Madrid timezone by subtracting the offset
-  const classDateInMadrid = new Date(classDate.getTime() - offset);
+  // Adjust for Madrid timezone: convert from UTC-interpreted to actual UTC
+  const classDateInUTC = new Date(classDate.getTime() + offset);
 
   // Calculate available date (subtract days)
-  const availableAt = new Date(classDateInMadrid.getTime() - (daysAdvance * 24 * 60 * 60 * 1000));
+  const availableAt = new Date(classDateInUTC.getTime() - (daysAdvance * 24 * 60 * 60 * 1000));
 
   return {
     availableAt,
     daysAdvance,
-    classDate,
+    classDate: classDateInUTC, // Return the corrected class date in UTC
   };
 }
 
