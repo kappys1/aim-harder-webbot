@@ -136,6 +136,15 @@ function BookingDashboardContent({
         const booking = bookingDay.bookings.find((b) => b.id === bookingId);
         const classTime = booking?.timeSlot.startTime || booking?.timeSlot.time;
 
+        console.log('[BOOKING-FRONTEND] Booking data:', {
+          bookingId,
+          bookingFound: !!booking,
+          startTime: booking?.timeSlot.startTime,
+          time: booking?.timeSlot.time,
+          classTime,
+          classTimePresent: !!classTime,
+        });
+
         // Validate boxId is available
         if (!boxId) {
           toast.error("Error", {
@@ -165,6 +174,13 @@ function BookingDashboardContent({
         if (classTime) {
           try {
             classTimeUTC = convertLocalToUTC(apiDate, classTime);
+            console.log('[BOOKING-FRONTEND] Converted class time:', {
+              apiDate,
+              classTime,
+              classTimeUTC,
+              browserTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+              currentOffset: new Date().getTimezoneOffset(),
+            });
           } catch (error) {
             console.error("Error converting class time to UTC:", error);
             toast.error("Error", {
@@ -172,6 +188,16 @@ function BookingDashboardContent({
             });
             return;
           }
+        } else {
+          console.warn('[BOOKING-FRONTEND] classTime is undefined/null, classTimeUTC will not be calculated!', {
+            apiDate,
+            classTime,
+            bookingId,
+            booking: booking ? {
+              id: booking.id,
+              timeSlot: booking.timeSlot,
+            } : null,
+          });
         }
 
         const bookingRequest = {
@@ -186,6 +212,11 @@ function BookingDashboardContent({
           boxSubdomain: boxData.subdomain,
           boxAimharderId: boxData.box_id,
         };
+
+        console.log('[BOOKING-FRONTEND] Sending booking request:', {
+          ...bookingRequest,
+          classTimeUTCPresent: !!classTimeUTC,
+        });
 
         const response = await fetch("/api/booking", {
           method: "POST",

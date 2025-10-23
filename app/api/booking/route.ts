@@ -201,6 +201,15 @@ export async function POST(request: NextRequest) {
     const boxSubdomain = body.boxSubdomain; // Extract box subdomain (for dynamic URL)
     const boxAimharderId = body.boxAimharderId; // Extract box aimharder ID (for QStash payload)
 
+    console.log('[BOOKING-BACKEND] Received booking request:', {
+      day: body.day,
+      classTimeUTC,
+      classTimeUTCType: typeof classTimeUTC,
+      classTimeUTCPresent: !!classTimeUTC,
+      boxId,
+      boxSubdomain,
+    });
+
     const validatedRequest = BookingCreateRequestSchema.safeParse(body);
 
     if (!validatedRequest.success) {
@@ -293,11 +302,23 @@ export async function POST(request: NextRequest) {
             if (isNaN(classTimeUTCDate.getTime())) {
               console.warn('[BOOKING] Invalid classTimeUTC format:', classTimeUTC);
               classTimeUTCDate = undefined;
+            } else {
+              console.log('[BOOKING] Successfully parsed classTimeUTC:', {
+                original: classTimeUTC,
+                parsed: classTimeUTCDate.toISOString(),
+                utcHours: classTimeUTCDate.getUTCHours(),
+                utcMinutes: classTimeUTCDate.getUTCMinutes(),
+              });
             }
           } catch (error) {
             console.warn('[BOOKING] Error parsing classTimeUTC:', error);
             classTimeUTCDate = undefined;
           }
+        } else {
+          console.warn('[BOOKING] classTimeUTC not provided or invalid type:', {
+            value: classTimeUTC,
+            type: typeof classTimeUTC,
+          });
         }
 
         const parsed = parseEarlyBookingError(
@@ -305,6 +326,15 @@ export async function POST(request: NextRequest) {
           validatedRequest.data.day,
           classTimeUTCDate // Pass classTimeUTC as Date object (in UTC)
         );
+
+        console.log('[BOOKING] parseEarlyBookingError result:', {
+          errorMessage: bookingResponse.errorMssg,
+          classDay: validatedRequest.data.day,
+          classTimeUTCProvided: !!classTimeUTCDate,
+          parsedAvailableAt: parsed?.availableAt.toISOString(),
+          parsedDaysAdvance: parsed?.daysAdvance,
+          parsedClassDate: parsed?.classDate.toISOString(),
+        });
 
         if (parsed) {
           // Check if user has reached the prebooking limit (15 for non-admins)

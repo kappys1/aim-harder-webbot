@@ -54,9 +54,18 @@ export function parseEarlyBookingError(
 
   if (classTimeUTC && classTimeUTC instanceof Date && !isNaN(classTimeUTC.getTime())) {
     classDateUTC = classTimeUTC;
+    console.log('[PreBooking] Using provided classTimeUTC:', {
+      classTimeUTC: classTimeUTC.toISOString(),
+      utcHours: classTimeUTC.getUTCHours(),
+      utcMinutes: classTimeUTC.getUTCMinutes(),
+    });
   } else {
     // Fallback: parse classDay and use 00:00 UTC
-    console.warn('[PreBooking] No valid classTimeUTC provided, using 00:00 UTC for classDay');
+    console.warn('[PreBooking] No valid classTimeUTC provided, using 00:00 UTC for classDay', {
+      classTimeUTCProvided: !!classTimeUTC,
+      classTimeUTCType: classTimeUTC?.constructor?.name,
+      classTimeUTCValid: classTimeUTC instanceof Date ? !isNaN(classTimeUTC.getTime()) : false,
+    });
     const classDateParsed = parseDateFromYYYYMMDD(classDay);
     if (!classDateParsed) {
       console.error('[PreBooking] Invalid class date format:', classDay);
@@ -71,6 +80,9 @@ export function parseEarlyBookingError(
       0,
       0
     ));
+    console.log('[PreBooking] Created fallback UTC date:', {
+      classDateUTC: classDateUTC.toISOString(),
+    });
   }
 
   // Calculate available date (subtract days)

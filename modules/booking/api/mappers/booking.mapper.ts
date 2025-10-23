@@ -93,11 +93,33 @@ export class BookingMapper {
   }
 
   static mapBooking(bookingApi: BookingApi): Booking {
+    // Parse time string with defensive logic
+    // Expected formats:
+    // - "08:00 - 09:00" (with spaces)
+    // - "08:00-09:00" (without spaces)
+    // - "08:00" (single time)
+    const timeParts = bookingApi.time.includes(' - ')
+      ? bookingApi.time.split(' - ')
+      : bookingApi.time.includes('-')
+      ? bookingApi.time.split('-')
+      : [bookingApi.time, bookingApi.time]; // Fallback: use same time for start/end
+
+    const startTime = timeParts[0]?.trim() || '';
+    const endTime = timeParts[1]?.trim() || '';
+
+    if (!startTime) {
+      console.warn('[BookingMapper] Invalid time format detected:', {
+        apiTime: bookingApi.time,
+        bookingId: bookingApi.id,
+        className: bookingApi.className,
+      });
+    }
+
     const timeSlot: TimeSlot = {
       id: bookingApi.timeid,
       time: bookingApi.time,
-      startTime: bookingApi.time.split(" - ")[0],
-      endTime: bookingApi.time.split(" - ")[1],
+      startTime,
+      endTime,
     };
 
     return {
