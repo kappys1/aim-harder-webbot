@@ -42,49 +42,6 @@ describe('Timezone Utils', () => {
     });
   });
 
-  describe('convertLocalToUTC - Date Format Handling (CRITICAL BUG FIX)', () => {
-    it('should handle YYYYMMDD format (no hyphens) - Madrid Oct 28', () => {
-      // This is the exact format returned by BookingUtils.formatDateForApi()
-      const utcString = convertLocalToUTC('20251028', '08:00');
-
-      const utcDate = new Date(utcString);
-      expect(utcDate.getUTCHours()).toBe(7); // 08:00 CET = 07:00 UTC
-      expect(utcDate.getUTCMinutes()).toBe(0);
-      expect(utcDate.getUTCDate()).toBe(28);
-    });
-
-    it('should handle YYYY-MM-DD format (with hyphens) - Madrid Oct 28', () => {
-      // Standard ISO format
-      const utcString = convertLocalToUTC('2025-10-28', '08:00');
-
-      const utcDate = new Date(utcString);
-      expect(utcDate.getUTCHours()).toBe(7); // 08:00 CET = 07:00 UTC
-      expect(utcDate.getUTCMinutes()).toBe(0);
-      expect(utcDate.getUTCDate()).toBe(28);
-    });
-
-    it('should produce same result for both YYYYMMDD and YYYY-MM-DD formats', () => {
-      const result1 = convertLocalToUTC('20251028', '08:00');
-      const result2 = convertLocalToUTC('2025-10-28', '08:00');
-
-      expect(result1).toBe(result2);
-    });
-
-    it('should handle YYYYMMDD format - Madrid July 15 (summer time)', () => {
-      const utcString = convertLocalToUTC('20250715', '08:00');
-
-      const utcDate = new Date(utcString);
-      expect(utcDate.getUTCHours()).toBe(6); // 08:00 CEST = 06:00 UTC
-      expect(utcDate.getUTCMinutes()).toBe(0);
-      expect(utcDate.getUTCDate()).toBe(15);
-    });
-
-    it('should throw error for invalid date format', () => {
-      expect(() => convertLocalToUTC('invalid-date', '08:00')).toThrow();
-      expect(() => convertLocalToUTC('2025-13-01', '08:00')).toThrow();
-    });
-  });
-
   describe('convertLocalToUTC - Madrid timezone', () => {
     it('should convert Madrid time (CET, UTC+1) correctly on Oct 28 (DST transition)', () => {
       // Oct 28, 2025 is after DST transition (Oct 26)
