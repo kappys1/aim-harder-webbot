@@ -43,31 +43,63 @@ export function getBrowserTimezone(): string {
  * The fix: Create the date/time as if it's already in the target timezone,
  * which automatically gives us the correct UTC conversion for that specific date.
  *
- * @param localDate - Date string in format "YYYY-MM-DD" (e.g., "2025-10-28")
- * @param localTime - Time string in format "HH:mm" (e.g., "08:00")
+ * Supports multiple date formats for defensive robustness:
+ * - YYYYMMDD (e.g., "20251028") - from BookingUtils.formatDateForApi()
+ * - YYYY-MM-DD (e.g., "2025-10-28") - standard ISO format
+ *
+ * @param localDate - Date string in format "YYYYMMDD" or "YYYY-MM-DD"
+ * @param localTime - Time string in format "HH:mm" or "H:mm" (e.g., "08:00", "8:00")
  * @returns ISO 8601 UTC string (e.g., "2025-10-28T07:00:00.000Z")
  *
  * @example
- * // User in Madrid (Oct 28 = CET = UTC+1)
+ * // User in Madrid (Oct 28 = CET = UTC+1) with YYYYMMDD format
+ * convertLocalToUTC("20251028", "08:00")
+ * // Returns: "2025-10-28T07:00:00.000Z"
+ *
+ * @example
+ * // User in Madrid (Oct 28 = CET = UTC+1) with YYYY-MM-DD format
  * convertLocalToUTC("2025-10-28", "08:00")
  * // Returns: "2025-10-28T07:00:00.000Z"
  *
  * @example
  * // User in Madrid (July 15 = CEST = UTC+2)
- * convertLocalToUTC("2025-07-15", "08:00")
+ * convertLocalToUTC("20250715", "08:00")
  * // Returns: "2025-07-15T06:00:00.000Z"
  *
  * @example
  * // User in New York (Oct 28 = EDT = UTC-4)
- * convertLocalToUTC("2025-10-28", "08:00")
+ * convertLocalToUTC("20251028", "08:00")
  * // Returns: "2025-10-28T12:00:00.000Z"
  */
 export function convertLocalToUTC(localDate: string, localTime: string): string {
   try {
     const browserTimezone = getBrowserTimezone();
 
-    // Construct full datetime string: "YYYY-MM-DD HH:mm:ss"
-    const localDateTime = `${localDate}T${localTime}:00`;
+    // DEFENSIVE FIX: Normalize date format
+    // Handle both "YYYYMMDD" (no hyphens) and "YYYY-MM-DD" (with hyphens) formats
+    let normalizedDate = localDate;
+    if (/^\d{8}$/.test(localDate)) {
+      // Convert YYYYMMDD → YYYY-MM-DD
+      const year = localDate.substring(0, 4);
+      const month = localDate.substring(4, 6);
+      const day = localDate.substring(6, 8);
+      normalizedDate = `${year}-${month}-${day}`;
+
+      console.log('[Timezone] Normalized date format:', {
+        input: localDate,
+        output: normalizedDate,
+      });
+    }
+
+    // Validate normalized date format (must be YYYY-MM-DD)
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(normalizedDate)) {
+      throw new Error(
+        `Invalid date format: "${localDate}". Expected YYYYMMDD or YYYY-MM-DD format.`
+      );
+    }
+
+    // Construct full datetime string: "YYYY-MM-DD THH:mm:ss"
+    const localDateTime = `${normalizedDate}T${localTime}:00`;
 
     // CRITICAL FIX: Use fromZonedTime to convert the local time to UTC
     // This automatically determines the correct DST offset for the SPECIFIC DATE,
@@ -76,10 +108,24 @@ export function convertLocalToUTC(localDate: string, localTime: string): string 
     //   fromZonedTime will correctly use UTC+1 for that date
     const utcDate = fromZonedTime(localDateTime, browserTimezone);
 
+    console.log('[Timezone] Conversion complete:', {
+      input: { date: localDate, time: localTime },
+      normalized: normalizedDate,
+      localDateTime,
+      browserTimezone,
+      utcResult: utcDate.toISOString(),
+      utcHours: utcDate.getUTCHours(),
+      utcMinutes: utcDate.getUTCMinutes(),
+    });
+
     // Return ISO 8601 UTC string
     return utcDate.toISOString();
   } catch (error) {
-    console.error('[Timezone] Error converting local to UTC:', error);
+    console.error('[Timezone] Error converting local to UTC:', {
+      localDate,
+      localTime,
+      error,
+    });
     throw new Error(`Failed to convert local time to UTC: ${error}`);
   }
 }
