@@ -2,10 +2,9 @@
  * Utility functions for parsing AimHarder error messages
  * and calculating exact timestamps for pre-bookings
  *
- * Uses date-fns-tz for timezone-safe date calculations
+ * Note: Frontend now calculates UTC times, so backend only needs to subtract days
  */
 import { sub } from 'date-fns';
-import { fromZonedTime } from 'date-fns-tz';
 
 export interface ParsedEarlyBookingError {
   availableAt: Date;
@@ -17,23 +16,24 @@ export interface ParsedEarlyBookingError {
  * Parses AimHarder early booking error message and calculates
  * the exact timestamp when booking becomes available
  *
- * Uses date-fns-tz for timezone-safe calculations.
- * All times are interpreted in Europe/Madrid timezone and converted to UTC.
+ * Frontend now calculates the UTC time correctly (using browser timezone),
+ * so the backend just receives the UTC Date object and subtracts the days.
  *
  * @param errorMessage - Error message from AimHarder API (e.g., "No puedes reservar clases con más de 4 días de antelación")
- * @param classDay - Day of the class in YYYYMMDD format (e.g., "20250214")
- * @param classTime - Time of the class (optional, e.g., "20:30"). If not provided, uses 00:00
+ * @param classDay - Day of the class in YYYYMMDD format (e.g., "20250214") - used only for validation/logging
+ * @param classTimeUTC - Date object already in UTC (optional). If not provided, uses 00:00 UTC on classDay
  * @returns Parsed error with exact availableAt timestamp in UTC
  *
  * @example
- * // Class is Friday 14th at 20:30 Madrid time, max advance is 4 days
- * parseEarlyBookingError("No puedes reservar clases con más de 4 días de antelación", "20250214", "20:30")
- * // Returns: availableAt = Monday 10th 20:30 Madrid time (exactly 4 days before Friday 20:30)
+ * // Class is Friday 14th at 20:30 Madrid time (which is 19:30 UTC), max advance is 4 days
+ * const classDateUTC = new Date("2025-02-14T19:30:00.000Z");
+ * parseEarlyBookingError("No puedes reservar clases con más de 4 días de antelación", "20250214", classDateUTC)
+ * // Returns: availableAt = Monday 10th 19:30 UTC (exactly 4 days before Friday 19:30 UTC)
  */
 export function parseEarlyBookingError(
   errorMessage: string | undefined,
   classDay: string,
-  classTime?: string
+  classTimeUTC?: Date
 ): ParsedEarlyBookingError | null {
   if (!errorMessage) return null;
 
@@ -48,43 +48,30 @@ export function parseEarlyBookingError(
 
   const daysAdvance = parseInt(daysMatch[1], 10);
 
-  // Parse class date from YYYYMMDD format
-  const classDateParsed = parseDateFromYYYYMMDD(classDay);
-  if (!classDateParsed) {
-    console.error('[PreBooking] Invalid class date format:', classDay);
-    return null;
-  }
+  // Use the classTimeUTC directly (already in UTC from frontend)
+  // If not provided, create a UTC Date at 00:00 for the class day
+  let classDateUTC: Date;
 
-  // Parse time if provided (format: "HH:mm", "H:mm", or "HH:mm:ss")
-  let hours = 0;
-  let minutes = 0;
-  if (classTime) {
-    // Support formats: "07:00", "7:00", "07:00:00"
-    const timeMatch = classTime.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
-    if (timeMatch) {
-      hours = parseInt(timeMatch[1], 10);
-      minutes = parseInt(timeMatch[2], 10);
-    } else {
-      console.warn('[PreBooking] Invalid time format:', classTime);
-    }
+  if (classTimeUTC && classTimeUTC instanceof Date && !isNaN(classTimeUTC.getTime())) {
+    classDateUTC = classTimeUTC;
   } else {
-    console.warn('[PreBooking] No classTime provided, using 00:00');
+    // Fallback: parse classDay and use 00:00 UTC
+    console.warn('[PreBooking] No valid classTimeUTC provided, using 00:00 UTC for classDay');
+    const classDateParsed = parseDateFromYYYYMMDD(classDay);
+    if (!classDateParsed) {
+      console.error('[PreBooking] Invalid class date format:', classDay);
+      return null;
+    }
+    // Create UTC date at 00:00
+    classDateUTC = new Date(Date.UTC(
+      classDateParsed.getFullYear(),
+      classDateParsed.getMonth(),
+      classDateParsed.getDate(),
+      0,
+      0,
+      0
+    ));
   }
-
-  // Build a date string in Madrid timezone format and parse it
-  // Format: "YYYY-MM-DD HH:mm:ss"
-  const year = classDateParsed.getFullYear();
-  const month = String(classDateParsed.getMonth() + 1).padStart(2, '0');
-  const day = String(classDateParsed.getDate()).padStart(2, '0');
-  const hoursStr = String(hours).padStart(2, '0');
-  const minutesStr = String(minutes).padStart(2, '0');
-
-  const dateString = `${year}-${month}-${day} ${hoursStr}:${minutesStr}:00`;
-
-  // Parse this date string as if it were in Madrid timezone
-  // fromZonedTime converts a date in a specific timezone to UTC
-  const timeZone = 'Europe/Madrid';
-  const classDateUTC = fromZonedTime(dateString, timeZone);
 
   // Calculate available date (subtract days)
   const availableAt = sub(classDateUTC, { days: daysAdvance });

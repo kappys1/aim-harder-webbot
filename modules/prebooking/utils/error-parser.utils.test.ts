@@ -286,30 +286,35 @@ describe('error-parser.utils', () => {
       consoleErrorSpy.mockRestore();
     });
 
-    it('should parse error message with days advance', () => {
+    it('should parse error message with UTC Date object', () => {
+      // February 14, 2025 at 20:30 UTC
+      const classTimeUTC = new Date('2025-02-14T20:30:00.000Z');
+
       const result = parseEarlyBookingError(
         'No puedes reservar clases con más de 4 días de antelación',
         '20250214',
-        '20:30'
+        classTimeUTC
       );
 
       expect(result).not.toBeNull();
       expect(result?.daysAdvance).toBe(4);
-      expect(result?.classDate.getFullYear()).toBe(2025);
-      expect(result?.classDate.getMonth()).toBe(1);
-      expect(result?.classDate.getDate()).toBe(14);
+      expect(result?.classDate).toBe(classTimeUTC);
+      expect(result?.classDate.getUTCHours()).toBe(20);
+      expect(result?.classDate.getUTCMinutes()).toBe(30);
     });
 
     it('should return null for undefined error message', () => {
-      const result = parseEarlyBookingError(undefined, '20250214', '20:30');
+      const classTimeUTC = new Date('2025-02-14T20:30:00.000Z');
+      const result = parseEarlyBookingError(undefined, '20250214', classTimeUTC);
       expect(result).toBeNull();
     });
 
     it('should return null when error message does not match pattern', () => {
+      const classTimeUTC = new Date('2025-02-14T20:30:00.000Z');
       const result = parseEarlyBookingError(
         'Error desconocido',
         '20250214',
-        '20:30'
+        classTimeUTC
       );
 
       expect(result).toBeNull();
@@ -319,65 +324,7 @@ describe('error-parser.utils', () => {
       );
     });
 
-    it('should return null for invalid date format', () => {
-      const result = parseEarlyBookingError(
-        'No puedes reservar clases con más de 4 días de antelación',
-        'invalid',
-        '20:30'
-      );
-
-      expect(result).toBeNull();
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        '[PreBooking] Invalid class date format:',
-        'invalid'
-      );
-    });
-
-    it('should handle time without seconds', () => {
-      const result = parseEarlyBookingError(
-        'No puedes reservar clases con más de 4 días de antelación',
-        '20250214',
-        '20:30'
-      );
-
-      expect(result).not.toBeNull();
-    });
-
-    it('should handle time with seconds', () => {
-      const result = parseEarlyBookingError(
-        'No puedes reservar clases con más de 4 días de antelación',
-        '20250214',
-        '20:30:00'
-      );
-
-      expect(result).not.toBeNull();
-    });
-
-    it('should handle single-digit hours', () => {
-      const result = parseEarlyBookingError(
-        'No puedes reservar clases con más de 4 días de antelación',
-        '20250214',
-        '7:00'
-      );
-
-      expect(result).not.toBeNull();
-    });
-
-    it('should warn about invalid time format', () => {
-      const result = parseEarlyBookingError(
-        'No puedes reservar clases con más de 4 días de antelación',
-        '20250214',
-        'invalid'
-      );
-
-      expect(result).not.toBeNull();
-      expect(consoleWarnSpy).toHaveBeenCalledWith(
-        '[PreBooking] Invalid time format:',
-        'invalid'
-      );
-    });
-
-    it('should use 00:00 when classTime is not provided', () => {
+    it('should use fallback 00:00 UTC when classTimeUTC is not provided', () => {
       const result = parseEarlyBookingError(
         'No puedes reservar clases con más de 4 días de antelación',
         '20250214'
@@ -385,31 +332,52 @@ describe('error-parser.utils', () => {
 
       expect(result).not.toBeNull();
       expect(consoleWarnSpy).toHaveBeenCalledWith(
-        '[PreBooking] No classTime provided, using 00:00'
+        '[PreBooking] No valid classTimeUTC provided, using 00:00 UTC for classDay'
+      );
+      // Should use 00:00 UTC for Feb 14
+      expect(result?.classDate.getUTCHours()).toBe(0);
+      expect(result?.classDate.getUTCMinutes()).toBe(0);
+    });
+
+    it('should reject invalid Date object', () => {
+      const invalidDate = new Date('invalid');
+      const result = parseEarlyBookingError(
+        'No puedes reservar clases con más de 4 días de antelación',
+        '20250214',
+        invalidDate
+      );
+
+      expect(result).not.toBeNull();
+      expect(consoleWarnSpy).toHaveBeenCalledWith(
+        '[PreBooking] No valid classTimeUTC provided, using 00:00 UTC for classDay'
       );
     });
 
     it('should handle different days advance values', () => {
+      const classTimeUTC = new Date('2025-02-14T20:30:00.000Z');
+
       const test2Days = parseEarlyBookingError(
         'No puedes reservar clases con más de 2 días de antelación',
         '20250214',
-        '20:30'
+        classTimeUTC
       );
       expect(test2Days?.daysAdvance).toBe(2);
 
       const test7Days = parseEarlyBookingError(
         'No puedes reservar clases con más de 7 días de antelación',
         '20250214',
-        '20:30'
+        classTimeUTC
       );
       expect(test7Days?.daysAdvance).toBe(7);
     });
 
     it('should handle singular "día" in error message', () => {
+      const classTimeUTC = new Date('2025-02-14T20:30:00.000Z');
+
       const result = parseEarlyBookingError(
         'No puedes reservar clases con más de 1 día de antelación',
         '20250214',
-        '20:30'
+        classTimeUTC
       );
 
       expect(result).not.toBeNull();
@@ -417,12 +385,14 @@ describe('error-parser.utils', () => {
     });
 
     it('should calculate availableAt correctly', () => {
-      // Class on Friday 14th at 20:30, max advance 4 days
-      // Available from Monday 10th at 20:30
+      // Class on Friday 14th at 20:30 UTC, max advance 4 days
+      // Available from Monday 10th at 20:30 UTC
+      const classTimeUTC = new Date('2025-02-14T20:30:00.000Z');
+
       const result = parseEarlyBookingError(
         'No puedes reservar clases con más de 4 días de antelación',
         '20250214',
-        '20:30'
+        classTimeUTC
       );
 
       expect(result).not.toBeNull();
@@ -435,37 +405,43 @@ describe('error-parser.utils', () => {
       expect(daysDiff).toBe(4);
     });
 
-    it('should handle midnight class time', () => {
+    it('should handle midnight UTC class time', () => {
+      const classTimeUTC = new Date('2025-02-14T00:00:00.000Z');
+
       const result = parseEarlyBookingError(
         'No puedes reservar clases con más de 4 días de antelación',
         '20250214',
-        '00:00'
+        classTimeUTC
       );
 
       expect(result).not.toBeNull();
     });
 
-    it('should handle late night class time', () => {
+    it('should handle late night UTC class time', () => {
+      const classTimeUTC = new Date('2025-02-14T23:59:00.000Z');
+
       const result = parseEarlyBookingError(
         'No puedes reservar clases con más de 4 días de antelación',
         '20250214',
-        '23:59'
+        classTimeUTC
       );
 
       expect(result).not.toBeNull();
     });
 
     it('should preserve exact time in availableAt calculation', () => {
+      const classTimeUTC = new Date('2025-02-14T20:30:00.000Z');
+
       const result = parseEarlyBookingError(
         'No puedes reservar clases con más de 4 días de antelación',
         '20250214',
-        '20:30'
+        classTimeUTC
       );
 
       expect(result).not.toBeNull();
-      // The availableAt should have the same time of day as the class
-      expect(result?.availableAt.getHours()).toBe(result?.classDate.getHours());
-      expect(result?.availableAt.getMinutes()).toBe(result?.classDate.getMinutes());
+      // The availableAt should have the same UTC time as the class
+      expect(result?.availableAt.getUTCHours()).toBe(result?.classDate.getUTCHours());
+      expect(result?.availableAt.getUTCMinutes()).toBe(result?.classDate.getUTCMinutes());
     });
   });
 });

@@ -59,6 +59,7 @@ export const BookingCreateRequestSchema = z.object({
   familyId: z.string().default(""),
   id: z.string().min(1, "Slot ID is required"),
   insist: z.number().default(0),
+  classTimeUTC: z.string().datetime().optional(), // ISO 8601 UTC datetime (e.g., "2025-10-28T07:00:00.000Z")
   activityName: z.string().optional(),
   boxName: z.string().optional(),
 });

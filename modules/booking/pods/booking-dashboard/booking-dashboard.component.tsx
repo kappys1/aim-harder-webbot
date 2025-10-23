@@ -2,6 +2,7 @@
 
 import { Button } from "@/common/ui/button";
 import { Card, CardContent } from "@/common/ui/card";
+import { convertLocalToUTC } from "@/common/utils/timezone.utils";
 import { useBoxFromUrl } from "@/modules/boxes/hooks/useBoxFromUrl.hook";
 import { useBoxes } from "@/modules/boxes/hooks/useBoxes.hook";
 import { usePreBooking } from "@/modules/prebooking/pods/prebooking/hooks/usePreBooking.hook";
@@ -158,12 +159,27 @@ function BookingDashboardContent({
         const boxResponseData = await boxResponse.json();
         const boxData = boxResponseData.box;
 
+        // Convert local time to UTC for backend prebooking calculation
+        // This handles DST transitions automatically
+        let classTimeUTC: string | undefined;
+        if (classTime) {
+          try {
+            classTimeUTC = convertLocalToUTC(apiDate, classTime);
+          } catch (error) {
+            console.error("Error converting class time to UTC:", error);
+            toast.error("Error", {
+              description: "No se pudo procesar la hora de la clase.",
+            });
+            return;
+          }
+        }
+
         const bookingRequest = {
           day: apiDate,
           familyId: "",
           id: bookingId.toString(),
           insist: 0,
-          classTime, // Add classTime for prebooking calculation
+          classTimeUTC, // Send UTC time for accurate prebooking calculation
           activityName: booking?.class?.name || "Clase",
           boxName: booking?.box.name,
           boxId: boxId,

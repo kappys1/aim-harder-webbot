@@ -196,7 +196,7 @@ export async function POST(request: NextRequest) {
   try {
     // Parse and validate request body
     const body = await request.json();
-    const classTime = body.classTime; // Extract classTime before validation (not part of original external API schema)
+    const classTimeUTC = body.classTimeUTC; // Extract classTimeUTC (ISO 8601 UTC format, e.g., "2025-10-28T07:00:00.000Z")
     const boxId = body.boxId; // Extract boxId (for prebooking reference)
     const boxSubdomain = body.boxSubdomain; // Extract box subdomain (for dynamic URL)
     const boxAimharderId = body.boxAimharderId; // Extract box aimharder ID (for QStash payload)
@@ -285,10 +285,25 @@ export async function POST(request: NextRequest) {
       // Early booking error - user tried to book too early
       // Automatically create a prebooking
       try {
+        // Convert classTimeUTC string to Date object for parseEarlyBookingError
+        let classTimeUTCDate: Date | undefined;
+        if (classTimeUTC && typeof classTimeUTC === 'string') {
+          try {
+            classTimeUTCDate = new Date(classTimeUTC);
+            if (isNaN(classTimeUTCDate.getTime())) {
+              console.warn('[BOOKING] Invalid classTimeUTC format:', classTimeUTC);
+              classTimeUTCDate = undefined;
+            }
+          } catch (error) {
+            console.warn('[BOOKING] Error parsing classTimeUTC:', error);
+            classTimeUTCDate = undefined;
+          }
+        }
+
         const parsed = parseEarlyBookingError(
           bookingResponse.errorMssg,
           validatedRequest.data.day,
-          classTime // Pass classTime from request body
+          classTimeUTCDate // Pass classTimeUTC as Date object (in UTC)
         );
 
         if (parsed) {
