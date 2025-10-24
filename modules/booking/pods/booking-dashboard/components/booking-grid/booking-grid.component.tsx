@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { BookingCard } from "../booking-card/booking-card.component";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/common/lib/utils";
 import { Booking, BookingFilter } from "@/modules/booking/models/booking.model";
 import { BookingUtils } from "@/modules/booking/utils/booking.utils";
 import { PreBooking } from "@/modules/prebooking/models/prebooking.model";

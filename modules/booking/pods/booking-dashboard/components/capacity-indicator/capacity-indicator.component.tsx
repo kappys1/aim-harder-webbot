@@ -4,7 +4,7 @@ import { Badge } from "@/common/ui/badge";
 import { Progress } from "@/common/ui/progress";
 import React from "react";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/common/lib/utils";
 import {
   BookingCapacity,
   BookingStatus,

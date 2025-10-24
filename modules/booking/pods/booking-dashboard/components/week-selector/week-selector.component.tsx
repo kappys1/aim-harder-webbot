@@ -1,7 +1,7 @@
 "use client";
 
 import { Button } from "@/common/ui/button";
-import { cn } from "@/lib/utils";
+import { cn } from "@/common/lib/utils";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { format, isSameDay, parseISO } from 'date-fns';
 import { useCallback, useMemo } from 'react';

@@ -330,14 +330,36 @@ Likely repetition:
    - Fixed mapper implementations
    - Files: `modules/boxes/models/box.model.ts`, `modules/boxes/api/mappers/box.mapper.ts`
 
-### 📋 NEXT STEPS
+### ✅ FASE 2: Structural Improvements - IN PROGRESS
 
-### ⭐⭐ FASE 2: Structural Improvements (5-7 days)
-1. BaseApiService implementation - consolidate 1200 LOC → 400 LOC (-67%)
-2. Mappers → Zod transforms - eliminate 2+ files
-3. useBooking refactor - reduce 188 LOC → 30 LOC (-84%)
-4. Consolidate lib/ & common/utils/
-5. Query Key Factory pattern
+#### ✅ Completed:
+1. **BaseApiService** - Base class for API services
+   - Created: `common/utils/base-api.service.ts`
+   - Features: Fetch with timeout, validation with Zod, error handling, headers
+   - Impact: Eliminates ~250 LOC per service (-67% boilerplate per service)
+
+2. **BookingService refactor** - First service using BaseApiService
+   - Modified: `modules/booking/api/services/booking.service.ts`
+   - Now extends BaseApiService, uses `this.get()` instead of manual fetch
+   - Impact: -80 LOC in this file alone (reduced fetch/timeout/error handling)
+
+3. **Query Key Factory** - Centralized React Query key management
+   - Created: `common/utils/query-keys.factory.ts`
+   - Type-safe keys for: booking, prebooking, box, auth
+   - Features: Key generation, batch invalidation, key utilities
+   - Impact: Single source of truth for cache invalidation, prevents duplication
+
+#### 📋 In Progress:
+4. Apply BaseApiService to remaining services:
+   - `modules/boxes/api/services/box.service.ts` (-150 LOC)
+   - `modules/prebooking/api/services/prebooking.service.ts` (-100 LOC)
+   - `modules/boxes/api/services/box-access.service.ts` (-80 LOC)
+   - Expected total: -400 LOC additional reduction
+
+5. Consolidate lib/ & common/utils/
+   - Audit duplicate utilities
+   - Consolidate to single location
+   - Update imports across 5+ files
 
 ### ⭐⭐⭐ FASE 3: Advanced Optimizations (7-10 days)
 1. Eliminate container/component split - remove 300 LOC, -70% client bundle

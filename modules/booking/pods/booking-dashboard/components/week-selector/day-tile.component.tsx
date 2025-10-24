@@ -1,7 +1,7 @@
 "use client";
 
 import { Button } from "@/common/ui/button";
-import { cn } from "@/lib/utils";
+import { cn } from "@/common/lib/utils";
 import { DayTileProps } from './models/week-selector.model';
 import { WeekSelectorUtils } from './utils/week-selector.utils';
 
