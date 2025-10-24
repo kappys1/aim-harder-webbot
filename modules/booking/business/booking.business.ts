@@ -7,8 +7,6 @@ import { BOOKING_CONSTANTS } from '../constants/booking.constants';
 import { AuthCookie } from '../../auth/api/services/cookie.service';
 
 export interface BookingBusinessConfig {
-  cacheEnabled?: boolean;
-  cacheTimeout?: number;
   retryAttempts?: number;
   retryDelay?: number;
 }
@@ -19,9 +17,17 @@ export interface BookingValidationResult {
   warnings: string[];
 }
 
+/**
+ * BookingBusiness layer handles business logic for bookings.
+ *
+ * NOTE: Data caching is now handled by TanStack Query.
+ * This layer no longer manages caching - it only handles:
+ * - API calls via BookingService
+ * - Business logic (validation, filtering, statistics)
+ * - Data enhancement
+ */
 export class BookingBusiness {
   private bookingService: BookingService;
-  private cache: Map<string, { data: BookingDay; timestamp: number }>;
   private config: Required<BookingBusinessConfig>;
 
   constructor(
@@ -29,10 +35,7 @@ export class BookingBusiness {
     config: BookingBusinessConfig = {}
   ) {
     this.bookingService = bookingService;
-    this.cache = new Map();
     this.config = {
-      cacheEnabled: config.cacheEnabled ?? true,
-      cacheTimeout: config.cacheTimeout ?? BOOKING_CONSTANTS.CACHE.STALE_TIME,
       retryAttempts: config.retryAttempts ?? 3,
       retryDelay: config.retryDelay ?? 1000,
     };
@@ -45,15 +48,6 @@ export class BookingBusiness {
   ): Promise<BookingDay> {
     if (!boxId) {
       throw new Error('boxId is required to fetch bookings');
-    }
-
-    const cacheKey = BookingUtils.getCacheKey(date, boxId);
-
-    if (this.config.cacheEnabled) {
-      const cached = this.getCachedData(cacheKey);
-      if (cached) {
-        return cached;
-      }
     }
 
     const apiDate = BookingUtils.formatDateForApi(date);
@@ -71,10 +65,6 @@ export class BookingBusiness {
         const bookingDay = BookingMapper.mapBookingDay(response);
 
         const enhancedBookingDay = this.enhanceBookingDay(bookingDay, date);
-
-        if (this.config.cacheEnabled) {
-          this.setCachedData(cacheKey, enhancedBookingDay);
-        }
 
         return enhancedBookingDay;
 
@@ -173,23 +163,6 @@ export class BookingBusiness {
     };
   }
 
-  clearCache(): void {
-    this.cache.clear();
-  }
-
-  getCacheStats() {
-    const entries = Array.from(this.cache.values());
-    const now = Date.now();
-    const valid = entries.filter(entry => now - entry.timestamp < this.config.cacheTimeout).length;
-    const expired = entries.length - valid;
-
-    return {
-      total: entries.length,
-      valid,
-      expired,
-      cacheEnabled: this.config.cacheEnabled,
-    };
-  }
 
   private enhanceBookingDay(bookingDay: BookingDay, requestedDate: string): BookingDay {
     const enhancedBookings = bookingDay.bookings.map(booking => {
@@ -214,37 +187,6 @@ export class BookingBusiness {
       ...bookingDay,
       bookings: enhancedBookings,
     };
-  }
-
-  private getCachedData(key: string): BookingDay | null {
-    const cached = this.cache.get(key);
-    if (!cached) return null;
-
-    const now = Date.now();
-    if (now - cached.timestamp > this.config.cacheTimeout) {
-      this.cache.delete(key);
-      return null;
-    }
-
-    return cached.data;
-  }
-
-  private setCachedData(key: string, data: BookingDay): void {
-    this.cache.set(key, {
-      data,
-      timestamp: Date.now(),
-    });
-
-    this.cleanupExpiredCache();
-  }
-
-  private cleanupExpiredCache(): void {
-    const now = Date.now();
-    for (const [key, entry] of this.cache.entries()) {
-      if (now - entry.timestamp > this.config.cacheTimeout) {
-        this.cache.delete(key);
-      }
-    }
   }
 
   private delay(ms: number): Promise<void> {
