@@ -26,6 +26,7 @@ interface BookingDashboardComponentProps {
   initialBoxId: string;
   authCookies: AuthCookie[];
   isAuthenticated: boolean;
+  boxesPrefetch?: any; // Server-prefetched boxes data to warm up React Query cache
 }
 
 function BookingDashboardContent({

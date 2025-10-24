@@ -1,4 +1,5 @@
 import { Skeleton } from "@/common/ui/skeleton";
+import { prefetchBoxes } from "@/common/utils/query-prefetch.utils";
 import { cookies } from "next/headers";
 import { Suspense } from "react";
 import { CookieService } from "../../../auth/api/services/cookie.service";
@@ -59,6 +60,13 @@ export async function BookingDashboardContainer({
     );
   }
 
+  // OPTIMIZATION: Prefetch boxes data on server to warm up React Query cache
+  // This eliminates the waterfall pattern where boxes are fetched after component mounts
+  // User email comes from localStorage on client, but we can attempt server-side prefetch if available
+  const userEmail =
+    authCookies.find((c) => c.name === "user-email")?.value || "";
+  const boxesPrefetch = userEmail ? await prefetchBoxes(userEmail) : null;
+
   return (
     <Suspense fallback={<BookingDashboardLoading />}>
       <BookingDashboardComponent
@@ -66,6 +74,7 @@ export async function BookingDashboardContainer({
         initialBoxId={boxId}
         authCookies={isValid ? authCookies : []}
         isAuthenticated={isValid}
+        boxesPrefetch={boxesPrefetch}
       />
     </Suspense>
   );

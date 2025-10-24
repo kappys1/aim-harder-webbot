@@ -12,10 +12,12 @@ export function QueryProvider({ children }: { children: React.ReactNode }) {
           queries: {
             // Disable automatic refetching on window focus in production
             refetchOnWindowFocus: false,
-            // Keep data fresh for 5 minutes
-            staleTime: 5 * 60 * 1000,
+            // Keep data fresh for 30 seconds for real-time data (booking availability changes frequently)
+            staleTime: 30 * 1000,
             // Retry failed queries once
             retry: 1,
+            // Cache data for 5 minutes in the background
+            gcTime: 5 * 60 * 1000,
           },
         },
       })
