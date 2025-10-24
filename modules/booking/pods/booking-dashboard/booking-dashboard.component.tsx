@@ -20,6 +20,7 @@ import { usePreBooking } from "@/modules/prebooking/pods/prebooking/hooks/usePre
 import { AlertCircle, RefreshCw } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { AuthCookie } from "../../../auth/api/services/cookie.service";
 import { useBooking } from "../../hooks/useBooking.hook";
@@ -48,6 +49,7 @@ function BookingDashboardContent({
   isAuthenticated: boolean;
 }) {
   const { actions, state } = useBookingContext();
+  const queryClient = useQueryClient();
   const [bookingLoading, setBookingLoading] = useState<number | null>(null);
   const [cancelLoading, setCancelLoading] = useState<number | null>(null);
   const [cancelPrebookingLoading, setCancelPrebookingLoading] = useState<
@@ -67,6 +69,17 @@ function BookingDashboardContent({
 
   const router = useRouter();
   const searchParams = useSearchParams();
+
+  // Helper function to update TanStack Query cache after booking/cancel actions
+  const updateBookingCache = useCallback(
+    (updatedBookingDay: typeof bookingDay) => {
+      if (!updatedBookingDay || !state.selectedDate || !state.selectedBoxId) return;
+
+      const queryKey = ["bookings", state.selectedDate, state.selectedBoxId];
+      queryClient.setQueryData(queryKey, updatedBookingDay);
+    },
+    [queryClient, state.selectedDate, state.selectedBoxId]
+  );
 
   // Callback memoizado para refetch que incluya prebookings
   const handleRefetch = useCallback(async () => {
@@ -226,13 +239,8 @@ function BookingDashboardContent({
             );
 
             const updatedDay = { ...bookingDay, bookings: updatedBookings };
-            actions.setCurrentDay(updatedDay);
-
-            const cacheKey = BookingUtils.getCacheKey(
-              bookingDay.date,
-              state.selectedBoxId
-            );
-            actions.cacheDay(cacheKey, updatedDay);
+            // Update TanStack Query cache instead of context
+            updateBookingCache(updatedDay);
           }
 
           toast.success("Reserva exitosa", {
@@ -349,13 +357,8 @@ function BookingDashboardContent({
           );
 
           const updatedDay = { ...bookingDay, bookings: updatedBookings };
-          actions.setCurrentDay(updatedDay);
-
-          const cacheKey = BookingUtils.getCacheKey(
-            bookingDay.date,
-            state.selectedBoxId
-          );
-          actions.cacheDay(cacheKey, updatedDay);
+          // Update TanStack Query cache instead of context
+          updateBookingCache(updatedDay);
 
           toast.success("Reserva cancelada exitosamente");
         } else {
@@ -370,7 +373,7 @@ function BookingDashboardContent({
         setCancelLoading(null);
       }
     },
-    [bookingDay, actions, state.selectedBoxId, boxes, boxId]
+    [bookingDay, updateBookingCache, boxes, boxId]
   );
 
   const handleCancelPrebooking = useCallback(
