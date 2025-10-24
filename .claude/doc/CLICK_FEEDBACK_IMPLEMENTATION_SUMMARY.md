@@ -64,15 +64,16 @@ Implementación completa de feedback visual al hacer click en elementos interact
 #### BookingCard (`modules/booking/pods/.../booking-card.component.tsx`)
 ```diff
 - "transition-all duration-200 hover:shadow-md"
-+ "card-interactive"
++ // Removed - Card is NOT interactive
++ // Only the button inside (btn-interactive) has feedback
 ```
 
-**Cambio**: Reemplazada clase genérica con `card-interactive`
-**Impacto**: Mejor feedback visual en cards de reservas
+**Cambio**: Removida feedback interactiva de la Card
+**Impacto**: La Card muestra información sin feedback, pero el botón "Reservar" SÍ tiene feedback
 **Efecto**:
-- Desktop: hover scale-102 + shadow-lg
-- Mobile: active scale-95 + shadow-lg
-- Transición: 150ms (más lento para elementos grandes)
+- Card: Sin scaling, solo muestra información
+- Button dentro: Tiene btn-interactive (scale-98/102, shadow feedback)
+- Transición: 100ms en el botón
 
 #### DayTile (`modules/booking/pods/.../day-tile.component.tsx`)
 ```diff

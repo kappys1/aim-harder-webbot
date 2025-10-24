@@ -180,7 +180,8 @@ MOBILE:
    - Added `btn-interactive` class to buttonVariants
 
 3. **modules/booking/.../booking-card.component.tsx**
-   - Replaced `transition-all duration-200 hover:shadow-md` with `card-interactive`
+   - Removed `card-interactive` - Card is NOT interactive (shows info only)
+   - Button inside Card keeps `btn-interactive` for feedback on click
 
 4. **modules/booking/.../day-tile.component.tsx**
    - Removed redundant transition (inherited from Button)
