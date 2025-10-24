@@ -7,7 +7,8 @@ const withPWA = require("next-pwa")({
 });
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // Exclude server-only packages from client bundle to reduce bundle size
+  serverExternalPackages: ['cheerio'],
 };
 
 export default withPWA(nextConfig);

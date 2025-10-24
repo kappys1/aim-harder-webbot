@@ -1,3 +1,4 @@
+import { BaseApiService, ApiError } from "@/common/utils/base-api.service";
 import {
   AuthCookie,
   CookieService,
@@ -20,14 +21,13 @@ export interface BookingServiceConfig {
   timeout?: number;
 }
 
-export class BookingService {
-  private readonly baseUrl: string;
-  private readonly timeout: number;
-
+export class BookingService extends BaseApiService {
   constructor(config: BookingServiceConfig = {}) {
-    this.baseUrl = config.baseUrl || BOOKING_CONSTANTS.API.BASE_URL;
-    // OPTIMIZATION: Reduced from 30s to 8s for faster failure detection
-    this.timeout = config.timeout || 8000;
+    super({
+      baseUrl: config.baseUrl || BOOKING_CONSTANTS.API.BASE_URL,
+      // OPTIMIZATION: Reduced from 30s to 8s for faster failure detection
+      timeout: config.timeout || 8000,
+    });
   }
 
   async getBookings(
@@ -41,43 +41,20 @@ export class BookingService {
     // Build URL to our API route
     const apiUrl = `/api/booking?day=${params.day}&boxId=${params.boxId}&_=${params._}`;
 
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-    };
-
     // Add user email from localStorage
     if (typeof window !== "undefined") {
       const userEmail = localStorage.getItem("user-email");
       if (userEmail) {
-        headers["x-user-email"] = userEmail;
+        this.addHeaders({ "x-user-email": userEmail });
       }
     }
 
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), this.timeout);
-
-      const response = await fetch(apiUrl, {
-        method: "GET",
-        headers,
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        throw new BookingApiError(
-          `HTTP ${response.status}: ${response.statusText}`,
-          response.status,
-          "HTTP_ERROR"
-        );
-      }
-
-      const data = await response.json();
+      const data = await this.get<any>(apiUrl);
 
       const validatedData = BookingResponseApiSchema.safeParse(data);
       if (!validatedData.success) {
-        // LOG: Detailed validation error for getBookings (stringified for production visibility)
+        // LOG: Detailed validation error for getBookings
         console.error('[BOOKING_API] Validation failed for getBookings:', JSON.stringify({
           zodError: validatedData.error.issues,
           rawResponse: data,
@@ -102,15 +79,12 @@ export class BookingService {
         throw error;
       }
 
-      if (error instanceof DOMException && error.name === "AbortError") {
-        throw new BookingApiError("Request timeout", 408, "TIMEOUT_ERROR");
-      }
-
-      if (error instanceof TypeError) {
+      if (error instanceof ApiError) {
         throw new BookingApiError(
-          "Network error - please check your connection",
-          0,
-          "NETWORK_ERROR"
+          error.message,
+          error.status || 500,
+          error.code as any || "UNKNOWN_ERROR",
+          error.originalError
         );
       }
 

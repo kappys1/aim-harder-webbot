@@ -6,7 +6,7 @@ import { Button } from "@/common/ui/button";
 import { Card, CardAction, CardContent, CardHeader } from "@/common/ui/card";
 import { Calendar, Clock, Loader2, MapPin, Users } from "lucide-react";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/common/lib/utils";
 import { Booking, BookingStatus } from "@/modules/booking/models/booking.model";
 import { BookingUtils } from "@/modules/booking/utils/booking.utils";
 import { PreBooking } from "@/modules/prebooking/models/prebooking.model";

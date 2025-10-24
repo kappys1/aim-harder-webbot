@@ -9,6 +9,7 @@ export interface Box {
   website?: string;
   logoUrl?: string;
   baseUrl: string;
+  timezone: string; // IANA timezone (e.g., "Europe/Madrid", "America/New_York")
   createdAt: Date;
   updatedAt: Date;
 }
