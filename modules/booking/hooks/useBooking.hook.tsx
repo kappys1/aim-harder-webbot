@@ -68,12 +68,9 @@ export function useBooking(options: UseBookingOptions = {}): UseBookingReturn {
       if (!forceRefresh && enableCache && currentState.cache.has(cacheKey)) {
         const cachedData = currentState.cache.get(cacheKey);
         if (cachedData) {
-          currentActions.setLoading(true);
-
           // Use setTimeout to break React batching and ensure loading state is visible
           setTimeout(() => {
             currentActions.setCurrentDay(cachedData);
-            currentActions.setLoading(false);
           }, 0);
 
           return;
@@ -167,12 +164,13 @@ export function useBooking(options: UseBookingOptions = {}): UseBookingReturn {
     if (autoFetch) {
       fetchBookings(false);
     }
-  }, [state.selectedDate, state.selectedBoxId, autoFetch, fetchBookings]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.selectedDate, state.selectedBoxId, autoFetch]);
 
   // Create a refetch function that forces a refresh
-  const refetch = useCallback(async (): Promise<void> => {
+  const refetch = async (): Promise<void> => {
     await fetchBookings(true);
-  }, [fetchBookings]);
+  };
 
   return {
     bookingDay: state.currentDay,
