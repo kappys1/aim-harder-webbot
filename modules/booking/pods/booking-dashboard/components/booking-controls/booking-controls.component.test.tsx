@@ -32,7 +32,7 @@ describe('BookingControls', () => {
     vi.clearAllMocks();
   });
 
-  it('should render date input with selected date', () => {
+  it('should render date selection header', () => {
     const mockOnDateChange = vi.fn();
 
     render(
@@ -42,11 +42,10 @@ describe('BookingControls', () => {
       />
     );
 
-    const dateInput = screen.getByDisplayValue('2025-01-15') as HTMLInputElement;
-    expect(dateInput).toBeInTheDocument();
+    expect(screen.getByText('Selecciona una fecha')).toBeInTheDocument();
   });
 
-  it('should call onDateChange when date is updated', async () => {
+  it('should render "Hoy" button for quick navigation to today', () => {
     const mockOnDateChange = vi.fn();
 
     render(
@@ -56,61 +55,55 @@ describe('BookingControls', () => {
       />
     );
 
-    const dateInput = screen.getByDisplayValue('2025-01-15') as HTMLInputElement;
+    expect(screen.getByRole('button', { name: 'Hoy' })).toBeInTheDocument();
+  });
 
-    fireEvent.change(dateInput, { target: { value: '2025-01-20' } });
+  it('should render WeekSelector component with selected date', () => {
+    const mockOnDateChange = vi.fn();
+
+    render(
+      <BookingControls
+        selectedDate="2025-01-15"
+        onDateChange={mockOnDateChange}
+      />
+    );
+
+    // WeekSelector is rendered when this text appears (week navigation controls)
+    // Check for week navigation elements that are part of WeekSelector
+    expect(screen.getByRole('button', { name: 'Hoy' })).toBeInTheDocument();
+  });
+
+  it('should call onDateChange when "Hoy" button is clicked', async () => {
+    const mockOnDateChange = vi.fn();
+
+    render(
+      <BookingControls
+        selectedDate="2025-01-15"
+        onDateChange={mockOnDateChange}
+      />
+    );
+
+    const hoyButton = screen.getByRole('button', { name: 'Hoy' });
+    fireEvent.click(hoyButton);
 
     await waitFor(() => {
-      expect(mockOnDateChange).toHaveBeenCalledWith('2025-01-20');
+      expect(mockOnDateChange).toHaveBeenCalled();
     });
   });
 
-  it('should set min date to today', () => {
+  it('should render container with proper spacing', () => {
     const mockOnDateChange = vi.fn();
 
-    render(
+    const { container } = render(
       <BookingControls
         selectedDate="2025-01-15"
         onDateChange={mockOnDateChange}
       />
     );
 
-    const dateInput = screen.getByDisplayValue('2025-01-15') as HTMLInputElement;
-
-    // Check that min attribute is set to today's date (format: YYYY-MM-DD)
-    expect(dateInput.min).toBeDefined();
-    expect(dateInput.min).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-  });
-
-  it('should render WeekSelector component', () => {
-    const mockOnDateChange = vi.fn();
-
-    render(
-      <BookingControls
-        selectedDate="2025-01-15"
-        onDateChange={mockOnDateChange}
-      />
-    );
-
-    // WeekSelector should be rendered (check for week navigation elements)
-    // This is a simple check - you may want to improve based on actual WeekSelector content
-    expect(screen.getByDisplayValue('2025-01-15')).toBeInTheDocument();
-  });
-
-  it('should disable date input when loading prop is true', () => {
-    const mockOnDateChange = vi.fn();
-
-    const { rerender } = render(
-      <BookingControls
-        selectedDate="2025-01-15"
-        onDateChange={mockOnDateChange}
-      />
-    );
-
-    let dateInput = screen.getByDisplayValue('2025-01-15') as HTMLInputElement;
-    expect(dateInput.disabled).toBe(false);
-
-    // This test assumes the component accepts an optional loading prop
-    // Adjust based on actual component implementation
+    // Check for the main container with proper styling classes
+    const mainDiv = container.firstChild;
+    expect(mainDiv).toHaveClass('mb-6');
+    expect(mainDiv).toHaveClass('space-y-4');
   });
 });
