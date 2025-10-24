@@ -321,10 +321,20 @@ export async function POST(request: NextRequest) {
           });
         }
 
+        // Fetch box timezone for accurate availableAt calculation
+        const box = await BoxService.getBoxById(boxId);
+        if (!box) {
+          return NextResponse.json(
+            { error: "Box not found" },
+            { status: 404 }
+          );
+        }
+
         const parsed = parseEarlyBookingError(
           bookingResponse.errorMssg,
           validatedRequest.data.day,
-          classTimeUTCDate // Pass classTimeUTC as Date object (in UTC)
+          classTimeUTCDate, // Pass classTimeUTC as Date object (in UTC)
+          box.timezone // Pass box timezone for DST-aware calculation
         );
 
         console.log('[BOOKING] parseEarlyBookingError result:', {

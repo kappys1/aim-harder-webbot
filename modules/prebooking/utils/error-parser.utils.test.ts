@@ -484,4 +484,204 @@ describe('error-parser.utils', () => {
       // This is the correct behavior!
     });
   });
+
+  describe('Multi-timezone support (Phase 2)', () => {
+    it('should work with America/New_York timezone (EST - winter)', () => {
+      // January 28, 2025 at 13:00 EST (UTC-5)
+      const classTimeUTC = new Date('2025-01-28T18:00:00.000Z');
+
+      const result = parseEarlyBookingError(
+        'No puedes reservar clases con más de 4 días de antelación',
+        '20250128',
+        classTimeUTC,
+        'America/New_York'
+      );
+
+      expect(result).not.toBeNull();
+      expect(result?.daysAdvance).toBe(4);
+
+      // Class: Jan 28, 13:00 EST (UTC-5) = 18:00 UTC
+      // Available: Jan 24, 13:00 EST (UTC-5) = 18:00 UTC
+      expect(result?.availableAt.toISOString()).toBe('2025-01-24T18:00:00.000Z');
+      expect(result?.availableAt.getUTCHours()).toBe(18);
+      expect(result?.availableAt.getUTCDate()).toBe(24);
+    });
+
+    it('should work with America/New_York timezone (EDT - summer)', () => {
+      // July 28, 2025 at 13:00 EDT (UTC-4)
+      const classTimeUTC = new Date('2025-07-28T17:00:00.000Z');
+
+      const result = parseEarlyBookingError(
+        'No puedes reservar clases con más de 4 días de antelación',
+        '20250728',
+        classTimeUTC,
+        'America/New_York'
+      );
+
+      expect(result).not.toBeNull();
+      expect(result?.daysAdvance).toBe(4);
+
+      // Class: July 28, 13:00 EDT (UTC-4) = 17:00 UTC
+      // Available: July 24, 13:00 EDT (UTC-4) = 17:00 UTC
+      expect(result?.availableAt.toISOString()).toBe('2025-07-24T17:00:00.000Z');
+      expect(result?.availableAt.getUTCHours()).toBe(17);
+      expect(result?.availableAt.getUTCDate()).toBe(24);
+    });
+
+    it('should work with Asia/Tokyo timezone (JST - no DST)', () => {
+      // October 28, 2025 at 18:00 JST (UTC+9) - no DST in Japan
+      const classTimeUTC = new Date('2025-10-28T09:00:00.000Z');
+
+      const result = parseEarlyBookingError(
+        'No puedes reservar clases con más de 4 días de antelación',
+        '20251028',
+        classTimeUTC,
+        'Asia/Tokyo'
+      );
+
+      expect(result).not.toBeNull();
+      expect(result?.daysAdvance).toBe(4);
+
+      // Class: Oct 28, 18:00 JST (UTC+9) = 09:00 UTC
+      // Available: Oct 24, 18:00 JST (UTC+9) = 09:00 UTC
+      expect(result?.availableAt.toISOString()).toBe('2025-10-24T09:00:00.000Z');
+      expect(result?.availableAt.getUTCHours()).toBe(9);
+      expect(result?.availableAt.getUTCDate()).toBe(24);
+    });
+
+    it('should work with Australia/Sydney timezone (AEDT - summer/DST)', () => {
+      // December 28, 2025 at 18:00 AEDT (UTC+11, summer time)
+      const classTimeUTC = new Date('2025-12-28T07:00:00.000Z');
+
+      const result = parseEarlyBookingError(
+        'No puedes reservar clases con más de 4 días de antelación',
+        '20251228',
+        classTimeUTC,
+        'Australia/Sydney'
+      );
+
+      expect(result).not.toBeNull();
+      expect(result?.daysAdvance).toBe(4);
+
+      // Class: Dec 28, 18:00 AEDT (UTC+11) = 07:00 UTC
+      // Available: Dec 24, 18:00 AEDT (UTC+11) = 07:00 UTC
+      expect(result?.availableAt.toISOString()).toBe('2025-12-24T07:00:00.000Z');
+      expect(result?.availableAt.getUTCHours()).toBe(7);
+      expect(result?.availableAt.getUTCDate()).toBe(24);
+    });
+
+    it('should work with Australia/Sydney timezone (AEST - winter/standard)', () => {
+      // July 28, 2025 at 18:00 AEST (UTC+10, standard time)
+      const classTimeUTC = new Date('2025-07-28T08:00:00.000Z');
+
+      const result = parseEarlyBookingError(
+        'No puedes reservar clases con más de 4 días de antelación',
+        '20250728',
+        classTimeUTC,
+        'Australia/Sydney'
+      );
+
+      expect(result).not.toBeNull();
+      expect(result?.daysAdvance).toBe(4);
+
+      // Class: July 28, 18:00 AEST (UTC+10) = 08:00 UTC
+      // Available: July 24, 18:00 AEST (UTC+10) = 08:00 UTC
+      expect(result?.availableAt.toISOString()).toBe('2025-07-24T08:00:00.000Z');
+      expect(result?.availableAt.getUTCHours()).toBe(8);
+      expect(result?.availableAt.getUTCDate()).toBe(24);
+    });
+
+    it('should default to Europe/Madrid when timezone not provided', () => {
+      const classTimeUTC = new Date('2025-10-28T07:00:00.000Z');
+
+      const result = parseEarlyBookingError(
+        'No puedes reservar clases con más de 4 días de antelación',
+        '20251028',
+        classTimeUTC
+        // No timezone provided - should use default
+      );
+
+      expect(result).not.toBeNull();
+      expect(result?.availableAt.toISOString()).toBe('2025-10-24T06:00:00.000Z');
+    });
+
+    it('should handle spring DST transition in America/New_York', () => {
+      // March 9, 2025 is DST transition day in New York
+      // At 02:00 EST, clocks move forward to 03:00 EDT
+      // Booking for March 9 at 13:00 EDT (UTC-4) = 17:00 UTC
+      const classTimeUTC = new Date('2025-03-09T17:00:00.000Z');
+
+      const result = parseEarlyBookingError(
+        'No puedes reservar clases con más de 3 días de antelación',
+        '20250309',
+        classTimeUTC,
+        'America/New_York'
+      );
+
+      expect(result).not.toBeNull();
+      expect(result?.daysAdvance).toBe(3);
+
+      // Available: March 6 at 13:00 EST (UTC-5) = 18:00 UTC
+      // Note: March 6 is still in EST (not EDT yet)
+      expect(result?.availableAt.toISOString()).toBe('2025-03-06T18:00:00.000Z');
+      expect(result?.availableAt.getUTCHours()).toBe(18);
+    });
+
+    it('should handle fall DST transition in America/New_York', () => {
+      // November 2, 2025 is DST transition day in New York
+      // At 02:00 EDT, clocks move back to 01:00 EST
+      // Booking for Nov 2 at 13:00 EST (UTC-5) = 18:00 UTC
+      const classTimeUTC = new Date('2025-11-02T18:00:00.000Z');
+
+      const result = parseEarlyBookingError(
+        'No puedes reservar clases con más de 3 días de antelación',
+        '20251102',
+        classTimeUTC,
+        'America/New_York'
+      );
+
+      expect(result).not.toBeNull();
+      expect(result?.daysAdvance).toBe(3);
+
+      // Available: Oct 30 at 13:00 EDT (UTC-4) = 17:00 UTC
+      // Note: Oct 30 is still in EDT (hasn't transitioned yet)
+      expect(result?.availableAt.toISOString()).toBe('2025-10-30T17:00:00.000Z');
+      expect(result?.availableAt.getUTCHours()).toBe(17);
+    });
+
+    it('should preserve local time across timezone boundaries', () => {
+      // Verify the critical requirement: local time is preserved
+      // Class at 15:00 in any timezone should have availability at 15:00 local time
+
+      const testCases = [
+        {
+          timezone: 'Europe/Madrid',
+          classTimeUTC: new Date('2025-10-28T14:00:00.000Z'), // Oct 28, 15:00 Madrid (UTC+1)
+          expectedAvailableUTC: new Date('2025-10-24T13:00:00.000Z'), // Oct 24, 15:00 Madrid (UTC+2)
+        },
+        {
+          timezone: 'America/New_York',
+          classTimeUTC: new Date('2025-01-28T20:00:00.000Z'), // Jan 28, 15:00 New York (UTC-5)
+          expectedAvailableUTC: new Date('2025-01-24T20:00:00.000Z'), // Jan 24, 15:00 New York (UTC-5)
+        },
+        {
+          timezone: 'Asia/Tokyo',
+          classTimeUTC: new Date('2025-10-28T06:00:00.000Z'), // Oct 28, 15:00 Tokyo (UTC+9)
+          expectedAvailableUTC: new Date('2025-10-24T06:00:00.000Z'), // Oct 24, 15:00 Tokyo (UTC+9)
+        },
+      ];
+
+      testCases.forEach(({ timezone, classTimeUTC, expectedAvailableUTC }) => {
+        const result = parseEarlyBookingError(
+          'No puedes reservar clases con más de 4 días de antelación',
+          '20250128',
+          classTimeUTC,
+          timezone
+        );
+
+        expect(result).not.toBeNull();
+        expect(result?.availableAt.toISOString()).toBe(expectedAvailableUTC.toISOString());
+      });
+    });
+  });
 });

@@ -2,18 +2,20 @@
  * Utility functions for parsing AimHarder error messages
  * and calculating exact timestamps for pre-bookings
  *
- * CRITICAL: Calculates availableAt in LOCAL box timezone (Europe/Madrid)
+ * CRITICAL: Calculates availableAt in LOCAL box timezone
  * This ensures that when a class is at 08:00 local time, the availability
- * is ALSO at 08:00 local time (4 days before), even across DST boundaries.
+ * is ALSO at 08:00 local time (days before), even across DST boundaries.
  *
- * Example:
+ * Example (Madrid timezone, UTC+1 in winter, UTC+2 in summer):
  * - Class: Oct 28, 08:00 Madrid (UTC+1) = 07:00 UTC
  * - Available: Oct 24, 08:00 Madrid (UTC+2) = 06:00 UTC ← Same local time!
+ *
+ * Phase 2: Now supports multiple timezones per box via boxTimezone parameter
+ * Each box can specify its own IANA timezone (e.g., Europe/Madrid, America/New_York)
  *
  * This is the correct behavior for "reserve in box timezone, not user timezone"
  */
 import { fromZonedTime, toZonedTime } from 'date-fns-tz';
-import { format } from 'date-fns';
 
 export interface ParsedEarlyBookingError {
   availableAt: Date;
@@ -31,18 +33,20 @@ export interface ParsedEarlyBookingError {
  * @param errorMessage - Error message from AimHarder API (e.g., "No puedes reservar clases con más de 4 días de antelación")
  * @param classDay - Day of the class in YYYYMMDD format (e.g., "20250214") - used only for validation/logging
  * @param classTimeUTC - Date object already in UTC (optional). If not provided, uses 00:00 UTC on classDay
+ * @param boxTimezone - IANA timezone string for the box (e.g., "Europe/Madrid", "America/New_York"). Defaults to "Europe/Madrid"
  * @returns Parsed error with exact availableAt timestamp in UTC
  *
  * @example
  * // Class is Friday 14th at 20:30 Madrid time (which is 19:30 UTC), max advance is 4 days
  * const classDateUTC = new Date("2025-02-14T19:30:00.000Z");
- * parseEarlyBookingError("No puedes reservar clases con más de 4 días de antelación", "20250214", classDateUTC)
+ * parseEarlyBookingError("No puedes reservar clases con más de 4 días de antelación", "20250214", classDateUTC, "Europe/Madrid")
  * // Returns: availableAt = Monday 10th 19:30 UTC (exactly 4 days before Friday 19:30 UTC)
  */
 export function parseEarlyBookingError(
   errorMessage: string | undefined,
   classDay: string,
-  classTimeUTC?: Date
+  classTimeUTC?: Date,
+  boxTimezone: string = 'Europe/Madrid'
 ): ParsedEarlyBookingError | null {
   if (!errorMessage) return null;
 
@@ -95,17 +99,15 @@ export function parseEarlyBookingError(
   }
 
   // Calculate available date (subtract days in LOCAL timezone)
-  // CRITICAL: Must calculate in LOCAL box timezone (Europe/Madrid), not UTC
+  // CRITICAL: Must calculate in LOCAL box timezone, not UTC
   // This ensures availableAt is at the SAME LOCAL TIME as the class, just days before
   //
   // EXAMPLE - Booking for Oct 28 (UTC+1), available Oct 24 (UTC+2):
   // Wrong (UTC only):  Oct 28 07:00 UTC - 4 days = Oct 24 07:00 UTC = 09:00 local ❌
   // Right (local):     Oct 28 08:00 local - 4 days = Oct 24 08:00 local = 06:00 UTC ✅
 
-  const BOX_TIMEZONE = 'Europe/Madrid'; // TODO: Make this configurable when supporting multiple boxes
-
   // Convert class time to local timezone to see the actual local time and date
-  const classLocal = toZonedTime(classDateUTC, BOX_TIMEZONE);
+  const classLocal = toZonedTime(classDateUTC, boxTimezone);
 
   // Create the AVAILABLE date in local timezone:
   // Same year/month/day as the class, but daysAdvance days earlier, with same time
@@ -114,7 +116,7 @@ export function parseEarlyBookingError(
 
   // Convert back to UTC using the box timezone
   // This automatically applies the correct DST offset for that date
-  const availableAt = fromZonedTime(availableLocalDate, BOX_TIMEZONE);
+  const availableAt = fromZonedTime(availableLocalDate, boxTimezone);
 
   console.log('[PreBooking] Calculated availableAt (in local timezone):', {
     classDateUTC: classDateUTC.toISOString(),
@@ -124,7 +126,7 @@ export function parseEarlyBookingError(
     availableLocalDate: availableLocalDate.toLocaleDateString('es-ES'),
     availableLocalTime: `${availableLocalDate.getHours()}:${String(availableLocalDate.getMinutes()).padStart(2, '0')}`,
     availableAt: availableAt.toISOString(),
-    boxTimezone: BOX_TIMEZONE,
+    boxTimezone,
     calculationMethod: 'local timezone arithmetic (DST-aware)',
   });
 

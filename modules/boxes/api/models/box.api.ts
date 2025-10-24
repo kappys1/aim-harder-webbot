@@ -9,6 +9,7 @@ export interface BoxApiResponse {
   website?: string;
   logo_url?: string;
   base_url: string;
+  timezone: string; // IANA timezone (e.g., "Europe/Madrid", "America/New_York")
   created_at: string;
   updated_at: string;
 }
