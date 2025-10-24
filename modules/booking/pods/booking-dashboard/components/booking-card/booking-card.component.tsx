@@ -135,7 +135,8 @@ export function BookingCard({
   };
 
   const cardClasses = cn(
-    "transition-all duration-200 hover:shadow-md",
+    // Card is NOT interactive - only the button inside is
+    // Removed card-interactive class to prevent scaling on the entire card
     isUserBooked && "ring-2 ring-blue-500 ring-offset-2",
     booking.status === BookingStatus.DISABLED && "opacity-60",
     variant === "compact" && "py-4",
