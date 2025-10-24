@@ -260,7 +260,7 @@
 
     /* Mobile: slight opacity change */
     @media (hover: none) and (pointer: coarse) {
-      @apply active:opacity-95 active:bg-opacity-90;
+      @apply active:opacity-95;
     }
 
     /* Accessibility: respect motion preferences */
@@ -275,18 +275,18 @@
    * More dramatic scale for small elements
    */
   .icon-interactive {
-    @apply transition-[transform,background-color,box-shadow];
+    @apply transition-[transform,background-color];
     @apply duration-100;
 
     /* Desktop */
     @media (hover: hover) and (pointer: fine) {
-      @apply hover:scale-103 hover:bg-gray-100;
-      @apply active:scale-92 active:bg-gray-200;
+      @apply hover:scale-110;
+      @apply active:scale-95;
     }
 
     /* Mobile: even more dramatic */
     @media (hover: none) and (pointer: coarse) {
-      @apply active:scale-85 active:bg-gray-200;
+      @apply active:scale-90;
     }
 
     /* Accessibility */
