@@ -10,9 +10,14 @@
  * - Use server actions for mutations
  */
 
+import { cn } from "@/common/lib/utils";
 import { Button } from "@/common/ui/button";
 import { Card, CardContent } from "@/common/ui/card";
-import { AlertCircle } from "lucide-react";
+import { convertLocalToUTC } from "@/common/utils/timezone.utils";
+import { useBoxFromUrl } from "@/modules/boxes/hooks/useBoxFromUrl.hook";
+import { useBoxes } from "@/modules/boxes/hooks/useBoxes.hook";
+import { usePreBooking } from "@/modules/prebooking/pods/prebooking/hooks/usePreBooking.hook";
+import { AlertCircle, RefreshCw } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -22,14 +27,10 @@ import {
   BookingProvider,
   useBookingContext,
 } from "../../hooks/useBookingContext.hook";
+import { BookingStatus } from "../../models/booking.model";
 import { BookingUtils } from "../../utils/booking.utils";
 import { BookingGrid } from "./components/booking-grid/booking-grid.component";
 import { WeekSelector } from "./components/week-selector";
-import { useBoxFromUrl } from "@/modules/boxes/hooks/useBoxFromUrl.hook";
-import { useBoxes } from "@/modules/boxes/hooks/useBoxes.hook";
-import { usePreBooking } from "@/modules/prebooking/pods/prebooking/hooks/usePreBooking.hook";
-import { convertLocalToUTC } from "@/common/utils/timezone.utils";
-import { BookingStatus } from "../../models/booking.model";
 
 interface BookingDashboardComponentProps {
   initialDate: string;
@@ -46,20 +47,6 @@ function BookingDashboardContent({
   authCookies: AuthCookie[];
   isAuthenticated: boolean;
 }) {
-  const {
-    bookingDay,
-    isLoading,
-    error,
-    refetch,
-    setDate,
-    retryOnError,
-    statistics,
-  } = useBooking({
-    autoFetch: true,
-    enableCache: true,
-    cookies: authCookies,
-  });
-
   const { actions, state } = useBookingContext();
   const [bookingLoading, setBookingLoading] = useState<number | null>(null);
   const [cancelLoading, setCancelLoading] = useState<number | null>(null);
@@ -80,6 +67,27 @@ function BookingDashboardContent({
 
   const router = useRouter();
   const searchParams = useSearchParams();
+
+  // Callback memoizado para refetch que incluya prebookings
+  const handleRefetch = useCallback(async () => {
+    await fetchPrebookings();
+  }, [fetchPrebookings]);
+
+  const {
+    bookingDay,
+    isLoading,
+    error,
+    refetch,
+    setDate,
+    retryOnError,
+    statistics,
+  } = useBooking({
+    autoFetch: true,
+    enableCache: true,
+    cookies: authCookies,
+    onRefetch: handleRefetch,
+  });
+
 
   // Redirect to today if accessing a past date
   useEffect(() => {
@@ -452,7 +460,7 @@ function BookingDashboardContent({
         </div>
 
         <div className="flex items-center gap-2">
-          {/* <Button
+          <Button
             variant="outline"
             size="sm"
             onClick={refetch}
@@ -461,7 +469,7 @@ function BookingDashboardContent({
           >
             <RefreshCw className={cn("w-4 h-4", isLoading && "animate-spin")} />
             Actualizar
-          </Button> */}
+          </Button>
 
           <input
             type="date"
