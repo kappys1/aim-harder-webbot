@@ -1,6 +1,6 @@
 "use client"
 
-import { DumbbellIcon } from "lucide-react"
+import Image from "next/image"
 import { LoginForm } from "./components/login-form"
 
 export function LoginComponent() {
@@ -11,9 +11,13 @@ export function LoginComponent() {
         {/* Brand Header */}
         <div className="flex justify-center gap-2 md:justify-start">
           <a href="/" className="flex items-center gap-2 font-bold text-lg">
-            <div className="bg-primary text-primary-foreground flex size-8 items-center justify-center rounded-md">
-              <DumbbellIcon className="size-5" />
-            </div>
+            <Image
+              src="/logo.png"
+              alt="AimHarder Logo"
+              width={32}
+              height={32}
+              className="rounded-md"
+            />
             AimHarder
           </a>
         </div>

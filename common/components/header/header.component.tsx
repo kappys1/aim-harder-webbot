@@ -2,7 +2,8 @@
 
 import { Button } from "@/common/ui/button";
 import { useAuth } from "@/modules/auth/hooks/useAuth.hook";
-import { DumbbellIcon, Loader2, LogOut } from "lucide-react";
+import { Loader2, LogOut } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect } from "react";
@@ -31,9 +32,13 @@ export function Header() {
             href="/dashboard"
             className="flex items-center gap-2 font-bold text-lg hover:opacity-80 transition-opacity"
           >
-            <div className="bg-primary text-primary-foreground flex size-8 items-center justify-center rounded-md">
-              <DumbbellIcon className="size-5" />
-            </div>
+            <Image
+              src="/logo.png"
+              alt="AimHarder Logo"
+              width={32}
+              height={32}
+              className="rounded-md"
+            />
             <span>AimHarder</span>
           </Link>
 
