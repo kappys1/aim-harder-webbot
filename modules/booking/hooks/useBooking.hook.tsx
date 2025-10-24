@@ -12,6 +12,7 @@ interface UseBookingOptions {
   autoFetch?: boolean;
   enableCache?: boolean;
   cookies?: AuthCookie[];
+  onRefetch?: () => Promise<void>;
 }
 
 interface UseBookingReturn {
@@ -35,7 +36,7 @@ interface UseBookingReturn {
 }
 
 export function useBooking(options: UseBookingOptions = {}): UseBookingReturn {
-  const { autoFetch = true, enableCache = true, cookies } = options;
+  const { autoFetch = true, enableCache = true, cookies, onRefetch } = options;
 
   const { state, actions, computed } = useBookingContext();
   const [bookingBusiness] = useState(() => new BookingBusiness());
@@ -167,10 +168,57 @@ export function useBooking(options: UseBookingOptions = {}): UseBookingReturn {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.selectedDate, state.selectedBoxId, autoFetch]);
 
-  // Create a refetch function that forces a refresh
-  const refetch = async (): Promise<void> => {
-    await fetchBookings(true);
-  };
+  // Create a refetch function that forces a refresh (clears all caches)
+  const refetch = useCallback(async (): Promise<void> => {
+    const currentState = stateRef.current;
+    const currentActions = actionsRef.current;
+
+    if (!currentState.selectedDate || !currentState.selectedBoxId) {
+      currentActions.setError("Fecha o box no seleccionado");
+      return;
+    }
+
+    try {
+      currentActions.setLoading(true);
+      currentActions.setError(null);
+
+      // Clear the BookingBusiness cache to force API call
+      bookingBusiness.clearCache();
+
+      const cacheKey = BookingUtils.getCacheKey(
+        currentState.selectedDate,
+        currentState.selectedBoxId
+      );
+
+      const bookingDay = await bookingBusiness.getBookingsForDay(
+        currentState.selectedDate,
+        currentState.selectedBoxId,
+        cookies
+      );
+
+      currentActions.setCurrentDay(bookingDay);
+
+      if (enableCache) {
+        // Re-cache with fresh data in context
+        currentActions.cacheDay(cacheKey, bookingDay);
+      }
+
+      // Refetch prebookings if callback provided
+      if (onRefetch) {
+        await onRefetch();
+      }
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Error desconocido";
+      currentActions.setError(errorMessage);
+      console.error("Error refetching bookings:", error);
+      toast.error("Error al actualizar reservas", {
+        description: "No se pudieron cargar los datos actualizados.",
+      });
+    } finally {
+      currentActions.setLoading(false);
+    }
+  }, [enableCache, cookies, bookingBusiness, onRefetch]);
 
   return {
     bookingDay: state.currentDay,
