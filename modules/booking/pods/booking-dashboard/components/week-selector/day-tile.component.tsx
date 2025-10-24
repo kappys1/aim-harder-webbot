@@ -30,7 +30,7 @@ export function DayTile({
       disabled={isDisabled}
       onClick={handleClick}
       className={cn(
-        "flex flex-col p-2 h-auto min-h-[60px] transition-all",
+        "flex flex-col p-2 h-auto min-h-[60px]",
         "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
         isToday && !isSelected && "border border-primary",
         isSelected && "bg-primary text-primary-foreground",

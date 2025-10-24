@@ -135,7 +135,8 @@ export function BookingCard({
   };
 
   const cardClasses = cn(
-    "transition-all duration-200 hover:shadow-md",
+    // Interactive feedback (card-interactive class handles transitions)
+    "card-interactive",
     isUserBooked && "ring-2 ring-blue-500 ring-offset-2",
     booking.status === BookingStatus.DISABLED && "opacity-60",
     variant === "compact" && "py-4",
