@@ -79,6 +79,7 @@ export const BookingCancelRequestSchema = z.object({
   id: z.string().min(1, "Booking ID is required"),
   late: z.number().default(0), // 0 for normal cancellation, 1 for late cancellation
   familyId: z.string().default(""),
+  boxId: z.string().optional(), // Optional: used for access validation
 });
 
 export const BookingCancelResponseSchema = z.object({

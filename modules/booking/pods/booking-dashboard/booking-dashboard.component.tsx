@@ -146,10 +146,20 @@ function BookingDashboardContent({
       setBookingLoading(bookingId);
 
       try {
+        // CRITICAL FIX: Always validate user email before making booking request
         const currentUserEmail =
           typeof window !== "undefined"
             ? localStorage.getItem("user-email")
             : null;
+
+        if (!currentUserEmail) {
+          console.error('[BOOKING-DASHBOARD] Missing user-email in localStorage');
+          toast.error("Error de autenticación", {
+            description:
+              "No se encontró la información del usuario. Por favor, inicia sesión de nuevo.",
+          });
+          return;
+        }
 
         const apiDate = BookingUtils.formatDateForApi(bookingDay.date);
         const booking = bookingDay.bookings.find((b) => b.id === bookingId);
@@ -202,11 +212,12 @@ function BookingDashboardContent({
           boxAimharderId: boxData.box_id,
         };
 
+        // CRITICAL FIX: Always send user email header
         const response = await fetch("/api/booking", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            ...(currentUserEmail && { "x-user-email": currentUserEmail }),
+            "x-user-email": currentUserEmail,
           },
           body: JSON.stringify(bookingRequest),
         });
@@ -304,6 +315,22 @@ function BookingDashboardContent({
       setCancelLoading(bookingId);
 
       try {
+        // CRITICAL FIX: Always validate user email before making cancellation request
+        const userEmail =
+          typeof window !== "undefined"
+            ? localStorage.getItem("user-email")
+            : null;
+
+        if (!userEmail) {
+          console.error('[BOOKING-DASHBOARD] Missing user-email in localStorage for cancellation');
+          toast.error("Error de autenticación", {
+            description:
+              "No se encontró la información del usuario. Por favor, inicia sesión de nuevo.",
+          });
+          setCancelLoading(null);
+          return;
+        }
+
         const boxData = boxes?.find((b) => b.id === boxId);
         if (!boxData) {
           throw new Error("Box data not found");
@@ -313,19 +340,16 @@ function BookingDashboardContent({
           id: booking.userBookingId.toString(),
           late: 0,
           familyId: "",
+          boxId: boxId,
           boxSubdomain: boxData.subdomain,
         };
 
-        const userEmail =
-          typeof window !== "undefined"
-            ? localStorage.getItem("user-email")
-            : null;
-
+        // CRITICAL FIX: Always send user email header
         const response = await fetch("/api/booking", {
           method: "DELETE",
           headers: {
             "Content-Type": "application/json",
-            ...(userEmail && { "x-user-email": userEmail }),
+            "x-user-email": userEmail,
           },
           body: JSON.stringify(cancelRequest),
         });
