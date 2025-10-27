@@ -102,14 +102,23 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get user email from the request headers or URL params
-    const userEmail =
-      request.headers.get("x-user-email") || "alexsbd1@gmail.com"; // Default for now
+    // Get user email from the request headers
+    const userEmail = request.headers.get("x-user-email");
+
+    // CRITICAL FIX #1: User email is required to fetch bookings
+    if (!userEmail) {
+      console.warn('[BOOKING-GET] Missing x-user-email header');
+      return NextResponse.json(
+        { error: "Missing required header: x-user-email" },
+        { status: 400 }
+      );
+    }
 
     // Fetch box data directly from Supabase (server-side)
     const box = await BoxService.getBoxById(boxId);
 
     if (!box) {
+      console.warn('[BOOKING-GET] Box not found:', { boxId, userEmail });
       return NextResponse.json({ error: "Box not found" }, { status: 404 });
     }
 
@@ -117,11 +126,19 @@ export async function GET(request: NextRequest) {
     const hasAccess = await BoxAccessService.validateAccess(userEmail, boxId);
 
     if (!hasAccess) {
+      console.warn('[BOOKING-GET] Access denied:', { userEmail, boxId });
       return NextResponse.json(
         { error: "Access denied to this box" },
         { status: 403 }
       );
     }
+
+    console.log('[BOOKING-GET] Fetching bookings for:', {
+      userEmail,
+      boxId,
+      day,
+      boxSubdomain: box.subdomain,
+    });
 
     // Build dynamic URL using box subdomain
     const baseUrl = box.base_url; // e.g., https://crossfitcerdanyola300.aimharder.com
@@ -201,15 +218,6 @@ export async function POST(request: NextRequest) {
     const boxSubdomain = body.boxSubdomain; // Extract box subdomain (for dynamic URL)
     const boxAimharderId = body.boxAimharderId; // Extract box aimharder ID (for QStash payload)
 
-    console.log('[BOOKING-BACKEND] Received booking request:', {
-      day: body.day,
-      classTimeUTC,
-      classTimeUTCType: typeof classTimeUTC,
-      classTimeUTCPresent: !!classTimeUTC,
-      boxId,
-      boxSubdomain,
-    });
-
     const validatedRequest = BookingCreateRequestSchema.safeParse(body);
 
     if (!validatedRequest.success) {
@@ -234,8 +242,60 @@ export async function POST(request: NextRequest) {
     }
 
     // Get user email from headers
-    const userEmail =
-      request.headers.get("x-user-email") || "alexsbd1@gmail.com"; // Default for now
+    const userEmail = request.headers.get("x-user-email");
+
+    // CRITICAL FIX #1: User email is required for bookings
+    if (!userEmail) {
+      console.warn('[BOOKING-POST] Missing x-user-email header');
+      return NextResponse.json(
+        { error: "Missing required header: x-user-email" },
+        { status: 400 }
+      );
+    }
+
+    console.log('[BOOKING-POST] Received booking request:', {
+      day: body.day,
+      userEmail,
+      boxId,
+      boxSubdomain,
+      classTimeUTC: body.classTimeUTC,
+    });
+
+    // CRITICAL FIX #2: Validate user has access to this box
+    const hasAccess = await BoxAccessService.validateAccess(userEmail, boxId);
+    if (!hasAccess) {
+      console.warn('[BOOKING-POST] Access denied:', { userEmail, boxId });
+      return NextResponse.json(
+        { error: "Access denied to this box" },
+        { status: 403 }
+      );
+    }
+
+    // CRITICAL FIX #3: Validate subdomain matches database record
+    const box = await BoxService.getBoxById(boxId);
+    if (!box) {
+      console.warn('[BOOKING-POST] Box not found:', { boxId, userEmail });
+      return NextResponse.json(
+        { error: "Box not found" },
+        { status: 404 }
+      );
+    }
+
+    if (box.subdomain !== boxSubdomain) {
+      console.error('[BOOKING-POST] Subdomain mismatch:', {
+        userEmail,
+        boxId,
+        providedSubdomain: boxSubdomain,
+        databaseSubdomain: box.subdomain,
+      });
+      return NextResponse.json(
+        {
+          error: "Invalid box subdomain",
+          details: "The provided subdomain does not match the database record",
+        },
+        { status: 400 }
+      );
+    }
 
     // CRITICAL FIX: Use device session for manual user bookings (not background session)
     let session = await SupabaseSessionService.getDeviceSession(userEmail);
@@ -538,6 +598,7 @@ export async function DELETE(request: NextRequest) {
   try {
     // Parse and validate request body
     const body = await request.json();
+    const boxId = body.boxId; // Extract boxId for validation
     const boxSubdomain = body.boxSubdomain; // Extract box subdomain for dynamic URL
 
     const validatedRequest = BookingCancelRequestSchema.safeParse(body);
@@ -563,8 +624,61 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Get user email from headers
-    const userEmail =
-      request.headers.get("x-user-email") || "alexsbd1@gmail.com"; // Default for now
+    const userEmail = request.headers.get("x-user-email");
+
+    // CRITICAL FIX #1: User email is required for cancellations
+    if (!userEmail) {
+      console.warn('[BOOKING-DELETE] Missing x-user-email header');
+      return NextResponse.json(
+        { error: "Missing required header: x-user-email" },
+        { status: 400 }
+      );
+    }
+
+    console.log('[BOOKING-DELETE] Received cancellation request:', {
+      userEmail,
+      boxId,
+      boxSubdomain,
+      bookingId: validatedRequest.data.id,
+    });
+
+    // CRITICAL FIX #2: Validate user has access to this box (if boxId provided)
+    if (boxId) {
+      const hasAccess = await BoxAccessService.validateAccess(userEmail, boxId);
+      if (!hasAccess) {
+        console.warn('[BOOKING-DELETE] Access denied:', { userEmail, boxId });
+        return NextResponse.json(
+          { error: "Access denied to this box" },
+          { status: 403 }
+        );
+      }
+
+      // CRITICAL FIX #3: Validate subdomain matches database record
+      const box = await BoxService.getBoxById(boxId);
+      if (!box) {
+        console.warn('[BOOKING-DELETE] Box not found:', { boxId, userEmail });
+        return NextResponse.json(
+          { error: "Box not found" },
+          { status: 404 }
+        );
+      }
+
+      if (box.subdomain !== boxSubdomain) {
+        console.error('[BOOKING-DELETE] Subdomain mismatch:', {
+          userEmail,
+          boxId,
+          providedSubdomain: boxSubdomain,
+          databaseSubdomain: box.subdomain,
+        });
+        return NextResponse.json(
+          {
+            error: "Invalid box subdomain",
+            details: "The provided subdomain does not match the database record",
+          },
+          { status: 400 }
+        );
+      }
+    }
 
     // CRITICAL FIX: Use device session for manual user actions (not background session)
     const session = await SupabaseSessionService.getDeviceSession(userEmail);
