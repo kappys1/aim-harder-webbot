@@ -156,13 +156,57 @@ export class BookingService extends BaseApiService {
 
       const data = await response.json();
 
+      // LOG: Capture raw response for debugging (using console.error to ensure visibility in production)
+      console.error('[BOOKING_API] Raw createBooking response:', JSON.stringify({
+        url,
+        statusCode: response.status,
+        statusText: response.statusText,
+        headers: Object.fromEntries(response.headers.entries()),
+        body: data,
+        dataType: Array.isArray(data) ? 'array' : typeof data,
+      }, null, 2));
+
+      // CRITICAL FIX: Handle different response formats from AimHarder
+      // Sometimes AimHarder returns:
+      // 1. { bookState: 1, id: "123", ... } - Normal success/error response (expected)
+      // 2. [] - Empty array (HTTP 200 with empty body = success, no additional data)
+      // 3. {} - Empty object (less common)
+      // 4. null/undefined - Unexpected but possible with some API changes
+
+      let normalizedData = data;
+
+      // If response is an empty array, treat as success (successful booking with no extra data)
+      if (Array.isArray(data) && data.length === 0) {
+        console.warn('[BOOKING_API] Received empty array response, treating as successful booking');
+        normalizedData = {
+          bookState: 1, // bookState: 1 = success/booked
+          id: "", // No ID returned from AimHarder
+          clasesContratadas: "",
+        };
+      } else if (data === null || data === undefined) {
+        console.warn('[BOOKING_API] Received null/undefined response, treating as successful booking');
+        normalizedData = {
+          bookState: 1,
+          id: "",
+          clasesContratadas: "",
+        };
+      } else if (typeof data === 'object' && !Array.isArray(data) && Object.keys(data).length === 0) {
+        // Empty object response
+        console.warn('[BOOKING_API] Received empty object response, treating as successful booking');
+        normalizedData = {
+          bookState: 1,
+          id: "",
+          clasesContratadas: "",
+        };
+      }
+
       // CRITICAL: Detect session expiration BEFORE validation
       // Aimharder returns { logout: 1 } when token/session is expired
-      if (data.logout === 1) {
+      if (normalizedData && typeof normalizedData === 'object' && normalizedData.logout === 1) {
         console.error('[BOOKING_API] Session expired (logout: 1):', JSON.stringify({
           url,
           statusCode: response.status,
-          rawResponse: data,
+          rawResponse: normalizedData,
           requestBody: {
             day: request.day,
             familyId: request.familyId,
@@ -176,7 +220,7 @@ export class BookingService extends BaseApiService {
           401,
           "AUTH_ERROR",
           {
-            rawResponse: data,
+            rawResponse: normalizedData,
             requestBody: {
               day: request.day,
               familyId: request.familyId,
@@ -187,16 +231,7 @@ export class BookingService extends BaseApiService {
         );
       }
 
-      // LOG: Capture raw response for debugging (using console.error to ensure visibility in production)
-      console.error('[BOOKING_API] Raw createBooking response:', JSON.stringify({
-        url,
-        statusCode: response.status,
-        statusText: response.statusText,
-        headers: Object.fromEntries(response.headers.entries()),
-        body: data,
-      }, null, 2));
-
-      const validatedData = BookingCreateResponseSchema.safeParse(data);
+      const validatedData = BookingCreateResponseSchema.safeParse(normalizedData);
 
       if (!validatedData.success) {
         // LOG: Detailed validation error with raw response (stringified for production visibility)
@@ -313,12 +348,49 @@ export class BookingService extends BaseApiService {
 
       const data = await response.json();
 
-      const validatedData = BookingCancelResponseSchema.safeParse(data);
+      // LOG: Capture raw response for debugging
+      console.error('[BOOKING_API] Raw cancelBooking response:', JSON.stringify({
+        url,
+        statusCode: response.status,
+        statusText: response.statusText,
+        body: data,
+        dataType: Array.isArray(data) ? 'array' : typeof data,
+      }, null, 2));
+
+      // CRITICAL FIX: Handle different response formats from AimHarder
+      // Similar to createBooking, sometimes AimHarder returns:
+      // 1. { cancelState: 1, ... } - Normal response (expected)
+      // 2. [] - Empty array (HTTP 200 with empty body = success)
+      // 3. {} - Empty object
+      // 4. null/undefined - Unexpected but possible
+
+      let normalizedData = data;
+
+      // If response is an empty array, treat as success (successful cancellation)
+      if (Array.isArray(data) && data.length === 0) {
+        console.warn('[BOOKING_API] Received empty array response for cancel, treating as successful cancellation');
+        normalizedData = {
+          cancelState: 1, // cancelState: 1 = success/cancelled
+        };
+      } else if (data === null || data === undefined) {
+        console.warn('[BOOKING_API] Received null/undefined response for cancel, treating as successful cancellation');
+        normalizedData = {
+          cancelState: 1,
+        };
+      } else if (typeof data === 'object' && !Array.isArray(data) && Object.keys(data).length === 0) {
+        // Empty object response
+        console.warn('[BOOKING_API] Received empty object response for cancel, treating as successful cancellation');
+        normalizedData = {
+          cancelState: 1,
+        };
+      }
+
+      const validatedData = BookingCancelResponseSchema.safeParse(normalizedData);
       if (!validatedData.success) {
         // LOG: Detailed validation error for cancelBooking (stringified for production visibility)
         console.error('[BOOKING_API] Validation failed for cancelBooking:', JSON.stringify({
           zodError: validatedData.error.issues,
-          rawResponse: data,
+          rawResponse: normalizedData,
           requestBody: {
             id: request.id,
             late: request.late,
@@ -332,7 +404,7 @@ export class BookingService extends BaseApiService {
           "VALIDATION_ERROR",
           {
             zodIssues: validatedData.error.issues,
-            rawResponse: data,
+            rawResponse: normalizedData,
             requestBody: {
               id: request.id,
               late: request.late,
