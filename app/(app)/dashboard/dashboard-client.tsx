@@ -3,6 +3,7 @@
 import { Alert, AlertDescription, AlertTitle } from "@/common/ui/alert";
 import { Skeleton } from "@/common/ui/skeleton";
 import { useAuth } from "@/modules/auth/hooks/useAuth.hook";
+import { useDeviceSessionSync } from "@/modules/auth/hooks/useDeviceSessionSync.hook";
 import { useBoxes } from "@/modules/boxes/hooks/useBoxes.hook";
 import { useBoxFromUrl } from "@/modules/boxes/hooks/useBoxFromUrl.hook";
 import { BoxCard } from "@/modules/boxes/pods/box-card/box-card.component";
@@ -13,6 +14,10 @@ import { useEffect, useState } from "react";
 export function DashboardClient() {
   const { user } = useAuth();
   const userEmail = user?.email || "";
+
+  // CRITICAL: Sync device session to ensure localStorage token matches DB token
+  // This prevents token desync when cron updates the DB but localStorage is stale
+  useDeviceSessionSync(userEmail);
 
   const [sessionData, setSessionData] = useState<{
     token: string;

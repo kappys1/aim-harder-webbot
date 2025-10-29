@@ -30,7 +30,7 @@ export const BookingApiSchema = z.object({
   ocupation: z.number(),
   checkAthletesNum: z.number(),
   waitlist: z.number(),
-  cancelledId: z.string().nullable(),
+  cancelledId: z.union([z.number().transform(String), z.string()]).nullable(),
   color: z.string(),
   classLength: z.number(),
   resadmin: z.number(),

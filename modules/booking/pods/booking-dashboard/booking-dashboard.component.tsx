@@ -14,13 +14,14 @@ import { cn } from "@/common/lib/utils";
 import { Button } from "@/common/ui/button";
 import { Card, CardContent } from "@/common/ui/card";
 import { convertLocalToUTC } from "@/common/utils/timezone.utils";
+import { useDeviceSessionSync } from "@/modules/auth/hooks/useDeviceSessionSync.hook";
 import { useBoxFromUrl } from "@/modules/boxes/hooks/useBoxFromUrl.hook";
 import { useBoxes } from "@/modules/boxes/hooks/useBoxes.hook";
 import { usePreBooking } from "@/modules/prebooking/pods/prebooking/hooks/usePreBooking.hook";
+import { useQueryClient } from "@tanstack/react-query";
 import { AlertCircle, RefreshCw } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { AuthCookie } from "../../../auth/api/services/cookie.service";
 import { useBooking } from "../../hooks/useBooking.hook";
@@ -58,6 +59,10 @@ function BookingDashboardContent({
 
   const userEmail =
     typeof window !== "undefined" ? localStorage.getItem("user-email") : null;
+
+  // CRITICAL: Sync device session to ensure localStorage token matches DB token
+  // This prevents token desync when cron updates the DB but localStorage is stale
+  useDeviceSessionSync(userEmail);
   const { boxId } = useBoxFromUrl();
   const { boxes } = useBoxes(userEmail || "");
   const {
@@ -73,7 +78,8 @@ function BookingDashboardContent({
   // Helper function to update TanStack Query cache after booking/cancel actions
   const updateBookingCache = useCallback(
     (updatedBookingDay: typeof bookingDay) => {
-      if (!updatedBookingDay || !state.selectedDate || !state.selectedBoxId) return;
+      if (!updatedBookingDay || !state.selectedDate || !state.selectedBoxId)
+        return;
 
       const queryKey = ["bookings", state.selectedDate, state.selectedBoxId];
       queryClient.setQueryData(queryKey, updatedBookingDay);
@@ -100,7 +106,6 @@ function BookingDashboardContent({
     cookies: authCookies,
     onRefetch: handleRefetch,
   });
-
 
   // Redirect to today if accessing a past date
   useEffect(() => {
@@ -153,7 +158,9 @@ function BookingDashboardContent({
             : null;
 
         if (!currentUserEmail) {
-          console.error('[BOOKING-DASHBOARD] Missing user-email in localStorage');
+          console.error(
+            "[BOOKING-DASHBOARD] Missing user-email in localStorage"
+          );
           toast.error("Error de autenticación", {
             description:
               "No se encontró la información del usuario. Por favor, inicia sesión de nuevo.",
@@ -322,7 +329,9 @@ function BookingDashboardContent({
             : null;
 
         if (!userEmail) {
-          console.error('[BOOKING-DASHBOARD] Missing user-email in localStorage for cancellation');
+          console.error(
+            "[BOOKING-DASHBOARD] Missing user-email in localStorage for cancellation"
+          );
           toast.error("Error de autenticación", {
             description:
               "No se encontró la información del usuario. Por favor, inicia sesión de nuevo.",

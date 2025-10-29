@@ -107,7 +107,7 @@ export async function GET(request: NextRequest) {
 
     // CRITICAL FIX #1: User email is required to fetch bookings
     if (!userEmail) {
-      console.warn('[BOOKING-GET] Missing x-user-email header');
+      console.warn("[BOOKING-GET] Missing x-user-email header");
       return NextResponse.json(
         { error: "Missing required header: x-user-email" },
         { status: 400 }
@@ -118,7 +118,7 @@ export async function GET(request: NextRequest) {
     const box = await BoxService.getBoxById(boxId);
 
     if (!box) {
-      console.warn('[BOOKING-GET] Box not found:', { boxId, userEmail });
+      console.warn("[BOOKING-GET] Box not found:", { boxId, userEmail });
       return NextResponse.json({ error: "Box not found" }, { status: 404 });
     }
 
@@ -126,14 +126,14 @@ export async function GET(request: NextRequest) {
     const hasAccess = await BoxAccessService.validateAccess(userEmail, boxId);
 
     if (!hasAccess) {
-      console.warn('[BOOKING-GET] Access denied:', { userEmail, boxId });
+      console.warn("[BOOKING-GET] Access denied:", { userEmail, boxId });
       return NextResponse.json(
         { error: "Access denied to this box" },
         { status: 403 }
       );
     }
 
-    console.log('[BOOKING-GET] Fetching bookings for:', {
+    console.log("[BOOKING-GET] Fetching bookings for:", {
       userEmail,
       boxId,
       day,
@@ -246,14 +246,14 @@ export async function POST(request: NextRequest) {
 
     // CRITICAL FIX #1: User email is required for bookings
     if (!userEmail) {
-      console.warn('[BOOKING-POST] Missing x-user-email header');
+      console.warn("[BOOKING-POST] Missing x-user-email header");
       return NextResponse.json(
         { error: "Missing required header: x-user-email" },
         { status: 400 }
       );
     }
 
-    console.log('[BOOKING-POST] Received booking request:', {
+    console.log("[BOOKING-POST] Received booking request:", {
       day: body.day,
       userEmail,
       boxId,
@@ -264,7 +264,7 @@ export async function POST(request: NextRequest) {
     // CRITICAL FIX #2: Validate user has access to this box
     const hasAccess = await BoxAccessService.validateAccess(userEmail, boxId);
     if (!hasAccess) {
-      console.warn('[BOOKING-POST] Access denied:', { userEmail, boxId });
+      console.warn("[BOOKING-POST] Access denied:", { userEmail, boxId });
       return NextResponse.json(
         { error: "Access denied to this box" },
         { status: 403 }
@@ -274,15 +274,12 @@ export async function POST(request: NextRequest) {
     // CRITICAL FIX #3: Validate subdomain matches database record
     const box = await BoxService.getBoxById(boxId);
     if (!box) {
-      console.warn('[BOOKING-POST] Box not found:', { boxId, userEmail });
-      return NextResponse.json(
-        { error: "Box not found" },
-        { status: 404 }
-      );
+      console.warn("[BOOKING-POST] Box not found:", { boxId, userEmail });
+      return NextResponse.json({ error: "Box not found" }, { status: 404 });
     }
 
     if (box.subdomain !== boxSubdomain) {
-      console.error('[BOOKING-POST] Subdomain mismatch:', {
+      console.error("[BOOKING-POST] Subdomain mismatch:", {
         userEmail,
         boxId,
         providedSubdomain: boxSubdomain,
@@ -298,14 +295,36 @@ export async function POST(request: NextRequest) {
     }
 
     // CRITICAL FIX: Use device session for manual user bookings (not background session)
+    console.log("[BOOKING-POST] Getting device session for:", userEmail);
     let session = await SupabaseSessionService.getDeviceSession(userEmail);
 
     if (!session) {
+      console.error(
+        "[BOOKING-POST] ❌ Device session not found for:",
+        userEmail
+      );
       return NextResponse.json(
         { error: "Device session not found. Please login first." },
         { status: 401 }
       );
     }
+
+    // Log session age for debugging
+    const tokenAge = session.lastTokenUpdateDate
+      ? Date.now() - new Date(session.lastTokenUpdateDate).getTime()
+      : null;
+    const tokenAgeMinutes = tokenAge
+      ? Math.floor(tokenAge / (1000 * 60))
+      : null;
+
+    console.log("[BOOKING-POST] Device session found:", {
+      fingerprint: session.fingerprint?.substring(0, 20) + "...",
+      tokenAgeMinutes,
+      cookieCount: session.cookies.length,
+      cookieNames: session.cookies.map((c) => c.name),
+      createdAt: session.createdAt,
+      updatedAt: session.updatedAt,
+    });
 
     // CRITICAL FIX: Refresh token if needed before booking (prevents stale token errors)
     session = await ensureFreshToken(session, userEmail);
@@ -322,11 +341,24 @@ export async function POST(request: NextRequest) {
     // Extract activityName and boxName before sending to external API (they're not part of external API schema)
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { activityName, boxName, ...bookingData } = validatedRequest.data;
+
+    console.log("[BOOKING-POST] Making booking request:", {
+      boxSubdomain,
+      bookingData: { day: bookingData.day, id: bookingData.id },
+      cookieCount: session.cookies.length,
+    });
+
     const bookingResponse = await bookingService.createBooking(
       bookingData,
       session.cookies,
       boxSubdomain
     );
+
+    console.log("[BOOKING-POST] Booking response:", {
+      bookState: bookingResponse.bookState,
+      id: bookingResponse.id,
+      hasError: !!bookingResponse.errorMssg,
+    });
 
     // Check booking state and handle accordingly
     if (bookingResponse.bookState === BOOKING_CONSTANTS.BOOKING_STATES.BOOKED) {
@@ -356,14 +388,17 @@ export async function POST(request: NextRequest) {
       try {
         // Convert classTimeUTC string to Date object for parseEarlyBookingError
         let classTimeUTCDate: Date | undefined;
-        if (classTimeUTC && typeof classTimeUTC === 'string') {
+        if (classTimeUTC && typeof classTimeUTC === "string") {
           try {
             classTimeUTCDate = new Date(classTimeUTC);
             if (isNaN(classTimeUTCDate.getTime())) {
-              console.warn('[BOOKING] Invalid classTimeUTC format:', classTimeUTC);
+              console.warn(
+                "[BOOKING] Invalid classTimeUTC format:",
+                classTimeUTC
+              );
               classTimeUTCDate = undefined;
             } else {
-              console.log('[BOOKING] Successfully parsed classTimeUTC:', {
+              console.log("[BOOKING] Successfully parsed classTimeUTC:", {
                 original: classTimeUTC,
                 parsed: classTimeUTCDate.toISOString(),
                 utcHours: classTimeUTCDate.getUTCHours(),
@@ -371,11 +406,11 @@ export async function POST(request: NextRequest) {
               });
             }
           } catch (error) {
-            console.warn('[BOOKING] Error parsing classTimeUTC:', error);
+            console.warn("[BOOKING] Error parsing classTimeUTC:", error);
             classTimeUTCDate = undefined;
           }
         } else {
-          console.warn('[BOOKING] classTimeUTC not provided or invalid type:', {
+          console.warn("[BOOKING] classTimeUTC not provided or invalid type:", {
             value: classTimeUTC,
             type: typeof classTimeUTC,
           });
@@ -384,10 +419,7 @@ export async function POST(request: NextRequest) {
         // Fetch box timezone for accurate availableAt calculation
         const box = await BoxService.getBoxById(boxId);
         if (!box) {
-          return NextResponse.json(
-            { error: "Box not found" },
-            { status: 404 }
-          );
+          return NextResponse.json({ error: "Box not found" }, { status: 404 });
         }
 
         const parsed = parseEarlyBookingError(
@@ -397,7 +429,7 @@ export async function POST(request: NextRequest) {
           box.timezone // Pass box timezone for DST-aware calculation
         );
 
-        console.log('[BOOKING] parseEarlyBookingError result:', {
+        console.log("[BOOKING] parseEarlyBookingError result:", {
           errorMessage: bookingResponse.errorMssg,
           classDay: validatedRequest.data.day,
           classTimeUTCProvided: !!classTimeUTCDate,
@@ -628,14 +660,14 @@ export async function DELETE(request: NextRequest) {
 
     // CRITICAL FIX #1: User email is required for cancellations
     if (!userEmail) {
-      console.warn('[BOOKING-DELETE] Missing x-user-email header');
+      console.warn("[BOOKING-DELETE] Missing x-user-email header");
       return NextResponse.json(
         { error: "Missing required header: x-user-email" },
         { status: 400 }
       );
     }
 
-    console.log('[BOOKING-DELETE] Received cancellation request:', {
+    console.log("[BOOKING-DELETE] Received cancellation request:", {
       userEmail,
       boxId,
       boxSubdomain,
@@ -646,7 +678,7 @@ export async function DELETE(request: NextRequest) {
     if (boxId) {
       const hasAccess = await BoxAccessService.validateAccess(userEmail, boxId);
       if (!hasAccess) {
-        console.warn('[BOOKING-DELETE] Access denied:', { userEmail, boxId });
+        console.warn("[BOOKING-DELETE] Access denied:", { userEmail, boxId });
         return NextResponse.json(
           { error: "Access denied to this box" },
           { status: 403 }
@@ -656,15 +688,12 @@ export async function DELETE(request: NextRequest) {
       // CRITICAL FIX #3: Validate subdomain matches database record
       const box = await BoxService.getBoxById(boxId);
       if (!box) {
-        console.warn('[BOOKING-DELETE] Box not found:', { boxId, userEmail });
-        return NextResponse.json(
-          { error: "Box not found" },
-          { status: 404 }
-        );
+        console.warn("[BOOKING-DELETE] Box not found:", { boxId, userEmail });
+        return NextResponse.json({ error: "Box not found" }, { status: 404 });
       }
 
       if (box.subdomain !== boxSubdomain) {
-        console.error('[BOOKING-DELETE] Subdomain mismatch:', {
+        console.error("[BOOKING-DELETE] Subdomain mismatch:", {
           userEmail,
           boxId,
           providedSubdomain: boxSubdomain,
@@ -673,7 +702,8 @@ export async function DELETE(request: NextRequest) {
         return NextResponse.json(
           {
             error: "Invalid box subdomain",
-            details: "The provided subdomain does not match the database record",
+            details:
+              "The provided subdomain does not match the database record",
           },
           { status: 400 }
         );
