@@ -66,7 +66,9 @@ export function parseEarlyBookingError(
 
   // Pattern 3 (English): "with more than X days of anticipation" or "with more than X days in advance"
   // Example: "You can't book classes with more than 4 days of anticipation"
-  const englishMatch = errorMessage.match(/(\d+)\s+days?\s+(?:of\s+anticipation|in\s+advance|of\s+advance)/i);
+  const englishMatch = errorMessage.match(
+    /(\d+)\s+days?\s+(?:of\s+anticipation|in\s+advance|of\s+advance)/i
+  );
 
   if (spanishMatch) {
     daysAdvance = parseInt(spanishMatch[1], 10);
