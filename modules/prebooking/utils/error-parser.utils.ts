@@ -50,16 +50,38 @@ export function parseEarlyBookingError(
 ): ParsedEarlyBookingError | null {
   if (!errorMessage) return null;
 
-  // Extract days advance from Spanish error message
-  // Pattern: "con más de X días de antelación"
-  const daysMatch = errorMessage.match(/(\d+)\s+días?\s+de\s+antelación/i);
-
-  if (!daysMatch) {
+  // Extract days advance from Spanish/Catalan error message
+  // We try multiple patterns to support both languages
+  
+  let daysAdvance: number | null = null;
+  
+  // Pattern 1 (Spanish): "con más de X días de antelación"
+  // Example: "No puedes reservar clases con más de 4 días de antelación"
+  const spanishMatch = errorMessage.match(/(\d+)\s+días?\s+de\s+antelación/i);
+  
+  // Pattern 2 (Catalan): "amb més de X dies d'antelació"  
+  // Example: "No pots reservar classes amb més de 4 dies d'antelació"
+  // More flexible: accepts any character (including different apostrophes) between 'd' and 'antelació'
+  const catalanMatch = errorMessage.match(/(\d+)\s+dies\s+d.antelació/i);
+  
+  if (spanishMatch) {
+    daysAdvance = parseInt(spanishMatch[1], 10);
+    console.log('[PreBooking] Matched Spanish pattern:', { daysAdvance, errorMessage });
+  } else if (catalanMatch) {
+    daysAdvance = parseInt(catalanMatch[1], 10);
+    console.log('[PreBooking] Matched Catalan pattern:', { daysAdvance, errorMessage });
+  } else {
     console.warn('[PreBooking] Could not extract days from error message:', errorMessage);
-    return null;
+    console.warn('[PreBooking] Debug - trying generic number extraction...');
+    // Fallback: try to extract any number followed by "dies" or "días"
+    const genericMatch = errorMessage.match(/(\d+)\s+(dies|días?)/i);
+    if (genericMatch) {
+      daysAdvance = parseInt(genericMatch[1], 10);
+      console.log('[PreBooking] Matched generic pattern (fallback):', { daysAdvance, errorMessage });
+    } else {
+      return null;
+    }
   }
-
-  const daysAdvance = parseInt(daysMatch[1], 10);
 
   // Use the classTimeUTC directly (already in UTC from frontend)
   // If not provided, create a UTC Date at 00:00 for the class day
