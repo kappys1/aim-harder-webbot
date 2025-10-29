@@ -15,7 +15,7 @@
  *
  * This is the correct behavior for "reserve in box timezone, not user timezone"
  */
-import { fromZonedTime, toZonedTime } from 'date-fns-tz';
+import { fromZonedTime, toZonedTime } from "date-fns-tz";
 
 export interface ParsedEarlyBookingError {
   availableAt: Date;
@@ -46,38 +46,50 @@ export function parseEarlyBookingError(
   errorMessage: string | undefined,
   classDay: string,
   classTimeUTC?: Date,
-  boxTimezone: string = 'Europe/Madrid'
+  boxTimezone: string = "Europe/Madrid"
 ): ParsedEarlyBookingError | null {
   if (!errorMessage) return null;
 
   // Extract days advance from Spanish/Catalan error message
   // We try multiple patterns to support both languages
-  
+
   let daysAdvance: number | null = null;
-  
+
   // Pattern 1 (Spanish): "con más de X días de antelación"
   // Example: "No puedes reservar clases con más de 4 días de antelación"
   const spanishMatch = errorMessage.match(/(\d+)\s+días?\s+de\s+antelación/i);
-  
-  // Pattern 2 (Catalan): "amb més de X dies d'antelació"  
+
+  // Pattern 2 (Catalan): "amb més de X dies d'antelació"
   // Example: "No pots reservar classes amb més de 4 dies d'antelació"
   // More flexible: accepts any character (including different apostrophes) between 'd' and 'antelació'
   const catalanMatch = errorMessage.match(/(\d+)\s+dies\s+d.antelació/i);
-  
+
   if (spanishMatch) {
     daysAdvance = parseInt(spanishMatch[1], 10);
-    console.log('[PreBooking] Matched Spanish pattern:', { daysAdvance, errorMessage });
+    console.log("[PreBooking] Matched Spanish pattern:", {
+      daysAdvance,
+      errorMessage,
+    });
   } else if (catalanMatch) {
     daysAdvance = parseInt(catalanMatch[1], 10);
-    console.log('[PreBooking] Matched Catalan pattern:', { daysAdvance, errorMessage });
+    console.log("[PreBooking] Matched Catalan pattern:", {
+      daysAdvance,
+      errorMessage,
+    });
   } else {
-    console.warn('[PreBooking] Could not extract days from error message:', errorMessage);
-    console.warn('[PreBooking] Debug - trying generic number extraction...');
+    console.warn(
+      "[PreBooking] Could not extract days from error message:",
+      errorMessage
+    );
+    console.warn("[PreBooking] Debug - trying generic number extraction...");
     // Fallback: try to extract any number followed by "dies" or "días"
     const genericMatch = errorMessage.match(/(\d+)\s+(dies|días?)/i);
     if (genericMatch) {
       daysAdvance = parseInt(genericMatch[1], 10);
-      console.log('[PreBooking] Matched generic pattern (fallback):', { daysAdvance, errorMessage });
+      console.log("[PreBooking] Matched generic pattern (fallback):", {
+        daysAdvance,
+        errorMessage,
+      });
     } else {
       return null;
     }
@@ -87,35 +99,45 @@ export function parseEarlyBookingError(
   // If not provided, create a UTC Date at 00:00 for the class day
   let classDateUTC: Date;
 
-  if (classTimeUTC && classTimeUTC instanceof Date && !isNaN(classTimeUTC.getTime())) {
+  if (
+    classTimeUTC &&
+    classTimeUTC instanceof Date &&
+    !isNaN(classTimeUTC.getTime())
+  ) {
     classDateUTC = classTimeUTC;
-    console.log('[PreBooking] Using provided classTimeUTC:', {
+    console.log("[PreBooking] Using provided classTimeUTC:", {
       classTimeUTC: classTimeUTC.toISOString(),
       utcHours: classTimeUTC.getUTCHours(),
       utcMinutes: classTimeUTC.getUTCMinutes(),
     });
   } else {
     // Fallback: parse classDay and use 00:00 UTC
-    console.warn('[PreBooking] No valid classTimeUTC provided, using 00:00 UTC for classDay', {
-      classTimeUTCProvided: !!classTimeUTC,
-      classTimeUTCType: classTimeUTC?.constructor?.name,
-      classTimeUTCValid: classTimeUTC instanceof Date ? !isNaN(classTimeUTC.getTime()) : false,
-    });
+    console.warn(
+      "[PreBooking] No valid classTimeUTC provided, using 00:00 UTC for classDay",
+      {
+        classTimeUTCProvided: !!classTimeUTC,
+        classTimeUTCType: classTimeUTC?.constructor?.name,
+        classTimeUTCValid:
+          classTimeUTC instanceof Date ? !isNaN(classTimeUTC.getTime()) : false,
+      }
+    );
     const classDateParsed = parseDateFromYYYYMMDD(classDay);
     if (!classDateParsed) {
-      console.error('[PreBooking] Invalid class date format:', classDay);
+      console.error("[PreBooking] Invalid class date format:", classDay);
       return null;
     }
     // Create UTC date at 00:00
-    classDateUTC = new Date(Date.UTC(
-      classDateParsed.getFullYear(),
-      classDateParsed.getMonth(),
-      classDateParsed.getDate(),
-      0,
-      0,
-      0
-    ));
-    console.log('[PreBooking] Created fallback UTC date:', {
+    classDateUTC = new Date(
+      Date.UTC(
+        classDateParsed.getFullYear(),
+        classDateParsed.getMonth(),
+        classDateParsed.getDate(),
+        0,
+        0,
+        0
+      )
+    );
+    console.log("[PreBooking] Created fallback UTC date:", {
       classDateUTC: classDateUTC.toISOString(),
     });
   }
@@ -140,16 +162,20 @@ export function parseEarlyBookingError(
   // This automatically applies the correct DST offset for that date
   const availableAt = fromZonedTime(availableLocalDate, boxTimezone);
 
-  console.log('[PreBooking] Calculated availableAt (in local timezone):', {
+  console.log("[PreBooking] Calculated availableAt (in local timezone):", {
     classDateUTC: classDateUTC.toISOString(),
-    classLocalTime: `${classLocal.getHours()}:${String(classLocal.getMinutes()).padStart(2, '0')}`,
-    classLocalDate: classLocal.toLocaleDateString('es-ES'),
+    classLocalTime: `${classLocal.getHours()}:${String(
+      classLocal.getMinutes()
+    ).padStart(2, "0")}`,
+    classLocalDate: classLocal.toLocaleDateString("es-ES"),
     daysAdvance,
-    availableLocalDate: availableLocalDate.toLocaleDateString('es-ES'),
-    availableLocalTime: `${availableLocalDate.getHours()}:${String(availableLocalDate.getMinutes()).padStart(2, '0')}`,
+    availableLocalDate: availableLocalDate.toLocaleDateString("es-ES"),
+    availableLocalTime: `${availableLocalDate.getHours()}:${String(
+      availableLocalDate.getMinutes()
+    ).padStart(2, "0")}`,
     availableAt: availableAt.toISOString(),
     boxTimezone,
-    calculationMethod: 'local timezone arithmetic (DST-aware)',
+    calculationMethod: "local timezone arithmetic (DST-aware)",
   });
 
   return {
@@ -192,8 +218,8 @@ export function parseDateFromYYYYMMDD(dateString: string): Date | null {
  */
 export function formatDateToYYYYMMDD(date: Date): string {
   const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
   return `${year}${month}${day}`;
 }
 
@@ -214,7 +240,10 @@ export function millisecondsUntil(targetDate: Date): number {
  * @param minutes - Number of minutes
  * @returns True if target is within the next N minutes
  */
-export function isWithinNextMinutes(targetDate: Date, minutes: number): boolean {
+export function isWithinNextMinutes(
+  targetDate: Date,
+  minutes: number
+): boolean {
   const ms = millisecondsUntil(targetDate);
   return ms > 0 && ms <= minutes * 60 * 1000;
 }
@@ -229,7 +258,7 @@ export function formatCountdown(targetDate: Date): string {
   const ms = millisecondsUntil(targetDate);
 
   if (ms < 0) {
-    return 'Tiempo agotado';
+    return "Tiempo agotado";
   }
 
   const seconds = Math.floor(ms / 1000);
@@ -239,17 +268,25 @@ export function formatCountdown(targetDate: Date): string {
 
   if (days > 0) {
     const remainingHours = hours % 24;
-    return `${days} día${days > 1 ? 's' : ''}${remainingHours > 0 ? `, ${remainingHours} hora${remainingHours > 1 ? 's' : ''}` : ''}`;
+    return `${days} día${days > 1 ? "s" : ""}${
+      remainingHours > 0
+        ? `, ${remainingHours} hora${remainingHours > 1 ? "s" : ""}`
+        : ""
+    }`;
   }
 
   if (hours > 0) {
     const remainingMinutes = minutes % 60;
-    return `${hours} hora${hours > 1 ? 's' : ''}${remainingMinutes > 0 ? `, ${remainingMinutes} minuto${remainingMinutes > 1 ? 's' : ''}` : ''}`;
+    return `${hours} hora${hours > 1 ? "s" : ""}${
+      remainingMinutes > 0
+        ? `, ${remainingMinutes} minuto${remainingMinutes > 1 ? "s" : ""}`
+        : ""
+    }`;
   }
 
   if (minutes > 0) {
-    return `${minutes} minuto${minutes > 1 ? 's' : ''}`;
+    return `${minutes} minuto${minutes > 1 ? "s" : ""}`;
   }
 
-  return `${seconds} segundo${seconds !== 1 ? 's' : ''}`;
+  return `${seconds} segundo${seconds !== 1 ? "s" : ""}`;
 }
