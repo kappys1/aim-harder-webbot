@@ -145,12 +145,23 @@ export function usePreBooking(userEmail?: string): UsePreBookingResult {
   const getActivePrebookingForSlotDay = useCallback(
     (bookingId: string, day: string): PreBooking | undefined => {
       const prebooking = getActivePrebookingForSlot(bookingId);
+      console.log("[usePreBooking] getActivePrebookingForSlotDay", {
+        bookingId,
+        requestedDay: day,
+        prebooking: prebooking
+          ? {
+              id: prebooking.id,
+              day: prebooking.bookingData.day,
+              matches: prebooking.bookingData.day === day,
+            }
+          : null,
+      });
       if (prebooking) {
         return prebooking.bookingData.day === day ? prebooking : undefined;
       }
       return undefined;
     },
-    [prebookings]
+    [getActivePrebookingForSlot]
   );
   // Auto-fetch on mount and when userEmail changes
   useEffect(() => {

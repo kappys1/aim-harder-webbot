@@ -487,9 +487,9 @@ function BookingDashboardContent({
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">Reservas disponibles</h1>
-          {bookingDay && (
+          {bookingDay && state.selectedDate && (
             <p className="text-muted-foreground mt-1">
-              {formatDate(bookingDay.date)} • {bookingDay.bookings.length}{" "}
+              {formatDate(state.selectedDate)} • {bookingDay.bookings.length}{" "}
               clases
             </p>
           )}
@@ -603,8 +603,8 @@ function BookingDashboardContent({
       {!isLoading && !error && bookingDay && (
         <BookingGrid
           bookingDay={
-            bookingDay?.date &&
-            BookingUtils.formatDateForApi(new Date(bookingDay?.date))
+            state.selectedDate &&
+            BookingUtils.formatDateForApi(new Date(state.selectedDate))
           }
           bookings={bookingDay.bookings}
           onBook={handleBooking}
