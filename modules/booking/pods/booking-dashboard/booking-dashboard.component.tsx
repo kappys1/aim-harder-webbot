@@ -146,7 +146,7 @@ function BookingDashboardContent({
   // Handlers remain client-side for now - will be migrated to server actions in future
   const handleBooking = useCallback(
     async (bookingId: number) => {
-      if (!bookingDay?.date) return;
+      if (!state?.selectedDate) return;
 
       setBookingLoading(bookingId);
 
@@ -168,8 +168,8 @@ function BookingDashboardContent({
           return;
         }
 
-        const apiDate = BookingUtils.formatDateForApi(bookingDay.date);
-        const booking = bookingDay.bookings.find((b) => b.id === bookingId);
+        const apiDate = BookingUtils.formatDateForApi(state?.selectedDate);
+        const booking = bookingDay?.bookings.find((b) => b.id === bookingId);
         const classTime = booking?.timeSlot.startTime || booking?.timeSlot.time;
 
         if (!boxId) {
