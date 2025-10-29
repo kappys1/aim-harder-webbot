@@ -50,8 +50,8 @@ export function parseEarlyBookingError(
 ): ParsedEarlyBookingError | null {
   if (!errorMessage) return null;
 
-  // Extract days advance from Spanish/Catalan error message
-  // We try multiple patterns to support both languages
+  // Extract days advance from Spanish/Catalan/English error message
+  // We try multiple patterns to support all languages
 
   let daysAdvance: number | null = null;
 
@@ -63,6 +63,10 @@ export function parseEarlyBookingError(
   // Example: "No pots reservar classes amb més de 4 dies d'antelació"
   // More flexible: accepts any character (including different apostrophes) between 'd' and 'antelació'
   const catalanMatch = errorMessage.match(/(\d+)\s+dies\s+d.antelació/i);
+
+  // Pattern 3 (English): "with more than X days of anticipation" or "with more than X days in advance"
+  // Example: "You can't book classes with more than 4 days of anticipation"
+  const englishMatch = errorMessage.match(/(\d+)\s+days?\s+(?:of\s+anticipation|in\s+advance|of\s+advance)/i);
 
   if (spanishMatch) {
     daysAdvance = parseInt(spanishMatch[1], 10);
@@ -76,14 +80,20 @@ export function parseEarlyBookingError(
       daysAdvance,
       errorMessage,
     });
+  } else if (englishMatch) {
+    daysAdvance = parseInt(englishMatch[1], 10);
+    console.log("[PreBooking] Matched English pattern:", {
+      daysAdvance,
+      errorMessage,
+    });
   } else {
     console.warn(
       "[PreBooking] Could not extract days from error message:",
       errorMessage
     );
     console.warn("[PreBooking] Debug - trying generic number extraction...");
-    // Fallback: try to extract any number followed by "dies" or "días"
-    const genericMatch = errorMessage.match(/(\d+)\s+(dies|días?)/i);
+    // Fallback: try to extract any number followed by "dies" or "días" or "days"
+    const genericMatch = errorMessage.match(/(\d+)\s+(dies|días?|days?)/i);
     if (genericMatch) {
       daysAdvance = parseInt(genericMatch[1], 10);
       console.log("[PreBooking] Matched generic pattern (fallback):", {
