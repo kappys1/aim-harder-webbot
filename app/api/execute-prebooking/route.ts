@@ -191,45 +191,42 @@ export async function POST(request: NextRequest) {
       `[HYBRID ${executionId}] Queries completed in ${queriesTime}ms`
     );
 
-    // PHASE 2.5: CHECK AND REFRESH TOKEN IF NEEDED
-    // ENABLED: Backup token refresh mechanism
-    // Primary refresh is via external cron job, but this acts as safety net
-    // Ensures token is always fresh before booking to prevent { logout: 1 } errors
+    // PHASE 2.5: CHECK TOKEN STATUS
+    // Primary refresh is via cron job (every 10 min, threshold: 18 min)
+    // Only refresh here if token is > 25 min old (cron may have failed)
 
-    // Refresh token if it's older than 25 minutes to prevent { logout: 1 } errors
-    const shouldRefreshToken = () => {
-      console.log(`[HYBRID ${executionId}] Checking if token refresh is needed...`, {
-        hasLastTokenUpdateDate: !!session.lastTokenUpdateDate,
-        lastTokenUpdateDate: session.lastTokenUpdateDate,
-        tokenUpdateCount: session.tokenUpdateCount,
-        fingerprint: session.fingerprint?.substring(0, 10) + '...',
-      });
-
+    const getTokenAge = () => {
       if (!session.lastTokenUpdateDate) {
-        console.log(
-          `[HYBRID ${executionId}] ⚠️  Token never updated, needs refresh`
-        );
-        return true;
+        return Infinity; // No update history
       }
-
       const lastUpdate = new Date(session.lastTokenUpdateDate);
       const now = new Date();
-      const minutesSinceUpdate =
-        (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
+      return (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
+    };
 
-      if (minutesSinceUpdate > 25) {
+    const shouldRefreshToken = () => {
+      const tokenAgeMinutes = getTokenAge();
+
+      if (tokenAgeMinutes === Infinity) {
         console.log(
-          `[HYBRID ${executionId}] ⚠️  Token is ${minutesSinceUpdate.toFixed(
+          `[HYBRID ${executionId}] Token status: No update history (freshly created or cron never ran)`
+        );
+        return true; // Refresh if never updated
+      }
+
+      if (tokenAgeMinutes > 25) {
+        console.log(
+          `[HYBRID ${executionId}] Token status: ⚠️  EXPIRED - ${tokenAgeMinutes.toFixed(
             1
-          )} minutes old (threshold: 25 min), needs refresh`
+          )} minutes old (threshold: 25 min). Will refresh.`
         );
         return true;
       }
 
       console.log(
-        `[HYBRID ${executionId}] ✅ Token is ${minutesSinceUpdate.toFixed(
+        `[HYBRID ${executionId}] Token status: ✅ FRESH - ${tokenAgeMinutes.toFixed(
           1
-        )} minutes old, still fresh (threshold: 25 min)`
+        )} minutes old (refreshed by cron job)`
       );
       return false;
     };
@@ -418,28 +415,108 @@ export async function POST(request: NextRequest) {
     console.log(
       `[HYBRID ${executionId}] 🔥 FIRING at ${new Date(
         fireTime
-      ).toISOString()} (latency: ${latency}ms from target)`
+      ).toISOString()} (latency: ${latency}ms from target)`,
+      {
+        prebookingId,
+        userEmail,
+        boxSubdomain,
+        classType,
+        formattedDateTime,
+      }
     );
 
     const bookingExecutionStart = Date.now();
-    const bookingResponse = await bookingService.createBooking(
-      prebooking.bookingData,
-      session.cookies,
-      boxSubdomain
-    );
-    const bookingExecutionTime = Date.now() - bookingExecutionStart;
+    let bookingResponse;
 
-    console.log(
-      `[HYBRID ${executionId}] AimHarder responded in ${bookingExecutionTime}ms - bookState: ${
-        bookingResponse.bookState
-      }, bookingId: ${bookingResponse.id || "N/A"}`
-    );
+    try {
+      console.log(
+        `[HYBRID ${executionId}] Calling bookingService.createBooking...`,
+        {
+          userEmail,
+          boxSubdomain,
+          cookieCount: session.cookies.length,
+          tokenPrefix: session.token.substring(0, 10) + "...",
+        }
+      );
+
+      bookingResponse = await bookingService.createBooking(
+        prebooking.bookingData,
+        session.cookies,
+        boxSubdomain
+      );
+
+      const bookingExecutionTime = Date.now() - bookingExecutionStart;
+
+      console.log(
+        `[HYBRID ${executionId}] ✅ AimHarder responded in ${bookingExecutionTime}ms`,
+        {
+          bookState: bookingResponse.bookState,
+          bookingId: bookingResponse.id || "N/A",
+          errorMssg: bookingResponse.errorMssg || "No error",
+          errorMssgLang: bookingResponse.errorMssgLang || "No error code",
+          clasesContratadas: bookingResponse.clasesContratadas,
+          logout: ("logout" in bookingResponse && bookingResponse.logout) || 0,
+        }
+      );
+    } catch (bookingError) {
+      const bookingExecutionTime = Date.now() - bookingExecutionStart;
+      console.error(
+        `[HYBRID ${executionId}] ❌ ERROR calling bookingService.createBooking after ${bookingExecutionTime}ms`,
+        {
+          errorName: bookingError instanceof Error ? bookingError.name : "Unknown",
+          errorMessage: bookingError instanceof Error ? bookingError.message : String(bookingError),
+          errorStack: bookingError instanceof Error ? bookingError.stack : undefined,
+          userEmail,
+          boxSubdomain,
+          prebookingId,
+        }
+      );
+
+      // Mark as failed and return error
+      try {
+        console.log(`[HYBRID ${executionId}] Updating prebooking status to 'failed' (booking error)...`);
+        await preBookingService.markFailed(
+          prebookingId,
+          `Booking error: ${bookingError instanceof Error ? bookingError.message : String(bookingError)}`
+        );
+        console.log(`[HYBRID ${executionId}] ✅ Prebooking status updated successfully`);
+      } catch (updateError) {
+        console.error(
+          `[HYBRID ${executionId}] ❌ FAILED to update prebooking status:`,
+          updateError instanceof Error ? {
+            message: updateError.message,
+            stack: updateError.stack,
+          } : updateError
+        );
+      }
+
+      return NextResponse.json(
+        {
+          success: false,
+          error: bookingError instanceof Error ? bookingError.message : "Booking service error",
+          prebookingId,
+          executionTime: Date.now() - startTime,
+        },
+        { status: 500 }
+      );
+    }
 
     // PHASE 5: UPDATE STATUS (SYNCHRONOUS - WAIT FOR DB UPDATE)
     // Use mapper to determine success (handles "already booked manually" case)
     const mappedResult = BookingMapper.mapBookingCreateResult(bookingResponse);
     const success = mappedResult.success;
     const totalTime = Date.now() - startTime;
+
+    console.log(
+      `[HYBRID ${executionId}] Mapping result from AimHarder response`,
+      {
+        bookState: bookingResponse.bookState,
+        mappedSuccess: success,
+        alreadyBookedManually: mappedResult.alreadyBookedManually,
+        error: mappedResult.error,
+        errorMessage: mappedResult.errorMessage,
+      }
+    );
 
     if (success) {
       // Determine appropriate message
@@ -472,7 +549,12 @@ export async function POST(request: NextRequest) {
         ? `✅ SUCCESS (user booked manually) in ${totalTime}ms (fire latency: ${latency}ms)`
         : `✅ SUCCESS in ${totalTime}ms (fire latency: ${latency}ms)`;
 
-      console.log(`[HYBRID ${executionId}] ${logMessage}`);
+      console.log(`[HYBRID ${executionId}] ${logMessage}`, {
+        bookState: bookingResponse.bookState,
+        bookingId: bookingResponse.id,
+        userEmail,
+        classType,
+      });
 
       return NextResponse.json({
         success: true,
@@ -507,9 +589,14 @@ export async function POST(request: NextRequest) {
       }
 
       console.log(
-        `[HYBRID ${executionId}] ❌ FAILED in ${totalTime}ms (fire latency: ${latency}ms): ${
-          bookingResponse.errorMssg || "Booking failed"
-        }`
+        `[HYBRID ${executionId}] ❌ FAILED in ${totalTime}ms (fire latency: ${latency}ms)`,
+        {
+          bookState: bookingResponse.bookState,
+          errorMssg: bookingResponse.errorMssg,
+          errorCode: mappedResult.error,
+          userEmail,
+          classType,
+        }
       );
 
       return NextResponse.json(
