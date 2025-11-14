@@ -58,6 +58,9 @@ export function getCallbackUrl(): string {
  * @param prebookingId - ID of the prebooking to execute
  * @param executeAt - EXACT Date when the booking should be fired to AimHarder
  * @param boxData - Box information needed for executing the booking (subdomain and aimharder ID)
+ * @param userEmail - Email of the user making the booking
+ * @param formattedDateTime - Formatted date and time when the booking should be executed (e.g., "15/11/2025 19:30")
+ * @param classType - Type of class (e.g., "CrossFit WOD", "Barbell", "Yoga")
  * @returns Message ID from QStash (use this to cancel later)
  */
 export async function schedulePrebookingExecution(
@@ -66,7 +69,10 @@ export async function schedulePrebookingExecution(
   boxData: {
     subdomain: string;
     aimharderId: string;
-  }
+  },
+  userEmail: string,
+  formattedDateTime: string,
+  classType: string
 ): Promise<string> {
   const callbackUrl = `${getCallbackUrl()}/api/execute-prebooking`;
 
@@ -93,6 +99,9 @@ export async function schedulePrebookingExecution(
         boxAimharderId: boxData.aimharderId,
         executeAt: executeAtMs.toString(), // Send as string to prevent QStash processing
         securityToken, // HMAC token for fast validation
+        formattedDateTime, // Formatted date and time when the booking should be executed (e.g., "15/11/2025 19:30")
+        userEmail, // Email of the user making the booking
+        classType, // Type of class (e.g., "CrossFit WOD", "Barbell", "Yoga")
       },
       notBefore: Math.floor(earlyExecutionTime.getTime() / 1000), // Unix timestamp in seconds
     });

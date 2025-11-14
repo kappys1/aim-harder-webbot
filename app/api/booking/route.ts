@@ -484,13 +484,33 @@ export async function POST(request: NextRequest) {
             const { schedulePrebookingExecution } = await import(
               "@/core/qstash/client"
             );
+
+            // Format the date and time when the booking will be executed (DD/MM/YYYY HH:MM)
+            const formattedDateTime = parsed.availableAt.toLocaleString(
+              "es-ES",
+              {
+                day: "2-digit",
+                month: "2-digit",
+                year: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+                hour12: false,
+              }
+            );
+
+            // Get class type from booking data
+            const classType = validatedRequest.data.activityName || "Unknown";
+
             const qstashScheduleId = await schedulePrebookingExecution(
               prebooking.id,
               parsed.availableAt,
               {
                 subdomain: boxSubdomain,
                 aimharderId: boxAimharderId,
-              }
+              },
+              userEmail,
+              formattedDateTime,
+              classType
             );
 
             // Save QStash message ID for cancellation

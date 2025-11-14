@@ -43,6 +43,9 @@ interface WebhookBody {
   boxAimharderId: string;
   executeAt: string; // Unix timestamp in milliseconds (sent as string to prevent QStash processing)
   securityToken: string; // HMAC-SHA256 token
+  formattedDateTime: string; // Formatted date and time when the booking should be executed (e.g., "15/11/2025 19:30")
+  userEmail: string; // Email of the user making the booking
+  classType: string; // Type of class (e.g., "CrossFit WOD", "Barbell", "Yoga")
 }
 
 export async function POST(request: NextRequest) {
@@ -65,6 +68,9 @@ export async function POST(request: NextRequest) {
       boxAimharderId,
       executeAt,
       securityToken,
+      formattedDateTime,
+      userEmail,
+      classType,
     } = parsedBody;
 
     if (
@@ -72,13 +78,16 @@ export async function POST(request: NextRequest) {
       !boxSubdomain ||
       !boxAimharderId ||
       !executeAt ||
-      !securityToken
+      !securityToken ||
+      !formattedDateTime ||
+      !userEmail ||
+      !classType
     ) {
       console.error(`[HYBRID ${executionId}] Missing required fields`);
       return NextResponse.json(
         {
           error:
-            "Missing required fields (prebookingId, boxSubdomain, boxAimharderId, executeAt, securityToken)",
+            "Missing required fields (prebookingId, boxSubdomain, boxAimharderId, executeAt, securityToken, formattedDateTime, userEmail, classType)",
         },
         { status: 400 }
       );
