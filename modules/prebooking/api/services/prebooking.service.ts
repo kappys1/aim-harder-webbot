@@ -360,13 +360,20 @@ export class PreBookingService {
   }
 
   /**
-   * Mark prebooking as failed with full result
+   * Mark prebooking as failed with comprehensive error details
+   * Stores all failure information including AimHarder response, timing metrics, and error codes
    */
   async markFailed(
     id: string,
     errorMessage: string,
     result?: {
       bookState?: number;
+      errorMssg?: string;
+      errorMssgLang?: string;
+      mappedError?: string;
+      fireLatency?: number;
+      setTimeoutVariance?: number;
+      aimharderResponseTime?: number;
     }
   ): Promise<void> {
     const executedAt = new Date();
@@ -379,6 +386,12 @@ export class PreBookingService {
         result: {
           success: false,
           bookState: result?.bookState,
+          errorMssg: result?.errorMssg,
+          errorMssgLang: result?.errorMssgLang,
+          mappedError: result?.mappedError,
+          fireLatency: result?.fireLatency,
+          setTimeoutVariance: result?.setTimeoutVariance,
+          aimharderResponseTime: result?.aimharderResponseTime,
           message: errorMessage,
           executedAt: executedAt.toISOString(),
         },
