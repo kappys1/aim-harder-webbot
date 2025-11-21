@@ -23,8 +23,8 @@ export interface PrebookingEmailData {
 export interface PrebookingSuccessData extends PrebookingEmailData {
   bookingId?: string;
   alreadyBookedManually?: boolean;
-  /** Timestamp when booking was confirmed (ISO string) */
-  confirmedAt: string;
+  /** Timestamp when booking was confirmed (ISO string or milliseconds) */
+  confirmedAt: string | number;
 }
 
 /**

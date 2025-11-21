@@ -741,7 +741,7 @@ export async function POST(request: NextRequest) {
       });
 
       // Send success email (non-blocking)
-      const confirmedAt = new Date().toISOString();
+      const confirmedAt = fireTime; // Use the exact firing timestamp in milliseconds
       EmailService.sendPrebookingSuccess({
         userEmail,
         classType,

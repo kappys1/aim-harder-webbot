@@ -17,10 +17,12 @@ const textColor = "#1f2937";
 const lightGray = "#f3f4f6";
 
 export function PrebookingSuccessEmail(data: PrebookingSuccessData) {
-  const confirmedTime = new Date(data.confirmedAt).toLocaleTimeString("es-ES", {
+  const confirmedDate = new Date(typeof data.confirmedAt === 'number' ? data.confirmedAt : data.confirmedAt);
+  const confirmedTime = confirmedDate.toLocaleTimeString("es-ES", {
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
+    fractionalSecondDigits: 3,
     hour12: false,
   });
 
