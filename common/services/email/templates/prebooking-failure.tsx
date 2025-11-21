@@ -526,12 +526,24 @@ export function PrebookingFailureEmail(data: PrebookingFailureData) {
 function formatTime(isoString: string): string {
   try {
     const date = new Date(isoString);
-    return date.toLocaleTimeString("es-ES", {
+
+    // Format in Spain timezone (Europe/Madrid = UTC+1 or UTC+2 depending on DST)
+    const formatter = new Intl.DateTimeFormat("es-ES", {
       hour: "2-digit",
       minute: "2-digit",
       second: "2-digit",
       hour12: false,
+      timeZone: "Europe/Madrid",
     });
+
+    const parts = formatter.formatToParts(date);
+    const timeString = parts.map(p => p.value).join('');
+
+    // Extract milliseconds
+    const ms = date.getMilliseconds().toString().padStart(3, '0');
+
+    // Format: HH:mm:ss,mmm
+    return `${timeString},${ms}`;
   } catch {
     return isoString;
   }

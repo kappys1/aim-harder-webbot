@@ -16,15 +16,30 @@ const successColor = "#10b981";
 const textColor = "#1f2937";
 const lightGray = "#f3f4f6";
 
-export function PrebookingSuccessEmail(data: PrebookingSuccessData) {
-  const confirmedDate = new Date(typeof data.confirmedAt === 'number' ? data.confirmedAt : data.confirmedAt);
-  const confirmedTime = confirmedDate.toLocaleTimeString("es-ES", {
+function formatTimeWithMilliseconds(timestamp: string | number): string {
+  const date = new Date(typeof timestamp === 'number' ? timestamp : timestamp);
+
+  // Format in Spain timezone (Europe/Madrid = UTC+1 or UTC+2 depending on DST)
+  const formatter = new Intl.DateTimeFormat("es-ES", {
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
-    fractionalSecondDigits: 3,
     hour12: false,
+    timeZone: "Europe/Madrid",
   });
+
+  const parts = formatter.formatToParts(date);
+  const timeString = parts.map(p => p.value).join('');
+
+  // Extract milliseconds
+  const ms = date.getMilliseconds().toString().padStart(3, '0');
+
+  // Format: HH:mm:ss,mmm
+  return `${timeString},${ms}`;
+}
+
+export function PrebookingSuccessEmail(data: PrebookingSuccessData) {
+  const confirmedTime = formatTimeWithMilliseconds(data.confirmedAt);
 
   return (
     <Html lang="es">
