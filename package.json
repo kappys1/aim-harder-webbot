@@ -19,6 +19,7 @@
     "@radix-ui/react-label": "^2.1.7",
     "@radix-ui/react-progress": "^1.1.7",
     "@radix-ui/react-slot": "^1.2.3",
+    "@react-email/components": "^1.0.1",
     "@supabase/supabase-js": "^2.58.0",
     "@tanstack/react-query": "^5.90.2",
     "@upstash/qstash": "^2.8.3",
@@ -35,6 +36,7 @@
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-hook-form": "^7.63.0",
+    "resend": "^6.5.2",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.3.1",
     "zod": "^4.1.11"

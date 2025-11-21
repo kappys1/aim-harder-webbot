@@ -4,6 +4,7 @@ import { SupabaseSessionService } from "@/modules/auth/api/services/supabase-ses
 import { BookingMapper } from "@/modules/booking/api/mappers/booking.mapper";
 import { bookingService } from "@/modules/booking/api/services/booking.service";
 import { preBookingService } from "@/modules/prebooking/api/services/prebooking.service";
+import { EmailService } from "@/common/services/email/email.service";
 import { NextRequest, NextResponse } from "next/server";
 
 /**
@@ -41,6 +42,7 @@ interface WebhookBody {
   prebookingId: string;
   boxSubdomain: string;
   boxAimharderId: string;
+  boxName?: string; // Name of the box/gym for email notifications
   executeAt: string; // Unix timestamp in milliseconds (sent as string to prevent QStash processing)
   securityToken: string; // HMAC-SHA256 token
   formattedDateTime: string; // Formatted date and time when the booking should be executed (e.g., "15/11/2025 19:30")
@@ -66,6 +68,7 @@ export async function POST(request: NextRequest) {
       prebookingId,
       boxSubdomain,
       boxAimharderId,
+      boxName,
       executeAt,
       securityToken,
       formattedDateTime,
@@ -182,6 +185,21 @@ export async function POST(request: NextRequest) {
             : updateError
         );
       }
+
+      // Send failure email (non-blocking)
+      const preparedAt = new Date(startTime).toISOString();
+      EmailService.sendPrebookingFailure({
+        userEmail: prebooking.userEmail,
+        classType,
+        formattedDateTime,
+        boxName: boxName || undefined,
+        errorMessage: "Tu sesión no fue encontrada. Esto puede ocurrir si has cambiado de cuenta o has estado inactivo. Por favor, inicia sesión nuevamente e intenta apuntarte manualmente.",
+        errorCode: "SESSION_NOT_FOUND",
+        executionId,
+        preparedAt,
+        firedAt: preparedAt,
+      }).catch(err => console.error(`[HYBRID ${executionId}] Email send error:`, err));
+
       return NextResponse.json(
         {
           success: false,
@@ -304,6 +322,21 @@ export async function POST(request: NextRequest) {
                 : updateError
             );
           }
+
+          // Send failure email (non-blocking)
+          const preparedAt = new Date(startTime).toISOString();
+          EmailService.sendPrebookingFailure({
+            userEmail: prebooking.userEmail,
+            classType,
+            formattedDateTime,
+            boxName: boxName || undefined,
+            errorMessage: "Tu sesión expiró mientras intentábamos procesar tu reserva. Esto ocurre si el tiempo entre la solicitud y la ejecución fue muy largo. Por favor, inicia sesión nuevamente e intenta apuntarte manualmente.",
+            errorCode: "SESSION_EXPIRED",
+            executionId,
+            preparedAt,
+            firedAt: preparedAt,
+          }).catch(err => console.error(`[HYBRID ${executionId}] Email send error:`, err));
+
           return NextResponse.json(
             {
               success: false,
@@ -341,6 +374,24 @@ export async function POST(request: NextRequest) {
                 : updateError
             );
           }
+
+          // Send failure email (non-blocking)
+          const preparedAt = new Date(startTime).toISOString();
+          EmailService.sendPrebookingFailure({
+            userEmail: prebooking.userEmail,
+            classType,
+            formattedDateTime,
+            boxName: boxName || undefined,
+            errorMessage: "No pudimos renovar tu autenticación con AimHarder. Por favor, intenta apuntarte manualmente desde la aplicación de AimHarder.",
+            errorCode: "TOKEN_REFRESH_FAILED",
+            executionId,
+            preparedAt,
+            firedAt: preparedAt,
+            technicalDetails: {
+              errorMssg: refreshResult.error,
+            },
+          }).catch(err => console.error(`[HYBRID ${executionId}] Email send error:`, err));
+
           return NextResponse.json(
             {
               success: false,
@@ -554,6 +605,31 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      // Send failure email (non-blocking)
+      const preparedAt = new Date(startTime).toISOString();
+      const firedAt = new Date(fireTime).toISOString();
+      const emailBookingExecutionTime = Date.now() - bookingExecutionStart;
+      EmailService.sendPrebookingFailure({
+        userEmail: prebooking.userEmail,
+        classType,
+        formattedDateTime,
+        boxName: boxName || undefined,
+        errorMessage: "Hubo un problema técnico al conectar con AimHarder. Por favor, intenta apuntarte manualmente. Si el problema persiste, contacta al soporte de AimHarder.",
+        errorCode: "BOOKING_SERVICE_ERROR",
+        executionId,
+        preparedAt,
+        firedAt,
+        respondedAt: new Date().toISOString(),
+        fireLatency: fireTime - executeAtMs,
+        technicalDetails: {
+          errorMssg:
+            bookingError instanceof Error
+              ? bookingError.message
+              : String(bookingError),
+          responseTime: emailBookingExecutionTime,
+        },
+      }).catch(err => console.error(`[HYBRID ${executionId}] Email send error:`, err));
+
       return NextResponse.json(
         {
           success: false,
@@ -629,6 +705,18 @@ export async function POST(request: NextRequest) {
         classType,
       });
 
+      // Send success email (non-blocking)
+      const confirmedAt = new Date().toISOString();
+      EmailService.sendPrebookingSuccess({
+        userEmail,
+        classType,
+        formattedDateTime,
+        boxName: boxName || undefined,
+        bookingId: bookingResponse.id,
+        alreadyBookedManually: mappedResult.alreadyBookedManually,
+        confirmedAt,
+      }).catch(err => console.error(`[HYBRID ${executionId}] Email send error:`, err));
+
       return NextResponse.json({
         success: true,
         message: mappedResult.alreadyBookedManually
@@ -682,6 +770,31 @@ export async function POST(request: NextRequest) {
         `[HYBRID ${executionId}] ❌ FAILED in ${totalTime}ms (fire latency: ${latency}ms)`,
         failureDetails
       );
+
+      // Send failure email (non-blocking)
+      const preparedAt = new Date(startTime).toISOString();
+      const firedAt = new Date(fireTime).toISOString();
+      const respondedAt = new Date().toISOString();
+      EmailService.sendPrebookingFailure({
+        userEmail,
+        classType,
+        formattedDateTime,
+        boxName: boxName || undefined,
+        errorMessage: bookingResponse.errorMssg || "No pudimos completar tu reserva automática",
+        errorCode: bookingResponse.errorMssgLang,
+        executionId,
+        preparedAt,
+        firedAt,
+        respondedAt,
+        fireLatency: latency,
+        technicalDetails: {
+          bookState: String(bookingResponse.bookState),
+          errorMssg: String(bookingResponse.errorMssg),
+          errorMssgLang: String(bookingResponse.errorMssgLang),
+          setTimeout_variance: `${setTimeoutVariance}ms`,
+          responseTime: Date.now() - bookingExecutionStart,
+        },
+      }).catch(err => console.error(`[HYBRID ${executionId}] Email send error:`, err));
 
       return NextResponse.json(
         {

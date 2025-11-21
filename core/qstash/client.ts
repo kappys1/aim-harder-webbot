@@ -69,6 +69,7 @@ export async function schedulePrebookingExecution(
   boxData: {
     subdomain: string;
     aimharderId: string;
+    name?: string;
   },
   userEmail: string,
   formattedDateTime: string,
@@ -97,6 +98,7 @@ export async function schedulePrebookingExecution(
         prebookingId,
         boxSubdomain: boxData.subdomain,
         boxAimharderId: boxData.aimharderId,
+        boxName: boxData.name, // Name of the box/gym for email notifications
         executeAt: executeAtMs.toString(), // Send as string to prevent QStash processing
         securityToken, // HMAC token for fast validation
         formattedDateTime, // Formatted date and time when the booking should be executed (e.g., "15/11/2025 19:30")

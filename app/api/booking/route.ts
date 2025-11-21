@@ -507,6 +507,7 @@ export async function POST(request: NextRequest) {
               {
                 subdomain: boxSubdomain,
                 aimharderId: boxAimharderId,
+                name: box.name,
               },
               userEmail,
               formattedDateTime,
