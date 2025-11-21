@@ -102,6 +102,21 @@ async function processTokenRefreshInBackground() {
       }_${session.fingerprint.substring(0, 8)}`;
 
       try {
+        // RACE CONDITION PREVENTION: Check if session has active lock
+        // If QStash is using the token, skip this session to avoid race condition
+        const hasLock = await SupabaseSessionService.hasActiveLock(
+          session.email,
+          session.fingerprint
+        );
+
+        if (hasLock) {
+          console.log(
+            `[CRON_REFRESH ${cronId}] ⏭️  Skipping ${sessionId} - session is locked (being used by QStash/execute-prebooking)`
+          );
+          results.skipped++;
+          continue;
+        }
+
         // Check if session needs update (updated_at > 30 minutes ago)
         const updatedAt = new Date(session.updatedAt || session.createdAt);
         const now = new Date();

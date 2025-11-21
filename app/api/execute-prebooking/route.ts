@@ -161,6 +161,25 @@ export async function POST(request: NextRequest) {
       prebooking.userEmail
     );
 
+    // RACE CONDITION PREVENTION: Acquire lock on session token
+    // This prevents the cron job from updating the token while QStash is using it
+    let lockAcquired = false;
+    let lockSessionFingerprint: string | undefined;
+    if (session) {
+      lockSessionFingerprint = session.fingerprint;
+      lockAcquired = await SupabaseSessionService.acquireSessionLock(
+        prebooking.userEmail,
+        session.fingerprint,
+        "execute-prebooking",
+        10000 // Hold lock for 10 seconds (5s wait + 5s execution)
+      );
+      console.log(
+        `[HYBRID ${executionId}] Session lock ${
+          lockAcquired ? "✅ ACQUIRED" : "❌ NOT ACQUIRED (already locked)"
+        }`
+      );
+    }
+
     if (!session) {
       console.error(
         `[HYBRID ${executionId}] Session not found for ${prebooking.userEmail}`
@@ -199,6 +218,14 @@ export async function POST(request: NextRequest) {
         preparedAt,
         firedAt: preparedAt,
       }).catch(err => console.error(`[HYBRID ${executionId}] Email send error:`, err));
+
+      // Release lock on error
+      if (lockAcquired && lockSessionFingerprint) {
+        await SupabaseSessionService.releaseSessionLock(
+          prebooking.userEmail,
+          lockSessionFingerprint
+        );
+      }
 
       return NextResponse.json(
         {
@@ -336,6 +363,14 @@ export async function POST(request: NextRequest) {
             preparedAt,
             firedAt: preparedAt,
           }).catch(err => console.error(`[HYBRID ${executionId}] Email send error:`, err));
+
+          // Release lock on failure
+          if (lockAcquired && lockSessionFingerprint) {
+            await SupabaseSessionService.releaseSessionLock(
+              prebooking.userEmail,
+              lockSessionFingerprint
+            );
+          }
 
           return NextResponse.json(
             {
@@ -716,6 +751,14 @@ export async function POST(request: NextRequest) {
         alreadyBookedManually: mappedResult.alreadyBookedManually,
         confirmedAt,
       }).catch(err => console.error(`[HYBRID ${executionId}] Email send error:`, err));
+
+      // Release lock after successful execution
+      if (lockAcquired && lockSessionFingerprint) {
+        await SupabaseSessionService.releaseSessionLock(
+          prebooking.userEmail,
+          lockSessionFingerprint
+        );
+      }
 
       return NextResponse.json({
         success: true,

@@ -1419,4 +1419,127 @@ export class SupabaseSessionService {
       throw error;
     }
   }
+
+  /**
+   * RACE CONDITION PREVENTION: Acquire lock on session token
+   * Prevents cron job from updating token while it's being used
+   *
+   * @param email - User email
+   * @param fingerprint - Session fingerprint
+   * @param acquiredBy - Who acquired the lock ('execute-prebooking', 'booking', etc)
+   * @param lockDurationMs - How long to hold the lock (default 5 seconds)
+   * @returns true if lock acquired, false if already locked
+   */
+  static async acquireSessionLock(
+    email: string,
+    fingerprint: string,
+    acquiredBy: string,
+    lockDurationMs: number = 5000
+  ): Promise<boolean> {
+    try {
+      const { data, error } = await supabaseAdmin.rpc(
+        "acquire_session_lock",
+        {
+          p_user_email: email,
+          p_fingerprint: fingerprint,
+          p_acquired_by: acquiredBy,
+          p_lock_duration_ms: lockDurationMs,
+        }
+      );
+
+      if (error) {
+        console.error(
+          `[LOCK] Failed to acquire lock for ${email}:`,
+          error.message
+        );
+        return false;
+      }
+
+      console.log(
+        `[LOCK] ✅ Acquired lock for ${email} (${acquiredBy}, ${lockDurationMs}ms)`
+      );
+      return data === true;
+    } catch (error) {
+      console.error(`[LOCK] Error acquiring lock:`, error);
+      return false;
+    }
+  }
+
+  /**
+   * RACE CONDITION PREVENTION: Release lock on session token
+   *
+   * @param email - User email
+   * @param fingerprint - Session fingerprint
+   */
+  static async releaseSessionLock(
+    email: string,
+    fingerprint: string
+  ): Promise<void> {
+    try {
+      const { error } = await supabaseAdmin.rpc("release_session_lock", {
+        p_user_email: email,
+        p_fingerprint: fingerprint,
+      });
+
+      if (error) {
+        console.error(
+          `[LOCK] Failed to release lock for ${email}:`,
+          error.message
+        );
+        return;
+      }
+
+      console.log(`[LOCK] ✅ Released lock for ${email}`);
+    } catch (error) {
+      console.error(`[LOCK] Error releasing lock:`, error);
+    }
+  }
+
+  /**
+   * RACE CONDITION PREVENTION: Check if session has active lock
+   *
+   * @param email - User email
+   * @param fingerprint - Session fingerprint
+   * @returns true if lock is active, false otherwise
+   */
+  static async hasActiveLock(email: string, fingerprint: string): Promise<boolean> {
+    try {
+      const { data, error } = await supabaseAdmin.rpc("has_active_lock", {
+        p_user_email: email,
+        p_fingerprint: fingerprint,
+      });
+
+      if (error) {
+        console.error(
+          `[LOCK] Failed to check lock for ${email}:`,
+          error.message
+        );
+        return false;
+      }
+
+      return data === true;
+    } catch (error) {
+      console.error(`[LOCK] Error checking lock:`, error);
+      return false;
+    }
+  }
+
+  /**
+   * RACE CONDITION PREVENTION: Cleanup expired locks
+   * Should be called periodically to clean up stale locks
+   */
+  static async cleanupExpiredLocks(): Promise<void> {
+    try {
+      const { error } = await supabaseAdmin.rpc("cleanup_expired_locks");
+
+      if (error) {
+        console.error(`[LOCK] Failed to cleanup locks:`, error.message);
+        return;
+      }
+
+      console.log(`[LOCK] ✅ Expired locks cleaned up`);
+    } catch (error) {
+      console.error(`[LOCK] Error cleaning up locks:`, error);
+    }
+  }
 }
