@@ -229,11 +229,13 @@ function BookingDashboardContent({
           body: JSON.stringify(bookingRequest),
         });
 
-        if (!response.ok) {
+        // Parse response data first to check for expected error responses
+        const data = await response.json();
+
+        // Only throw for unexpected server errors (5xx) or if response has no data
+        if (!response.ok && response.status >= 500) {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
-
-        const data = await response.json();
 
         if (data.success) {
           if (bookingDay) {
@@ -284,6 +286,10 @@ function BookingDashboardContent({
             } else {
               toast.warning(data.message || "No se puede reservar aún");
             }
+          } else if (data.error === "prebooking_too_far_in_future") {
+            toast.warning("Pre-reserva no disponible", {
+              description: data.message || "No se pueden hacer pre-reservas con más de 7 días de antelación",
+            });
           } else if (data.error === "max_bookings_reached") {
             toast.error(data.message || "Máximo de reservas alcanzado");
           } else {
