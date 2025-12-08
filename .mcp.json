@@ -29,10 +29,11 @@
       "args": [
         "-y",
         "@supabase/mcp-server-supabase",
-        "--project-ref=yilljwyvwbdzofsrwiwq"
+        "--project-ref=${SUPABASE_PRJECT_REF}"
       ],
       "env": {
-        "SUPABASE_ACCESS_TOKEN": "sbp_b3799db773b3734c9edece1dc911c2b0fa456466"
+        "NEXT_PUBLIC_SUPABASE_ANON_KEY": "${NEXT_PUBLIC_SUPABASE_ANON_KEY}",
+        "SUPABASE_SERVICE_ROLE_KEY": "${SUPABASE_SERVICE_ROLE_KEY}"
       }
     }
   }

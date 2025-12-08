@@ -439,13 +439,45 @@ export async function POST(request: NextRequest) {
         });
 
         if (parsed) {
+          // QSTASH LIMITATION: Check if prebooking is more than 7 days in advance
+          // QStash doesn't allow scheduling messages more than 7 days in the future
+          const now = new Date();
+          const millisInDay = 24 * 60 * 60 * 1000;
+          const daysUntilAvailable =
+            (parsed.availableAt.getTime() - now.getTime()) / millisInDay;
+          console.log(
+            "[BOOKING] Days until prebooking availableAt:",
+            daysUntilAvailable
+          );
+          if (daysUntilAvailable > 7) {
+            return NextResponse.json(
+              {
+                success: false,
+                error: "prebooking_too_far_in_future",
+                message: `Todavía no está disponible hacer pre-reservas con más de 7 días de antelación. Podrás hacer esta pre-reserva a partir del ${new Date(parsed.availableAt.getTime() - 7 * millisInDay).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric" })}.`,
+                bookState: bookingResponse.bookState,
+                availableAt: parsed.availableAt.toISOString(),
+                daysUntilAvailable: Math.ceil(daysUntilAvailable),
+                clasesContratadas: bookingResponse.clasesContratadas,
+              },
+              {
+                status: 400,
+                headers: {
+                  "Access-Control-Allow-Origin": "*",
+                  "Access-Control-Allow-Methods":
+                    "GET, POST, PUT, DELETE, OPTIONS",
+                  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+                },
+              }
+            );
+          }
+
           // Check if user has reached the prebooking limit (15 for non-admins)
           const isAdmin = session.isAdmin || false;
 
           if (!isAdmin) {
-            const pendingCount = await preBookingService.countPendingByUser(
-              userEmail
-            );
+            const pendingCount =
+              await preBookingService.countPendingByUser(userEmail);
             const MAX_PREBOOKINGS = 15;
 
             if (pendingCount >= MAX_PREBOOKINGS) {

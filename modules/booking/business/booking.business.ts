@@ -1,10 +1,17 @@
-import { BookingService, BookingApiError } from '../api/services/booking.service';
-import { BookingMapper } from '../api/mappers/booking.mapper';
-import { BookingRequestParams, BookingCreateRequest } from '../api/models/booking.api';
-import { BookingDay, Booking, BookingStatus, BookingFilter } from '../models/booking.model';
-import { BookingUtils } from '../utils/booking.utils';
-import { BOOKING_CONSTANTS } from '../constants/booking.constants';
-import { AuthCookie } from '../../auth/api/services/cookie.service';
+import { AuthCookie } from "../../auth/api/services/cookie.service";
+import { BookingMapper } from "../api/mappers/booking.mapper";
+import { BookingRequestParams } from "../api/models/booking.api";
+import {
+  BookingApiError,
+  BookingService,
+} from "../api/services/booking.service";
+import {
+  Booking,
+  BookingDay,
+  BookingFilter,
+  BookingStatus,
+} from "../models/booking.model";
+import { BookingUtils } from "../utils/booking.utils";
 
 export interface BookingBusinessConfig {
   retryAttempts?: number;
@@ -36,8 +43,8 @@ export class BookingBusiness {
   ) {
     this.bookingService = bookingService;
     this.config = {
-      retryAttempts: config.retryAttempts ?? 3,
-      retryDelay: config.retryDelay ?? 1000,
+      retryAttempts: config.retryAttempts ?? 5,
+      retryDelay: config.retryDelay ?? 100,
     };
   }
 
@@ -47,7 +54,7 @@ export class BookingBusiness {
     cookies?: AuthCookie[]
   ): Promise<BookingDay> {
     if (!boxId) {
-      throw new Error('boxId is required to fetch bookings');
+      throw new Error("boxId is required to fetch bookings");
     }
 
     const apiDate = BookingUtils.formatDateForApi(date);
@@ -67,7 +74,6 @@ export class BookingBusiness {
         const enhancedBookingDay = this.enhanceBookingDay(bookingDay, date);
 
         return enhancedBookingDay;
-
       } catch (error) {
         if (error instanceof BookingApiError) {
           lastError = error;
@@ -83,35 +89,53 @@ export class BookingBusiness {
       }
     }
 
-    throw lastError || new BookingApiError('Unknown error during booking fetch', 500, 'UNKNOWN_ERROR');
+    throw (
+      lastError ||
+      new BookingApiError(
+        "Unknown error during booking fetch",
+        500,
+        "UNKNOWN_ERROR"
+      )
+    );
   }
 
-  validateBookingEligibility(booking: Booking, userContext?: any): BookingValidationResult {
+  validateBookingEligibility(
+    booking: Booking,
+    userContext?: any
+  ): BookingValidationResult {
     const errors: string[] = [];
     const warnings: string[] = [];
 
     if (booking.status === BookingStatus.DISABLED) {
-      errors.push('Esta clase no está disponible');
+      errors.push("Esta clase no está disponible");
     }
 
-    if (booking.status === BookingStatus.FULL && !booking.capacity.hasWaitlist) {
-      errors.push('Esta clase está completa');
+    if (
+      booking.status === BookingStatus.FULL &&
+      !booking.capacity.hasWaitlist
+    ) {
+      errors.push("Esta clase está completa");
     }
 
     if (booking.userBookingId) {
-      errors.push('Ya tienes una reserva para esta clase');
+      errors.push("Ya tienes una reserva para esta clase");
     }
 
     if (!booking.isIncludedInPlan) {
-      warnings.push('Esta clase no está incluida en tu plan actual');
+      warnings.push("Esta clase no está incluida en tu plan actual");
     }
 
-    if (BookingUtils.isPastTimeSlot(booking.timeSlot.startTime, booking.timeSlot.time)) {
-      errors.push('No puedes reservar clases que ya han comenzado');
+    if (
+      BookingUtils.isPastTimeSlot(
+        booking.timeSlot.startTime,
+        booking.timeSlot.time
+      )
+    ) {
+      errors.push("No puedes reservar clases que ya han comenzado");
     }
 
     if (booking.capacity.percentage > 90) {
-      warnings.push('Esta clase está casi completa');
+      warnings.push("Esta clase está casi completa");
     }
 
     return {
@@ -141,13 +165,25 @@ export class BookingBusiness {
 
   getBookingStatistics(bookings: Booking[]) {
     const total = bookings.length;
-    const available = bookings.filter(b => b.status === BookingStatus.AVAILABLE).length;
-    const booked = bookings.filter(b => b.status === BookingStatus.BOOKED).length;
-    const full = bookings.filter(b => b.status === BookingStatus.FULL).length;
-    const waitlist = bookings.filter(b => b.status === BookingStatus.WAITLIST).length;
+    const available = bookings.filter(
+      (b) => b.status === BookingStatus.AVAILABLE
+    ).length;
+    const booked = bookings.filter(
+      (b) => b.status === BookingStatus.BOOKED
+    ).length;
+    const full = bookings.filter((b) => b.status === BookingStatus.FULL).length;
+    const waitlist = bookings.filter(
+      (b) => b.status === BookingStatus.WAITLIST
+    ).length;
 
-    const totalCapacity = bookings.reduce((sum, b) => sum + b.capacity.limit, 0);
-    const totalOccupied = bookings.reduce((sum, b) => sum + b.capacity.current, 0);
+    const totalCapacity = bookings.reduce(
+      (sum, b) => sum + b.capacity.limit,
+      0
+    );
+    const totalOccupied = bookings.reduce(
+      (sum, b) => sum + b.capacity.current,
+      0
+    );
 
     return {
       total,
@@ -157,18 +193,26 @@ export class BookingBusiness {
       waitlist,
       totalCapacity,
       totalOccupied,
-      availabilityPercentage: total > 0 ? Math.round((available / total) * 100) : 0,
-      occupancyPercentage: totalCapacity > 0 ? Math.round((totalOccupied / totalCapacity) * 100) : 0,
+      availabilityPercentage:
+        total > 0 ? Math.round((available / total) * 100) : 0,
+      occupancyPercentage:
+        totalCapacity > 0
+          ? Math.round((totalOccupied / totalCapacity) * 100)
+          : 0,
       classTypes: BookingUtils.getAvailableClassTypes(bookings),
     };
   }
 
-
-  private enhanceBookingDay(bookingDay: BookingDay, requestedDate: string): BookingDay {
-    const enhancedBookings = bookingDay.bookings.map(booking => {
+  private enhanceBookingDay(
+    bookingDay: BookingDay,
+    requestedDate: string
+  ): BookingDay {
+    const enhancedBookings = bookingDay.bookings.map((booking) => {
       const enhanced = { ...booking };
 
-      if (BookingUtils.isPastTimeSlot(booking.timeSlot.startTime, requestedDate)) {
+      if (
+        BookingUtils.isPastTimeSlot(booking.timeSlot.startTime, requestedDate)
+      ) {
         enhanced.status = BookingStatus.DISABLED;
       }
 
@@ -190,7 +234,7 @@ export class BookingBusiness {
   }
 
   private delay(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 }
 
