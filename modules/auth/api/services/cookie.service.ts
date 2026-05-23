@@ -15,7 +15,12 @@ export interface CookieOptions {
 }
 
 export class CookieService {
+  // All aimharder cookies we care about extracting / forwarding upstream
   private static readonly REQUIRED_COOKIES = ['AWSALB', 'AWSALBCORS', 'PHPSESSID', 'amhrdrauth']
+  // Subset that must be present to consider a user authenticated.
+  // PHPSESSID is set by the browser when visiting aimharder.com (not by /api/login),
+  // so it cannot be required for our app-level auth check.
+  private static readonly AUTH_REQUIRED_COOKIES = ['amhrdrauth']
 
   static extractFromResponse(response: Response): AuthCookie[] {
     const setCookieHeaders = response.headers.getSetCookie?.() || []
@@ -86,7 +91,7 @@ export class CookieService {
 
   static validateRequiredCookies(cookies: AuthCookie[]): { isValid: boolean; missing: string[] } {
     const cookieNames = cookies.map(c => c.name)
-    const missing = this.REQUIRED_COOKIES.filter(required => !cookieNames.includes(required))
+    const missing = this.AUTH_REQUIRED_COOKIES.filter(required => !cookieNames.includes(required))
 
     return {
       isValid: missing.length === 0,

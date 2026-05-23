@@ -72,8 +72,17 @@ export async function POST(request: NextRequest) {
       })
 
       // Set cookies in response for browser storage
+      // CRITICAL: aimharder cookies arrive URL-encoded (e.g. amhrdrauth=69232%7C...).
+      // Next.js's cookies.set() URL-encodes values again, producing %257C (broken).
+      // We decode first so re-encoding yields the original wire format.
       result.cookies.forEach(cookie => {
-        response.cookies.set(cookie.name, cookie.value, {
+        let value = cookie.value
+        try {
+          value = decodeURIComponent(cookie.value)
+        } catch {
+          // Value was not URL-encoded; use as-is
+        }
+        response.cookies.set(cookie.name, value, {
           httpOnly: true,
           secure: process.env.NODE_ENV === 'production',
           sameSite: 'lax',

@@ -1,11 +1,31 @@
 import { AimharderRefreshService } from "./aimharder-refresh.service";
 import { AuthCookie, CookieService } from "./cookie.service";
-import { HtmlParserService, TokenData } from "./html-parser.service";
+import { TokenData } from "./html-parser.service";
 import {
   SessionData,
   SupabaseSessionService,
 } from "./supabase-session.service";
 import { generateBackgroundFingerprint } from "@/common/utils/background-fingerprint.utils";
+
+const AIMHARDER_LOGIN_API_URL = "https://login.aimharder.com/api/login";
+
+interface AimharderLoginApiResponse {
+  data?: {
+    userData?: {
+      id: number;
+      name?: string;
+      photo?: string;
+    };
+    auth?: {
+      authOK: boolean;
+      refreshToken?: string;
+    };
+  };
+  error?: {
+    code: number;
+    message: string;
+  };
+}
 
 export interface AimharderLoginRequest {
   email: string;
@@ -135,70 +155,76 @@ export class AimharderAuthService {
     sessionType: "device" | "background"
   ): Promise<AimharderLoginResponse> {
     try {
-      // Prepare form data for aimharder login
-      const formData = new URLSearchParams({
-        login: "Iniciar sesión",
-        loginfingerprint: fingerprint,
-        loginiframe: "0",
-        mail: email,
-        pw: password,
-      });
-
       console.log(
         `[${sessionType.toUpperCase()} LOGIN] Calling AimHarder for ${email} with fingerprint ${fingerprint.substring(0, 10)}...`
       );
 
-      // Make request to aimharder
-      const response = await fetch(process.env.AIMHARDER_LOGIN_URL!, {
+      // New JSON API: https://login.aimharder.com/api/login
+      // Body: { username, password, fingerprint }
+      // Success: 200 with { data: { userData, auth: { authOK, refreshToken } } }
+      // Failure: 401 with { error: { code, message } }
+      const response = await fetch(AIMHARDER_LOGIN_API_URL, {
         method: "POST",
         headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          "X-Requested-With": "XMLHttpRequest",
           "User-Agent":
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36",
         },
-        body: formData.toString(),
+        body: JSON.stringify({
+          username: email,
+          password,
+          fingerprint,
+        }),
       });
 
-      if (!response.ok) {
-        return {
-          success: false,
-          error: `Aimharder server error: ${response.status} ${response.statusText}`,
-        };
-      }
-
-      // Extract cookies from response
+      // Extract cookies regardless of status (aimharder may set cookies even on errors)
       const cookies = CookieService.extractFromResponse(response);
 
-      // Parse HTML response
-      const html = await response.text();
+      let payload: AimharderLoginApiResponse | null = null;
+      try {
+        payload = (await response.json()) as AimharderLoginApiResponse;
+      } catch {
+        payload = null;
+      }
 
-      // Validate the response
-      const validation = HtmlParserService.validateHtmlResponse(html);
-      if (!validation.isValid) {
+      if (!response.ok || payload?.error) {
+        const errorMessage =
+          payload?.error?.message === "LOGIN_ERROR_LOGIN"
+            ? "Invalid credentials"
+            : payload?.error?.message ||
+              `Aimharder server error: ${response.status} ${response.statusText}`;
         return {
           success: false,
-          error:
-            validation.errorMessage || "Invalid credentials or login failed",
+          error: errorMessage,
         };
       }
 
-      // Extract token from HTML
-      const tokenData = HtmlParserService.extractTokenFromIframe(html);
-      if (!tokenData || !tokenData.token) {
+      const refreshToken = payload?.data?.auth?.refreshToken;
+      const authOK = payload?.data?.auth?.authOK;
+
+      if (!authOK || !refreshToken) {
         return {
           success: false,
-          error: "Failed to extract authentication token",
+          error: "Invalid credentials or login failed",
         };
       }
 
-      // Validate required cookies
+      const tokenData: TokenData = {
+        token: refreshToken,
+        fingerprint,
+        user: payload?.data?.userData?.id?.toString(),
+      };
+
+      // Validate required cookies (amhrdrauth must be present after a successful login)
       const cookieValidation = CookieService.validateRequiredCookies(cookies);
       if (!cookieValidation.isValid) {
         console.warn(
           `[${sessionType.toUpperCase()} LOGIN] Missing required cookies:`,
           cookieValidation.missing
         );
-        // Continue but log warning
+        // Continue but log warning - some cookies (like PHPSESSID) get set later by setrefresh
       }
 
       // Store session in Supabase with session type
@@ -219,6 +245,9 @@ export class AimharderAuthService {
       );
 
       // Call setrefresh to get the refresh token and update the database
+      // CRITICAL: setrefresh also sets PHPSESSID for aimharder.com domain,
+      // which the middleware requires to consider the user authenticated
+      let finalCookies = cookies;
       try {
         const refreshResult = await AimharderRefreshService.refreshSession({
           token: tokenData.token,
@@ -238,6 +267,16 @@ export class AimharderAuthService {
             refreshResult.refreshToken,
             finalFingerprint // Use the correct fingerprint to target specific session
           );
+
+          // Persist enriched cookies (PHPSESSID for aimharder.com is set by setrefresh)
+          if (refreshResult.cookies && refreshResult.cookies.length > 0) {
+            finalCookies = refreshResult.cookies;
+            await SupabaseSessionService.updateCookies(
+              email,
+              refreshResult.cookies,
+              finalFingerprint
+            );
+          }
 
           console.log(
             `[${sessionType.toUpperCase()} LOGIN] Refresh token updated for ${email} with fingerprint ${finalFingerprint.substring(0, 10)}...`
@@ -265,7 +304,7 @@ export class AimharderAuthService {
           token: tokenData.token,
           tokenData,
         },
-        cookies,
+        cookies: finalCookies,
       };
     } catch (error) {
       console.error(

@@ -10,6 +10,7 @@ export interface RefreshResponse {
   success: boolean;
   refreshToken?: string;
   fingerprint?: string;
+  cookies?: AuthCookie[];
   error?: string;
 }
 
@@ -158,6 +159,12 @@ export class AimharderRefreshService {
         };
       }
 
+      // Capture cookies set by setrefresh (notably PHPSESSID for aimharder.com)
+      const newCookies = CookieService.extractFromResponse(response);
+      const mergedCookies = newCookies.length > 0
+        ? CookieService.mergeCookies(request.cookies, newCookies)
+        : request.cookies;
+
       const html = await response.text();
       const hasRefreshScript = html.includes(
         'localStorage.setItem("refreshToken"'
@@ -184,6 +191,7 @@ export class AimharderRefreshService {
         success: true,
         refreshToken: refreshData.refreshToken,
         fingerprint: refreshData.fingerprint,
+        cookies: mergedCookies,
       };
     } catch (error) {
       return {

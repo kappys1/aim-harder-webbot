@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
-const REQUIRED_COOKIES = ['AWSALB', 'AWSALBCORS', 'PHPSESSID', 'amhrdrauth']
+// PHPSESSID is intentionally NOT required: it's an aimharder.com session cookie
+// set by the browser when visiting aimharder.com pages, not by /api/login or /setrefresh.
+// `amhrdrauth` is the real auth token (userId|expiry|hash) and is sufficient.
+const REQUIRED_COOKIES = ['amhrdrauth']
 
 function isAuthenticated(request: NextRequest): boolean {
   // Check if all required cookies exist
